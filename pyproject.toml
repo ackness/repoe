@@ -13,7 +13,7 @@ packages = [
 repoe = 'RePoE.run_parser:main'
 
 [tool.poetry.dependencies]
-python = "^3.11"
+python = "^3.13"
 pillow = "12.1.1"
 requests = "^2.31.0"
 pypoe = {path = "../PyPoE", develop = true}
