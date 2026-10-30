@@ -68,8 +68,10 @@ def validate_candidate(*, source_lock, source, raw, candidate, manifest_sha256=N
     }
     if profile != facts.BASE_PROFILE:
         names.update({"skill_core.json", "source-lock.json"})
-    if profile == facts.GEMS_PROFILE:
+    if profile in (facts.GEMS_PROFILE, facts.ITEMS_ACTORS_PROFILE):
         names.update({"gems.json", "constraints.json"})
+    if profile == facts.ITEMS_ACTORS_PROFILE:
+        names.update({"items.json", "actors.json"})
     if set(manifest["files"]) != names:
         raise ValueError("Unexpected native facts payload inventory")
     actual = {p.relative_to(directory).as_posix() for p in directory.rglob("*") if p.is_file() or p.is_symlink()}

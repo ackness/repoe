@@ -66,6 +66,20 @@ ingress to 39 DATs plus PSG. Its v3 facts retain item-based gem identity, nested
 effect order, raw requirements, support families and ordered constraint tokens.
 It does not select a playable subset or evaluate support/level/quality policy.
 
+The opt-in [`--profile items-actors-bc`](RePoE/docs/native_items_actors.md)
+extends the same native ingress to 77 DATs plus PSG. It preserves eight-slot
+modifiers, native item/component/socketable joins, constants and actor facts.
+It remains partial, unfiltered source inventory; units, complete metadata and
+playable catalogue/actor semantics are not certified.
+
+[`descriptions:candidate`](RePoE/docs/native_descriptions.md) exports a separate
+selected CSD domain from explicitly pinned raw resources. It keeps every ordered
+branch, language declaration, restriction, handler token, include and suppression
+with UTF-16 byte spans. It does not use the legacy formatter, flatten overrides,
+select a translation or execute handlers. Join this domain to native numerical
+facts by game stat ID and exact game/patch/realm; international Simplified Chinese
+text does not establish CN-realm numerical equivalence.
+
 PoE2 `stat_translations` exports client descriptions by default, without querying
 the trade API. Optional trade text associations require an explicitly supplied,
 previously captured snapshot. It reads the existing
