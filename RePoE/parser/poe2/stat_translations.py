@@ -78,7 +78,9 @@ class stat_translations(Parser_Module):
             "trade_stats": (
                 list(trade_stats.values())
                 if trade_stats
-                else list(partial_trade_stats.values()) if partial_trade_stats else None
+                else list(partial_trade_stats.values())
+                if partial_trade_stats
+                else None
             ),
         }
 

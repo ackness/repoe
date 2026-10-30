@@ -44,7 +44,6 @@ def pascal_case(key: str):
 
 
 class world_areas(Parser_Module):
-
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
         self.packs = self.relational_reader["MonsterPacks.dat64"]
@@ -67,7 +66,7 @@ class world_areas(Parser_Module):
         if row in self.packs.index["WorldAreas"]:
             result["packs"] = [self.process_pack(p) for p in self.packs.index["WorldAreas"][row]]
         if row["Topologies"]:
-            result["topologies"] = [self.process_layout(l) for l in row["Topologies"]]
+            result["topologies"] = [self.process_layout(layout) for layout in row["Topologies"]]
 
         return result
 

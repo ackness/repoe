@@ -85,15 +85,28 @@ class buff_visuals(Parser_Module):
  </style>
 </head>
 <body>
-{"".join(f'''
+{
+                "".join(
+                    f'''
   <div id="{html.escape(icon)}">
-    <h3>{html.escape(' / '.join(sorted(set([buff["name"] for buff in buffs if "name" in buff] or [
-        source["name"]
-        for buff in buffs
-        for sources in buff.get("sources", {}).values()
-        for source in sources
-        if "name" in source
-    ]))))}</h3>
+    <h3>{
+                        html.escape(
+                            " / ".join(
+                                sorted(
+                                    set(
+                                        [buff["name"] for buff in buffs if "name" in buff]
+                                        or [
+                                            source["name"]
+                                            for buff in buffs
+                                            for sources in buff.get("sources", {}).values()
+                                            for source in sources
+                                            if "name" in source
+                                        ]
+                                    )
+                                )
+                            )
+                        )
+                    }</h3>
     <img src="{self.img_path}{html.escape(path.splitext(icon)[0])}.png" alt="status icon">
     <details>
       <summary>Details
@@ -103,7 +116,10 @@ class buff_visuals(Parser_Module):
       <p>BuffVisuals id(s): {", ".join(id_by_icon[icon])}</p>
       <ul>{"".join(self.html(buff) for buff in buffs)}</ul>
     </details>
-  </div>''' for icon, buffs in by_icon.items())}
+  </div>'''
+                    for icon, buffs in by_icon.items()
+                )
+            }
 <script>
 function openAll() {{
   document.querySelectorAll('details').forEach(e => e.setAttribute('open', true));
@@ -133,19 +149,34 @@ if (window.location.hash) {{
  </style>
 </head>
 <body>
-{"".join(f'''
+{
+                "".join(
+                    f'''
   <div>
     <a href="buff_visuals.html#{html.escape(icon)}">
         <img src="{self.img_path}{html.escape(path.splitext(icon)[0])}.png" alt="status icon" title="{
-            html.escape(' / '.join(sorted(set([buff["name"] for buff in buffs if "name" in buff] or [
-                source["name"]
-                for buff in buffs
-                for sources in buff.get("sources", {}).values()
-                for source in sources
-                if "name" in source
-            ]))))}">
+                        html.escape(
+                            " / ".join(
+                                sorted(
+                                    set(
+                                        [buff["name"] for buff in buffs if "name" in buff]
+                                        or [
+                                            source["name"]
+                                            for buff in buffs
+                                            for sources in buff.get("sources", {}).values()
+                                            for source in sources
+                                            if "name" in source
+                                        ]
+                                    )
+                                )
+                            )
+                        )
+                    }">
     </a>
-  </div>''' for icon, buffs in by_icon.items())}
+  </div>'''
+                    for icon, buffs in by_icon.items()
+                )
+            }
 </body>
 </html>""",
             self.data_path,
@@ -154,8 +185,7 @@ if (window.location.hash) {{
 
     def html(self, buff, type=""):
         return (
-            (
-                f"""
+            f"""
         <li>
           <h4>{html.escape(buff["name"])}{f" ({buff['buff_category']})" if "buff_category" in buff else ""}</h4>
           {f"<p>{html.escape(buff['description'])}</p>" if "description" in buff else ""}
@@ -163,11 +193,9 @@ if (window.location.hash) {{
           {f"<p>buff id: {buff['buff_id']}" if "buff_id" in buff else ""}
         </li>
 """
-                if "name" in buff
-                else ""
-            )
-            + "".join(self.html(buff, k) for k, buffs in buff.get("sources", {}).items() for buff in buffs)
-        )
+            if "name" in buff
+            else ""
+        ) + "".join(self.html(buff, k) for k, buffs in buff.get("sources", {}).items() for buff in buffs)
 
     def source(self, row: DatRecord):
         result = {}

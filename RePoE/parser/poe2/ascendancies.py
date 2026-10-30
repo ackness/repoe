@@ -21,7 +21,6 @@ COLS = {
 
 
 class ascendancies(Parser_Module):
-
     def write(self) -> None:
         self.relational_reader["AscendancyPassiveSkillOverrides.dat64"].build_index("AscendancyToOverrideFor")
         write_any_json(

@@ -1,11 +1,9 @@
-import re
 import struct
 
-from PyPoE.poe.file.shared import AbstractFile, ParserError
+from PyPoE.poe.file.shared import AbstractFile
 
 
 class TDTFile(AbstractFile):
-
     tag = None
     extra = (
         "version",

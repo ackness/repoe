@@ -8,27 +8,49 @@ This fork is maintained as the game-fact exporter for PoBR. The upstream parser
 remains the base; PoBR calculation rules and the independent Chinese translation
 repository are maintained separately.
 
-The exporter dependencies use a fixed PyPoE Git revision in `pyproject.toml` and
-`poetry.lock`. The local PoE2 schema input and its provenance are in
-[`schema/`](schema/README.md). Local commands use mise:
+Development uses mise + uv. `mise.toml` selects Python and uv; standard project
+metadata lives in `pyproject.toml`, and `uv.lock` fixes the resolved dependencies,
+including a full PyPoE Git revision. Run from this checkout after `mise trust` and
+`mise install`:
 
 ```sh
 mise run setup
-mise run schema:check
 mise run check
+mise run schema:candidate -- --out .cache/schema/example
 ```
 
-These commands prepare pinned dependencies, verify the schema input and smoke-test
-CLI loading. They do not activate the prepared schema, download a game client or
-export/publish a game-data snapshot. PyPoE stays in a noneditable isolated Poetry
-environment rather than a sibling checkout.
+`setup` uses `uv sync --locked` to create `.venv`; its first run needs dependency
+downloads. PyPoE is a noneditable Git dependency, not a sibling checkout. `check`
+runs the offline lock check, fixed schema checksum, Ruff lint/format checks,
+regression tests and CLI smoke test. `mise run test` and `mise run lint` are also
+available separately. Generated `RePoE/model/` files are excluded from regular
+lint/format; update them explicitly with `mise run models:generate -- [schema paths]`,
+which invokes the locked generator with Ruff formatting. The schema/model generator
+and PyPoE retain their own transitive dependencies; our workflow does not invoke
+Poetry, Flake8 or Black.
 
-Schema activation is a separate step: upstream adaptation reads the installed
-specification, its default output overwrites that input, and some virtual fields
-have nondeterministic ordering. Both the pinned baseline and experimental output
-also have existing validation failures. See the scoped limitations in
-[`schema/README.md`](schema/README.md). Import completion and CLI loading are not
-evidence of successful client decoding.
+The local PoE2 schema input and provenance are in [`schema/`](schema/README.md).
+`schema:candidate` creates a new, validated client-native candidate under `.cache/`,
+without modifying installed PyPoE files or downloading game resources. To explicitly
+try it against a selected client, use a separate output directory:
+
+```sh
+mise exec -- uv run --locked --offline repoe passives --poe2 \
+  --file /path/to/client --outdir .cache/exports/example \
+  --schema-candidate .cache/schema/example
+```
+
+Candidate generation and verification require this source checkout, its locked
+environment and schema inputs; they are not a standalone wheel feature. Client
+decoding and each exporter module still need patch-specific validation. Existing
+modules may require further native field adaptation; generation success is not a
+full export or publication approval. The default CLI path retains the upstream
+specification for compatibility.
+
+Passive export now reads every supplied stat slot, including zero and negative
+values, and rejects duplicate stat IDs or missing values instead of truncating
+or silently overwriting them. This is a general reader correction, not a table
+of hardcoded node values. It does not repair missing graph membership or geometry.
 
 The original RePoE documentation follows.
 

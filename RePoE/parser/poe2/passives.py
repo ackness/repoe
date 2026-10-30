@@ -10,7 +10,7 @@ PASSIVE_COLS = {
     "PassiveSkillGraphId": "hash",
     "Name": "name",
     "FlavourText": "flavour_text",
-    "ReminderTextKeys": "reminder_text",
+    "ReminderStrings": "reminder_text",
     "SkillPointsGranted": "skill_points",
     "IsKeystone": "is_keystone",
     "IsNotable": "is_notable",
@@ -20,7 +20,7 @@ PASSIVE_COLS = {
     "IsJewelSocket": "is_jewel_socket",
     "IsAscendancyStartingNode": "is_ascendancy_starting_node",
     "IsRootOfAtlasTree": "is_atlas_root",
-    "AtlasnodeGroup": "atlas_group",
+    "AtlasNodeGroup": "atlas_group",
     "WeaponPointsGranted": "weapon_set_points",
     "IsFree": "is_free",
 }
@@ -32,10 +32,22 @@ TRANSLATION_FILES = {
 }
 
 
+def _column(row, name, legacy=None):
+    # DatRecord is a list; membership does not test its physical/virtual keys.
+    try:
+        return row[name]
+    except KeyError:
+        if legacy is None:
+            raise
+        return row[legacy]
+
+
 def passive(row, translation_file, lang):
-    result = {k: row[col] for col, k in PASSIVE_COLS.items()}
-    if row["PassiveSkillBuffs"]:
-        result["buff_definitions"] = [buff["BuffDefinitionsKey"]["Id"] for buff in row["PassiveSkillBuffsKeys"]]
+    legacy = {"ReminderStrings": "ReminderTextKeys", "AtlasNodeGroup": "AtlasnodeGroup"}
+    result = {key: _column(row, col, legacy.get(col)) for col, key in PASSIVE_COLS.items()}
+    buffs = _column(row, "PassiveSkillBuffs", "PassiveSkillBuffsKeys")
+    if buffs:
+        result["buff_definitions"] = [_column(buff, "BuffDefinition", "BuffDefinitionsKey")["Id"] for buff in buffs]
     if row["Ascendancy"]:
         result["ascendancy"] = row["Ascendancy"]["Id"]
     if row["Icon_DDSFile"]:
@@ -46,7 +58,11 @@ def passive(row, translation_file, lang):
         result["granted_skill"] = row["GrantedSkill"]["BaseItemType"]["Id"]
     if row["AtlasSubTree"]:
         result["atlas_subtree"] = atlas_subtree(row["AtlasSubTree"])
-    stats = dict(zip([stat["Id"] for stat in row["Stats"]], [row[f"Stat{i}Value"] for i in range(1, 5)]))
+    stats = {}
+    for index, stat in enumerate(row["Stats"], 1):
+        if stat["Id"] in stats:
+            raise ValueError(f"Duplicate passive stat: {row['Id']}/{stat['Id']}")
+        stats[stat["Id"]] = row[f"Stat{index}Value"]
     result["stats"] = stats
     if translation_file:
         result["stat_text"] = translation_file.get_translation(stats.keys(), stats, lang=lang)
@@ -73,7 +89,7 @@ def uiart(row):
     result = {"id": row["Id"], "glow": row["Glow"]}
     for size in ["Small", "Medium", "Large"]:
         for blank in [False, True]:
-            result[f"group_bg_{size.lower()}_{"blank" if blank else "normal"}"] = row[
+            result[f"group_bg_{size.lower()}_{'blank' if blank else 'normal'}"] = row[
                 f"GroupBackground{size}{'Blank' if blank else ''}"
             ]
     for size in ["Passive", "Notable", "Keystone", "Jewel", "AscendancyStart"]:
@@ -91,7 +107,6 @@ def frame_art(row):
 
 
 class passives(Parser_Module):
-
     def write(self) -> None:
         all_passives = self.relational_reader["PassiveSkills.dat64"]
         if "PassiveSkillGraphId" not in all_passives.index:
