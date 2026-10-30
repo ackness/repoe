@@ -35,7 +35,7 @@ depends = ["schema:check", "lint", "test"]
 run = ["uv lock --check --offline", "uv run --locked --offline repoe --help"]
 
 [tasks."facts:candidate"]
-description = "Export native facts; explicit source-lock/source/raw/out and optional core-skills-a0 or gems-constraints-a1 profile"
+description = "Export native facts; explicit source-lock/source/raw/out and optional core-skills-a0, gems-constraints-a1 or items-actors-bc profile"
 run = "uv run --locked --offline python -B -m RePoE.native_facts"
 
 [tasks."facts:validate"]

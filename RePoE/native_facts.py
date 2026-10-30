@@ -20,7 +20,8 @@ FORMAT = "repoe-native-facts/v1"
 BASE_PROFILE = "base-v1"
 SKILLS_PROFILE = "core-skills-a0"
 GEMS_PROFILE = "gems-constraints-a1"
-PROFILES = (BASE_PROFILE, SKILLS_PROFILE, GEMS_PROFILE)
+ITEMS_ACTORS_PROFILE = "items-actors-bc"
+PROFILES = (BASE_PROFILE, SKILLS_PROFILE, GEMS_PROFILE, ITEMS_ACTORS_PROFILE)
 TABLES = (
     "Characters",
     "ClassPassiveSkillOverrides",
@@ -55,12 +56,17 @@ def _json(value):
 def profile_tables(profile):
     if profile == BASE_PROFILE:
         return TABLES
-    if profile in (SKILLS_PROFILE, GEMS_PROFILE):
+    if profile in (SKILLS_PROFILE, GEMS_PROFILE, ITEMS_ACTORS_PROFILE):
         from RePoE.native_skills import TABLES as skill_tables
 
-        if profile == GEMS_PROFILE:
+        if profile in (GEMS_PROFILE, ITEMS_ACTORS_PROFILE):
             from RePoE.native_gems import TABLES as gem_tables
 
+            if profile == ITEMS_ACTORS_PROFILE:
+                from RePoE.native_items import TABLES as item_tables
+                from RePoE.native_actor_facts import TABLES as actor_tables
+
+                return TABLES + skill_tables + gem_tables + item_tables + actor_tables
             return TABLES + skill_tables + gem_tables
         return TABLES + skill_tables
     raise ValueError(f"Unknown native facts profile: {profile}")
@@ -532,7 +538,7 @@ def _candidate_payloads(verified, source_identity, tool_identity, *, profile=BAS
         scope = native_skills.LIMITS
         documents["diagnostics.json"]["scope"] = scope
         documents["diagnostics.json"]["diagnostics"].extend(diagnostics)
-    if profile == GEMS_PROFILE:
+    if profile in (GEMS_PROFILE, ITEMS_ACTORS_PROFILE):
         from RePoE import native_gems
 
         gems, constraints, gem_summary, diagnostics = native_gems.project(tables, _resolve)
@@ -559,6 +565,17 @@ def _candidate_payloads(verified, source_identity, tool_identity, *, profile=BAS
                 if target in schema_tables
                 else "unknown"
             )
+    if profile == ITEMS_ACTORS_PROFILE:
+        from RePoE import native_items, native_actor_facts
+
+        items, item_summary, item_diagnostics = native_items.project(tables, _resolve)
+        actors, actor_summary, actor_diagnostics = native_actor_facts.project(tables, _resolve)
+        documents.update({"items.json": items, "actors.json": actors})
+        summary.update(item_summary)
+        summary.update(actor_summary)
+        scope = native_actor_facts.LIMITS
+        documents["diagnostics.json"]["scope"] = scope
+        documents["diagnostics.json"]["diagnostics"].extend(item_diagnostics + actor_diagnostics)
     documents.update({f"tables/{name}.json": table for name, table in tables.items()})
     documents["graph.json"] = graph
     if inputs["pypoe_sources"] != {
@@ -583,10 +600,13 @@ def _candidate_payloads(verified, source_identity, tool_identity, *, profile=BAS
         producer["RePoE/native_skills.py"] = schema_candidate._sha(
             (schema_candidate.ROOT / "RePoE/native_skills.py").read_bytes()
         )
-    if profile == GEMS_PROFILE:
+    if profile in (GEMS_PROFILE, ITEMS_ACTORS_PROFILE):
         producer["RePoE/native_gems.py"] = schema_candidate._sha(
             (schema_candidate.ROOT / "RePoE/native_gems.py").read_bytes()
         )
+    if profile == ITEMS_ACTORS_PROFILE:
+        for name in ("RePoE/native_items.py", "RePoE/native_actor_facts.py"):
+            producer[name] = schema_candidate._sha((schema_candidate.ROOT / name).read_bytes())
     manifest = {
         "format": (
             FORMAT
@@ -594,6 +614,8 @@ def _candidate_payloads(verified, source_identity, tool_identity, *, profile=BAS
             else "repoe-native-facts/v2"
             if profile == SKILLS_PROFILE
             else "repoe-native-facts/v3"
+            if profile == GEMS_PROFILE
+            else "repoe-native-facts/v4"
         ),
         "status": "partial-candidate",
         "production_ready": False,

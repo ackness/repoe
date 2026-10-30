@@ -10,7 +10,7 @@ from RePoE import native_facts as facts, native_gems, native_validate, schema_ca
 from test_native_skills import NativeSkillsFixture
 
 
-class NativeGemTests(NativeSkillsFixture):
+class NativeGemFixture(NativeSkillsFixture):
     def setUp(self):
         super().setUp()
         self.rows.update({name: [] for name in native_gems.TABLES})
@@ -97,6 +97,8 @@ class NativeGemTests(NativeSkillsFixture):
             source_lock=self.lock, source="fixture", raw=self.raw, candidate=self.out, profile=facts.GEMS_PROFILE
         )
 
+
+class NativeGemTests(NativeGemFixture):
     def test_source_item_identity_nested_order_and_raw_requirements_are_preserved(self):
         with patch("socket.socket", side_effect=AssertionError("network")):
             manifest = self.create()

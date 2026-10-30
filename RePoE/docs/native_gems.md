@@ -123,3 +123,7 @@ bytes, current producer/trusted decoder identity, complete raw replay and the
 independent repeated-graph invariant. Independently comparing projections to source
 rows remains necessary: replay alone shares producer logic. A correct facts seal
 does not activate data, certify all rows playable or prove full game correctness.
+
+The explicit [`items-actors-bc` profile](native_items_actors.md) adds item/mod,
+socketable and actor facts through the same native ingress, keeping this v3
+profile and its exact 39-table inventory unchanged.
