@@ -16,7 +16,7 @@ repoe = 'RePoE.run_parser:main'
 python = "^3.13"
 pillow = "12.1.1"
 requests = "^2.31.0"
-pypoe = {path = "../PyPoE", develop = true}
+pypoe = {git = "https://github.com/repoe-fork/pypoe.git", rev = "66d1d7442c5718260e1a8efd24989d22987e91af"}
 pydantic = "^2.7.1"
 datamodel-code-generator = ">0.60.2"
 

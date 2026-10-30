@@ -2,6 +2,36 @@
 
 Repository of Path of Exile resources for tool developers.
 
+## PoBR-maintained fork
+
+This fork is maintained as the game-fact exporter for PoBR. The upstream parser
+remains the base; PoBR calculation rules and the independent Chinese translation
+repository are maintained separately.
+
+The exporter dependencies use a fixed PyPoE Git revision in `pyproject.toml` and
+`poetry.lock`. The local PoE2 schema input and its provenance are in
+[`schema/`](schema/README.md). Local commands use mise:
+
+```sh
+mise run setup
+mise run schema:check
+mise run check
+```
+
+These commands prepare pinned dependencies, verify the schema input and smoke-test
+CLI loading. They do not activate the prepared schema, download a game client or
+export/publish a game-data snapshot. PyPoE stays in a noneditable isolated Poetry
+environment rather than a sibling checkout.
+
+Schema activation is a separate step: upstream adaptation reads the installed
+specification, its default output overwrites that input, and some virtual fields
+have nondeterministic ordering. Both the pinned baseline and experimental output
+also have existing validation failures. See the scoped limitations in
+[`schema/README.md`](schema/README.md). Import completion and CLI loading are not
+evidence of successful client decoding.
+
+The original RePoE documentation follows.
+
 Forked from [brather1ng/RePoE](https://github.com/brather1ng/RePoE).
 
 Contains data about stats, mods, base items, gems and more. See the `data`

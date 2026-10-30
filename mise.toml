@@ -1,0 +1,22 @@
+[tools]
+python = "3.14.10"
+uv = "0.13.6"
+
+[tasks.setup]
+description = "Install the locked exporter environment with the selected Python"
+run = [
+  "uvx --python python --from poetry==2.5.1 poetry env use python",
+  "uvx --python python --from poetry==2.5.1 poetry sync --only main",
+]
+
+[tasks."schema:check"]
+description = "Verify the prepared schema input without activating it"
+run = "shasum -a 256 -c schema/SHA256SUMS"
+
+[tasks.check]
+description = "Check the lock, schema bytes and exporter CLI without fetching game data"
+run = [
+  "uvx --offline --python python --from poetry==2.5.1 poetry check --lock",
+  "shasum -a 256 -c schema/SHA256SUMS",
+  "uvx --offline --python python --from poetry==2.5.1 poetry run repoe --help",
+]
