@@ -132,11 +132,7 @@ def _inputs(source_lock, source, raw, expected_source_lock_sha256):
 
 def _payloads(lock_bytes, selected, verified, source):
     files = {name: native_csd.parse_csd(name, data) for name, data in sorted(verified.items())}
-    reachable = set()
-    for root in selected["roots"]:
-        reachable.add(root)
-        for occurrence in native_csd.iter_records(files, root):
-            reachable.add(occurrence["path"])
+    reachable = native_csd.validate_closure(files, selected["roots"])
     if reachable != files.keys():
         raise ValueError("Resource inventory has files outside selected literal include closure")
     descriptions = branches = 0

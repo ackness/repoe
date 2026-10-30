@@ -249,15 +249,53 @@ def parse_csd(path, raw):
     }
 
 
-def iter_records(files, root, *, max_depth=16):
-    """Yield lexical occurrences with their include chain, without suppression policy."""
+def validate_closure(files, roots, *, max_depth=16):
+    """Check file reachability/cycles/longest depth without expanding occurrences."""
+    heights = {}
+    active = set()
+
+    def height(path):
+        if len(active) > max_depth:
+            raise ValueError(f"Over-depth CSD includes: {path}")
+        if path in active:
+            raise ValueError(f"Cyclic CSD includes: {path}")
+        if path in heights:
+            return heights[path]
+        if path not in files:
+            raise ValueError(f"Missing explicit CSD include: {path}")
+        active.add(path)
+        result = 0
+        for record in files[path]["records"]:
+            if record["kind"] == "include":
+                result = max(result, 1 + height(record["target"]))
+        active.remove(path)
+        heights[path] = result
+        if result > max_depth:
+            raise ValueError(f"Over-depth CSD includes: {path}")
+        return result
+
+    for root in roots:
+        height(resource_path(root))
+    return set(heights)
+
+
+def iter_records(files, root, *, max_depth=16, max_occurrences=1_000_000):
+    """Yield repeated lexical occurrences, failing explicitly at the work budget."""
+    if type(max_occurrences) is not int or not 0 < max_occurrences <= 1_000_000:
+        raise ValueError("CSD occurrence budget must be between one and one million")
+    validate_closure(files, [root], max_depth=max_depth)
+    count = 0
 
     def walk(path, chain):
+        nonlocal count
         if len(chain) > max_depth or path in [item["path"] for item in chain]:
             raise ValueError(f"Cyclic or over-depth CSD includes: {path}")
         if path not in files:
             raise ValueError(f"Missing explicit CSD include: {path}")
         for index, record in enumerate(files[path]["records"]):
+            count += 1
+            if count > max_occurrences:
+                raise ValueError("CSD occurrence work budget exceeded")
             reference = {"path": path, "record": index}
             yield {**reference, "include_chain": chain, "fact": record}
             if record["kind"] == "include":

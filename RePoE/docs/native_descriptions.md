@@ -34,6 +34,10 @@ resources require BOM UTF-16LE. No silent parse gaps or partial branch export
 are accepted. Unused siblings outside the explicit resource inventory are not
 read and are not part of this package's source claim.
 
+Closure validation visits each file once and memoizes its longest child depth;
+repeated include directives do not expand into repeated validation work. All
+literal include records remain in the output.
+
 The output has `descriptions.json`, `diagnostics.json`, exact `source-lock.json` and a completion-last
 `manifest.json`. Existing output directories and symlinks are never replaced.
 Outputs must be new directories under this checkout's `.cache/` and outside raw
@@ -78,6 +82,10 @@ includes remain repeated occurrences, exposing local versus inherited origins.
 It does not apply a cache's precedence, suppression or formatter policy. A future
 renderer must define and separately verify those decisions rather than inheriting
 the legacy renderer's known restrictions/language losses.
+Occurrence traversal has a default budget of one million records per call;
+`max_occurrences` can lower that budget. It raises explicitly when exceeded and
+does not silently truncate. Package validation uses graph analysis instead of
+this occurrence traversal.
 
 The manifest binds all payload sizes/hashes, exact lock/selected-source identities,
 raw resources, Python version and four producer/dependency file fingerprints.
