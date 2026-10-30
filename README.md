@@ -47,12 +47,41 @@ modules may require further native field adaptation; generation success is not a
 full export or publication approval. The default CLI path retains the upstream
 specification for compatibility.
 
-`uv --offline` controls package resolution only. Exporter modules can still make
-network requests: in particular, `stat_translations` requests the live trade API,
-and a CDN client path can fetch game resources. Those API responses are not pinned
-or included in schema candidate receipts. Until the separate snapshot-input work
-is implemented, that module is not a reproducible offline export path. The offline
-tests and schema candidate generation do not run those live export requests.
+PoE2 `stat_translations` exports client descriptions by default, without querying
+the trade API. Optional trade text associations require an explicitly supplied,
+previously captured snapshot. It reads the existing
+[poe2-zh-cn-stats schema-1 snapshot format](https://github.com/ackness/poe2-zh-cn-stats/blob/main/src/sources.mjs)
+(`manifest.json` and `raw/trade-en.json.gz`), not translation worksheets. No sibling
+checkout, collector, API access or translation dependency is needed at runtime:
+
+```sh
+# Pure client descriptions:
+mise exec -- uv run --locked --offline repoe stat_translations --poe2 \
+  --file /path/to/local/client --outdir .cache/exports/client-only
+
+# Explicit English international text candidates; replace the digest with a
+# manifest.json SHA-256 from a trusted source lock:
+mise exec -- uv run --locked --offline repoe stat_translations --poe2 \
+  --file /path/to/local/client --outdir .cache/exports/trade-candidates \
+  --trade-snapshot /path/to/snapshot \
+  --trade-snapshot-sha256 'REPLACE_WITH_TRUSTED_MANIFEST_SHA256' --trade-realm international
+```
+
+The expected manifest digest is optional; internal response checksums alone
+establish consistency, not authenticity. Snapshot validation precedes client
+loading, CDN discovery and output writes. Invalid or unsupported requested inputs
+fail without falling back to client-only export. English international input is
+the supported first slice; China, other languages and `--language all` with a
+trade snapshot are rejected. Client-only language exports retain their existing
+support. `stat_translations.provenance{,.min}.json` binds the consumed input bytes
+and produced output bytes. Text matches are candidates, not proof of game stat
+identity or calculation correctness. See the [description domain contract](RePoE/docs/stat_translations.md#poe2-offline-trade-candidates)
+for validation, scope, provenance and replay commands.
+
+`uv --offline` controls package resolution only. Select a local client with
+`--file` to avoid client/CDN networking; other exporter modules may still have
+their own network behavior. This change does not certify real-client decoding,
+identify the client patch or refresh published/active data.
 
 Passive export now reads every supplied stat slot, including zero and negative
 values, and rejects duplicate stat IDs or missing values instead of truncating

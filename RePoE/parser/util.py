@@ -63,34 +63,27 @@ def write_any_json(
     root_obj: Any,
     data_path: str,
     file_name: str,
+    *,
+    omit_none: bool = True,
 ) -> None:
     os.makedirs(os.path.join(data_path, *file_name.split("/")[:-1]), exist_ok=True)
     print("Writing '" + str(file_name) + ".json' ...", end="", flush=True)
-    json.dump(
-        root_obj,
-        io.open(os.path.join(data_path, file_name + ".json"), mode="w"),
-        indent=2,
-        sort_keys=True,
-        default=lambda o: o.__dict__,
-    )
+    with io.open(os.path.join(data_path, file_name + ".json"), mode="w", encoding="utf-8") as out:
+        json.dump(root_obj, out, indent=2, sort_keys=True, default=lambda o: o.__dict__)
     print(" Done!")
     print("Writing '" + str(file_name) + ".min.json' ...", end="", flush=True)
-    json.dump(
-        minimize(root_obj),
-        io.open(os.path.join(data_path, file_name + ".min.json"), mode="w"),
-        separators=(",", ":"),
-        sort_keys=True,
-    )
+    with io.open(os.path.join(data_path, file_name + ".min.json"), mode="w", encoding="utf-8") as out:
+        json.dump(minimize(root_obj, omit_none=omit_none), out, separators=(",", ":"), sort_keys=True)
     print(" Done!")
 
 
-def minimize(value):
+def minimize(value, *, omit_none=True):
     if dataclasses.is_dataclass(value):
         value = dataclasses.asdict(value)
     if isinstance(value, dict):
-        return {k: minimize(v) for k, v in value.items() if v is not None}
+        return {k: minimize(v, omit_none=omit_none) for k, v in value.items() if v is not None or not omit_none}
     elif isinstance(value, list):
-        return [minimize(v) for v in value]
+        return [minimize(v, omit_none=omit_none) for v in value]
     else:
         return value
 
