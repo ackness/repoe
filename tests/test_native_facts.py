@@ -132,7 +132,7 @@ class NativeFactsFixture(unittest.TestCase):
         path = self.raw / facts.PSG
         path.parent.mkdir(parents=True, exist_ok=True)
         path.write_bytes(psg_bytes())
-        for name in facts.RESOURCES:
+        for name in (*(f"Data/Balance/{name}.datc64" for name in self.rows), facts.PSG):
             raw = (self.raw / name).read_bytes()
             self.source["resources"][name] = {"bytes": len(raw), "sha256": schema_candidate._sha(raw)}
         self.write_lock()
@@ -242,7 +242,7 @@ class NativeFactsTests(NativeFactsFixture):
         self.source["game_patch"] = "0.5.5.5"
         del self.source["resources"][facts.PSG]
         self.write_lock()
-        with self.assertRaisesRegex(ValueError, "exactly eight"):
+        with self.assertRaisesRegex(ValueError, "exactly the selected profile"):
             self.create()
         self.assertFalse(self.out.exists())
 
