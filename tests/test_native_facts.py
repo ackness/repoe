@@ -19,7 +19,19 @@ from RePoE import schema_candidate
 def dat_bytes(specification, name, rows):
     """Encode tiny physical fixtures, including null sentinels and ordered arrays."""
     data = bytearray(b"\xbb" * 8)
-    formats = {"int": "i", "uint": "I", "ushort": "H", "float": "f", "bool": "?", "byte": "b"}
+    formats = {
+        "int": "i",
+        "uint": "I",
+        "ushort": "H",
+        "short": "h",
+        "float": "f",
+        "double": "d",
+        "bool": "?",
+        "byte": "b",
+        "ubyte": "B",
+        "long": "q",
+        "ulong": "Q",
+    }
 
     def encode(kind, value):
         if kind.startswith("ref|list|"):
@@ -34,7 +46,7 @@ def dat_bytes(specification, name, rows):
         if kind in ("ref|out", "ref|generic"):
             value = 0xFEFEFEFEFEFEFEFE if value is None else value
             return struct.pack("<QQ", value, 0) if kind == "ref|out" else struct.pack("<Q", value)
-        return struct.pack("<" + formats[kind], value or 0)
+        return struct.pack("<" + formats[kind], 0 if value is None else value)
 
     records = b"".join(
         b"".join(encode(field.type, row.get(key)) for key, field in specification[name + ".dat"].fields.items())
@@ -132,7 +144,7 @@ class NativeFactsFixture(unittest.TestCase):
         path = self.raw / facts.PSG
         path.parent.mkdir(parents=True, exist_ok=True)
         path.write_bytes(psg_bytes())
-        for name in facts.RESOURCES:
+        for name in (*(f"Data/Balance/{name}.datc64" for name in self.rows), facts.PSG):
             raw = (self.raw / name).read_bytes()
             self.source["resources"][name] = {"bytes": len(raw), "sha256": schema_candidate._sha(raw)}
         self.write_lock()
@@ -242,7 +254,7 @@ class NativeFactsTests(NativeFactsFixture):
         self.source["game_patch"] = "0.5.5.5"
         del self.source["resources"][facts.PSG]
         self.write_lock()
-        with self.assertRaisesRegex(ValueError, "exactly eight"):
+        with self.assertRaisesRegex(ValueError, "exactly the selected profile"):
             self.create()
         self.assertFalse(self.out.exists())
 

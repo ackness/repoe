@@ -55,6 +55,17 @@ physical column plus passive/graph/class and quality relationships and diagnosti
 This partial 0.5.5.5 candidate is not a production snapshot or runtime PoBR pack;
 it does not change the default exporter path or active data.
 
+The explicit `--profile core-skills-a0` option adds seven skill metadata/cost/level
+tables using the same producer and validator. Its
+[`repoe-native-facts/v2` contract](RePoE/docs/native_core_skills.md) retains all
+physical facts, ordered level context and acquisition status without inferring
+gameplay units or application rules. It remains a partial, non-production package.
+
+[`--profile gems-constraints-a1`](RePoE/docs/native_gems.md) expands the same native
+ingress to 39 DATs plus PSG. Its v3 facts retain item-based gem identity, nested
+effect order, raw requirements, support families and ordered constraint tokens.
+It does not select a playable subset or evaluate support/level/quality policy.
+
 PoE2 `stat_translations` exports client descriptions by default, without querying
 the trade API. Optional trade text associations require an explicitly supplied,
 previously captured snapshot. It reads the existing
