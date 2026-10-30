@@ -59,6 +59,12 @@ values, and rejects duplicate stat IDs or missing values instead of truncating
 or silently overwriting them. This is a general reader correction, not a table
 of hardcoded node values. It does not repair missing graph membership or geometry.
 
+PoE2 augment export retains each regular and bonded stat's raw `value` and the
+category's stable `target_item_classes` IDs alongside the existing display fields.
+It rejects unequal stat/value arrays and duplicate base/category identities.
+See the [augment output contract](RePoE/docs/augments.md) for compatibility and
+offline fixture coverage; real-client and gameplay validation remain separate.
+
 The original RePoE documentation follows.
 
 Forked from [brather1ng/RePoE](https://github.com/brather1ng/RePoE).
@@ -107,6 +113,9 @@ The following data is currently available:
   `mods.json`.
 - `item_classes.json`: Defines the item class ids and the tags added to items when they are
   Shaper/Elder items.
+- `augments.json` (PoE2): Describes socketable augments with raw regular/bonded
+  stat values, stable target item class IDs and display text; see
+  [the output documentation](RePoE/docs/augments.md).
 - `essences.json`: Describes essences. Defines the mods they spawn on items of the different
   item classes and general information like level and tier.
 - `default_monster_stats.json`: Describes the stat base values of monsters at specific levels.
