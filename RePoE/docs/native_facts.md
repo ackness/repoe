@@ -12,6 +12,9 @@ source-ordered skill facts under `repoe-native-facts/v2`. Its resource inventory
 acquisition status and acceptance command are explicit; neither profile is a
 production or runtime pack.
 
+The further [`gems-constraints-a1` profile](native_gems.md) emits v3 gem-item and
+ordered constraint facts using the same explicit native ingress and validator.
+
 ## Offline invocation
 
 All four arguments are mandatory. Paths below are caller-supplied examples, not
