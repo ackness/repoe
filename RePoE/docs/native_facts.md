@@ -48,6 +48,29 @@ must be PyPoE `66d1d7442c5718260e1a8efd24989d22987e91af`;
 The installed noneditable dependency and prepared local schema must match these
 pins. No supplied Python specification is accepted or executed.
 
+Native operations additionally check all 117 installed PyPoE Python files against
+the repository-owned `schema/pypoe-sources.json`, derived from the fixed Git tree,
+not installation metadata or candidate hashes. Both exact Git blob bytes and
+the upstream `*.py ident` checkout expansion are allowed. A modified
+decoder retaining `direct_url.json` is rejected before conversion or decoding.
+Import resolution must point into that installed package. A temporary import
+context compiles the verified buffers, bypassing cached bytecode and preloaded
+PyPoE objects; the converter's template read also uses its verified buffer.
+Upstream DAT imports a legacy specification module even in native mode, so its
+code is pinned too; legacy loading/adaptation is not invoked. The original Python
+module state is restored afterward. These synchronous APIs must not run alongside
+other threads importing or using PyPoE. Python, its other dependencies and the
+host process remain trusted; this is not an in-process adversarial-code sandbox.
+
+To independently reproduce the pin from a separately verified local Git object
+database (no network, checkout writes or installed modules are used):
+
+```sh
+mise exec -- python -B scripts/pin_pypoe.py --git-dir /path/to/verified/PyPoE \
+  > .cache/pypoe-sources.reproduced.json
+cmp schema/pypoe-sources.json .cache/pypoe-sources.reproduced.json
+```
+
 The tool reads each game-relative path directly under `--raw`, rejects paths
 resolving outside that root, and verifies size and SHA-256 **before decoding or
 output**. It keeps those verified bytes in memory; it never creates another raw
@@ -57,6 +80,17 @@ framing, unequal stat/value arrays and JSON nonfinite numbers reject generation.
 The independent PSG framing check accounts for every byte and compares every
 field exposed by `PSGFile`. Warnings are rejection reasons, never claimed as a
 successful decode. Native execution disables dependency bytecode writes.
+
+Before `DatReader` runs, the native schema determines physical widths and a
+bounded walk checks string pointers, aligned UTF-16 four-zero termination,
+encoding, nonempty list spans and string pointers inside lists. A pointer must
+target the variable data after the magic marker, with the complete referenced
+span in bounds. Alignment is relative to each string, since the variable data
+need not start on an even file offset. Empty lists never dereference their
+offset; scalar row references, their null sentinels and unknown fields retain
+the pinned decoder's semantics. A premature row-aligned magic marker is rejected
+before it can change the upstream decoder's boundary. Invalid data leaves no
+successful manifest; warning capture is an additional check, not bounds defense.
 
 An existing output (including an empty directory or dangling symlink) is refused.
 Input/validation errors leave no output. After validation, a new directory is
@@ -84,7 +118,8 @@ The manifest records:
 - `format`, `status: "partial-candidate"`, `production_ready: false`, scope and summary;
 - `source_identity`: exact source-lock byte hash, selected-source hash, selected
   key/game/realm/patch, and all nine raw game-relative paths/hashes/sizes;
-- `decoder`: Git revision, Python version and installed PyPoE Python module hashes;
+- `decoder`: Git revision, Python version, all installed PyPoE Python module hashes
+  and the trusted source pin's hash;
 - `schema`: frozen input hash/revision, generated native specification hash and
   zero compatibility views;
 - `producer`: hashes of the producer, trusted schema tool, project/lock and schema receipts;
@@ -197,6 +232,38 @@ semantics and full relationship closure remain unproven. Consumers must retain
 these diagnostics and must not label this partial candidate production-ready.
 
 ## Validation boundary
+
+Use the maintained acceptance command for a newly generated manifest:
+
+```sh
+mise run facts:validate -- \
+  --source-lock /path/to/sources.lock.json \
+  --source official-client-0.5.5.5 \
+  --raw /path/to/candidate-0.5.5.5/raw \
+  --facts .cache/native-facts/replay-a \
+  > .cache/native-facts/acceptance.json
+```
+
+It checks the exact file inventory and internal hashes, verifies raw source
+identities, replays all twelve semantic payloads using trusted tools, and checks
+complete graph instances independently of the producer's projection function.
+That check derives ordered nodes from raw PSG and joins identities from the
+DAT-verified passive table. It requires exact instance inventory, order,
+uniqueness, `graph_id`, `group`, `radius`, `position`, `connections`, `splines`
+and `definition`, plus consistent definition inventory/membership and repeated
+PSG facts. Rehashing a forged projection or changing both copies of the geometry
+cannot satisfy this check. Stdout is a JSON receipt; decoder messages go to
+stderr. Failures return nonzero without a passed receipt.
+
+This command replaces the external cache-only `validate_actual.py` as acceptance
+of new candidates. It also accepts the older v1 receipt's 111-source inventory;
+the validating replay always pins all 117 modules. Producer identity changes do
+not invalidate old correct facts: acceptance compares against the supplied raw,
+and records the current validator/replay identities. It does not authenticate
+claims about which historical producer executed. Use optional
+`--manifest-sha256 <externally-approved-sha256>` when consuming an already approved
+artifact. Omitting that option enables acceptance of a new manifest, not source
+authentication: the source lock/raw trust boundary remains external.
 
 `mise run check` includes synthetic binary DAT/PSG fixtures, interval endpoints,
 all slots/metadata, absent-base membership, raw scopes, unavailable row-zero
