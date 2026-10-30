@@ -41,3 +41,7 @@ run = "uv run --locked --offline python -B -m RePoE.native_facts"
 [tasks."facts:validate"]
 description = "Verify a facts candidate against pinned raw inputs and all graph instance fields"
 run = "uv run --locked --offline python -B -m RePoE.native_validate"
+
+[tasks."descriptions:candidate"]
+description = "Export selected byte-pinned CSD branches offline without choosing translations or executing handlers"
+run = "uv run --locked --offline python -B -m RePoE.native_descriptions"
