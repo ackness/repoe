@@ -38,15 +38,19 @@ def _inputs(root):
     ):
         raise ValueError("Unsupported schema input receipt")
     project = tomllib.loads((root / "pyproject.toml").read_text())
-    dependency = project["tool"]["uv"]["sources"]["pypoe"]
-    revision = dependency.get("rev", "")
-    if not re.fullmatch(r"[a-f0-9]{40}", revision):
-        raise ValueError("PyPoE must be pinned to a full Git revision")
+    pins = [
+        match
+        for dependency in project["project"]["dependencies"]
+        if (match := re.fullmatch(r"(?i:pypoe)\s*@\s*git\+(https://[^@\s]+)@([a-f0-9]{40})", dependency))
+    ]
+    if len(pins) != 1:
+        raise ValueError("PyPoE must be pinned to one HTTPS Git source with a full revision")
+    source_url, revision = pins[0].groups()
     package = importlib.metadata.distribution("PyPoE")
     installed = json.loads(package.read_text("direct_url.json") or "{}")
     if (
         installed.get("vcs_info", {}).get("commit_id") != revision
-        or installed.get("url") != dependency.get("git")
+        or installed.get("url") != source_url
         or installed.get("dir_info", {}).get("editable")
     ):
         raise ValueError("Installed PyPoE differs from the noneditable Git pin; run mise run setup")
