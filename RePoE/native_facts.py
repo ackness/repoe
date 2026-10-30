@@ -17,6 +17,10 @@ from RePoE.native_tools import pinned_pypoe
 
 
 FORMAT = "repoe-native-facts/v1"
+BASE_PROFILE = "base-v1"
+SKILLS_PROFILE = "core-skills-a0"
+GEMS_PROFILE = "gems-constraints-a1"
+PROFILES = (BASE_PROFILE, SKILLS_PROFILE, GEMS_PROFILE)
 TABLES = (
     "Characters",
     "ClassPassiveSkillOverrides",
@@ -48,7 +52,22 @@ def _json(value):
     ).encode()
 
 
-def _verified_raw(source_lock, source_name, raw_root):
+def profile_tables(profile):
+    if profile == BASE_PROFILE:
+        return TABLES
+    if profile in (SKILLS_PROFILE, GEMS_PROFILE):
+        from RePoE.native_skills import TABLES as skill_tables
+
+        if profile == GEMS_PROFILE:
+            from RePoE.native_gems import TABLES as gem_tables
+
+            return TABLES + skill_tables + gem_tables
+        return TABLES + skill_tables
+    raise ValueError(f"Unknown native facts profile: {profile}")
+
+
+def _verified_raw(source_lock, source_name, raw_root, *, profile=BASE_PROFILE):
+    resources = tuple(f"Data/Balance/{name}.datc64" for name in profile_tables(profile)) + (PSG,)
     lock_raw = Path(source_lock).read_bytes()
     lock = json.loads(lock_raw)
     if lock.get("schema_version") != 1:
@@ -68,12 +87,33 @@ def _verified_raw(source_lock, source_name, raw_root):
         or decoder.get("schema_sha256") != SCHEMA_SHA
     ):
         raise ValueError("Source decoder/schema pin mismatch")
-    if set(source["resources"]) != set(RESOURCES):
-        raise ValueError("Source lock must declare exactly eight DATs and the default PSG")
+    if set(source["resources"]) != set(resources):
+        raise ValueError("Source lock must declare exactly the selected profile's DATs and default PSG")
+    acquisition = None
+    if profile != BASE_PROFILE:
+        acquisition = source.get("acquisition")
+        if (
+            source.get("profile") != profile
+            or not isinstance(acquisition, dict)
+            or acquisition.get("status") not in {"unreviewed-acquisition-draft", "reviewed-source-input"}
+            or not isinstance(acquisition.get("evidence"), list)
+            or not acquisition["evidence"]
+        ):
+            raise ValueError("Extended source needs an explicit profile and acquisition evidence/status")
+        for evidence in acquisition["evidence"]:
+            if (
+                not isinstance(evidence, dict)
+                or set(evidence) != {"kind", "sha256"}
+                or not isinstance(evidence["kind"], str)
+                or not evidence["kind"]
+                or not isinstance(evidence["sha256"], str)
+                or not re.fullmatch(r"[a-f0-9]{64}", evidence["sha256"])
+            ):
+                raise ValueError("Invalid acquisition evidence fingerprint")
     raw_root = Path(raw_root).resolve(strict=True)
     verified = {}
     identities = {}
-    for name in RESOURCES:
+    for name in resources:
         entry = source["resources"][name]
         path = (raw_root / name).resolve(strict=True)
         if not path.is_relative_to(raw_root) or not path.is_file():
@@ -86,7 +126,7 @@ def _verified_raw(source_lock, source_name, raw_root):
             raise ValueError(f"Raw hash/size mismatch: {name}")
         verified[name] = raw
         identities[name] = identity
-    return verified, {
+    identity = {
         "source_lock_sha256": schema_candidate._sha(lock_raw),
         "selected_source_sha256": schema_candidate._sha(_json(source)),
         "source": source_name,
@@ -96,6 +136,9 @@ def _verified_raw(source_lock, source_name, raw_root):
         "realm": source["realm"],
         "raw_resources": identities,
     }
+    if acquisition is not None:
+        identity["acquisition"] = acquisition
+    return verified, identity
 
 
 def _columns(table, physical_fields):
@@ -456,7 +499,13 @@ def _projections(tables, graph):
     }, summary
 
 
-def _candidate_payloads(verified, source_identity, tool_identity):
+def _candidate_payloads(verified, source_identity, tool_identity, *, profile=BASE_PROFILE, source_lock_bytes=None):
+    selected_tables = profile_tables(profile)
+    if profile != BASE_PROFILE and (
+        not isinstance(source_lock_bytes, bytes)
+        or schema_candidate._sha(source_lock_bytes) != source_identity["source_lock_sha256"]
+    ):
+        raise ValueError("Extended source-lock snapshot differs from verified identity")
     # Regenerate only from trusted locked inputs; never execute a caller's specification.
     inputs, schema = schema_candidate._inputs(schema_candidate.ROOT)
     if (
@@ -469,10 +518,47 @@ def _candidate_payloads(verified, source_identity, tool_identity):
     schema_tables = {t["name"]: t for t in json.loads(schema)["tables"]}
     tables = {
         name: _decode_dat(name, verified[f"Data/Balance/{name}.datc64"], specification, schema_tables[name])
-        for name in TABLES
+        for name in selected_tables
     }
     graph = _decode_psg(verified[PSG])
     documents, summary = _projections(tables, graph)
+    scope = LIMITS
+    if profile != BASE_PROFILE:
+        from RePoE import native_skills
+
+        core, core_summary, diagnostics = native_skills.project(tables, _resolve)
+        documents["skill_core.json"] = core
+        summary.update(core_summary)
+        scope = native_skills.LIMITS
+        documents["diagnostics.json"]["scope"] = scope
+        documents["diagnostics.json"]["diagnostics"].extend(diagnostics)
+    if profile == GEMS_PROFILE:
+        from RePoE import native_gems
+
+        gems, constraints, gem_summary, diagnostics = native_gems.project(tables, _resolve)
+        documents.update({"gems.json": gems, "constraints.json": constraints})
+        summary.update(gem_summary)
+        scope = native_gems.LIMITS
+        documents["diagnostics.json"]["scope"] = scope
+        documents["diagnostics.json"]["diagnostics"].extend(diagnostics)
+        # Schema enums are context, not missing DAT downloads. Keep historical
+        # v1/v2 payloads unchanged; make the expanded v3 distinction explicit.
+        for diagnostic in documents["diagnostics.json"]["diagnostics"]:
+            if diagnostic["code"] not in {"unavailable_relationship_target", "unknown_relationship_target"}:
+                continue
+            column = next(
+                column
+                for column in tables[diagnostic["table"]]["columns"]
+                if diagnostic["field"] in column["physical_fields"]
+            )
+            target = (diagnostic["target"] or {}).get("table")
+            diagnostic["target_kind"] = (
+                "schema-enumeration"
+                if column["schema"]["type"] == "enumrow"
+                else "unavailable-physical-table"
+                if target in schema_tables
+                else "unknown"
+            )
     documents.update({f"tables/{name}.json": table for name, table in tables.items()})
     documents["graph.json"] = graph
     if inputs["pypoe_sources"] != {
@@ -493,13 +579,27 @@ def _candidate_payloads(verified, source_identity, tool_identity):
             )
         },
     }
+    if profile != BASE_PROFILE:
+        producer["RePoE/native_skills.py"] = schema_candidate._sha(
+            (schema_candidate.ROOT / "RePoE/native_skills.py").read_bytes()
+        )
+    if profile == GEMS_PROFILE:
+        producer["RePoE/native_gems.py"] = schema_candidate._sha(
+            (schema_candidate.ROOT / "RePoE/native_gems.py").read_bytes()
+        )
     manifest = {
-        "format": FORMAT,
+        "format": (
+            FORMAT
+            if profile == BASE_PROFILE
+            else "repoe-native-facts/v2"
+            if profile == SKILLS_PROFILE
+            else "repoe-native-facts/v3"
+        ),
         "status": "partial-candidate",
         "production_ready": False,
         "source_identity": source_identity,
         "row_key": ROW_KEY,
-        "scope": LIMITS,
+        "scope": scope,
         "summary": summary,
         "decoder": {
             "pypoe_revision": inputs["pypoe_revision"],
@@ -516,8 +616,12 @@ def _candidate_payloads(verified, source_identity, tool_identity):
         "producer": producer,
         "files": {},
     }
+    if profile != BASE_PROFILE:
+        manifest["profile"] = profile
     # Materialize only after every input, decoder and required join has passed.
     payloads = {name: _json(document) for name, document in documents.items()}
+    if profile != BASE_PROFILE:
+        payloads["source-lock.json"] = source_lock_bytes
     manifest["files"] = {
         name: {"sha256": schema_candidate._sha(data), "bytes": len(data)} for name, data in sorted(payloads.items())
     }
@@ -529,14 +633,17 @@ def _candidate_payloads(verified, source_identity, tool_identity):
     return manifest, payloads
 
 
-def create_candidate(*, source_lock, source, raw, out):
+def create_candidate(*, source_lock, source, raw, out, profile=BASE_PROFILE):
     sys.dont_write_bytecode = True
     output = Path(out).absolute()
     if output.exists() or output.is_symlink():
         raise FileExistsError(f"Refusing to replace existing output: {output}")
-    verified, source_identity = _verified_raw(source_lock, source, raw)
+    source_lock_bytes = Path(source_lock).read_bytes() if profile != BASE_PROFILE else None
+    verified, source_identity = _verified_raw(source_lock, source, raw, profile=profile)
     with pinned_pypoe() as tool_identity:
-        manifest, payloads = _candidate_payloads(verified, source_identity, tool_identity)
+        manifest, payloads = _candidate_payloads(
+            verified, source_identity, tool_identity, profile=profile, source_lock_bytes=source_lock_bytes
+        )
     output.parent.mkdir(parents=True, exist_ok=True)
     with tempfile.TemporaryDirectory(prefix=".native-facts-", dir=output.parent) as temporary:
         staging = Path(temporary)
@@ -560,12 +667,15 @@ def main():
     parser.add_argument("--source", required=True)
     parser.add_argument("--raw", required=True, type=Path)
     parser.add_argument("--out", required=True, type=Path)
+    parser.add_argument("--profile", choices=PROFILES, default=BASE_PROFILE)
     args = parser.parse_args()
     try:
-        manifest = create_candidate(source_lock=args.source_lock, source=args.source, raw=args.raw, out=args.out)
+        manifest = create_candidate(
+            source_lock=args.source_lock, source=args.source, raw=args.raw, out=args.out, profile=args.profile
+        )
     except (ValueError, OSError, KeyError, TypeError, struct.error) as error:
         parser.exit(1, f"Native facts rejected: {error}\n")
-    print(f"{FORMAT}: {args.out}; {manifest['summary']}; partial candidate, not production")
+    print(f"{manifest['format']}: {args.out}; {manifest['summary']}; partial candidate, not production")
 
 
 if __name__ == "__main__":

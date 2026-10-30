@@ -52,19 +52,24 @@ def validate_graph_instances(raw_psg, passive_table, graph, passives):
     return len(expected)
 
 
-def validate_candidate(*, source_lock, source, raw, candidate, manifest_sha256=None):
+def validate_candidate(*, source_lock, source, raw, candidate, manifest_sha256=None, profile=facts.BASE_PROFILE):
     directory = Path(candidate).resolve(strict=True)
     manifest_raw = (directory / "manifest.json").read_bytes()
     manifest_hash = schema_candidate._sha(manifest_raw)
     if manifest_sha256 is not None and manifest_hash != manifest_sha256:
         raise ValueError("Externally pinned manifest SHA256 mismatch")
     manifest = json.loads(manifest_raw)
-    names = {f"tables/{name}.json" for name in facts.TABLES} | {
+    selected_tables = facts.profile_tables(profile)
+    names = {f"tables/{name}.json" for name in selected_tables} | {
         "graph.json",
         "passives.json",
         "skills.json",
         "diagnostics.json",
     }
+    if profile != facts.BASE_PROFILE:
+        names.update({"skill_core.json", "source-lock.json"})
+    if profile == facts.GEMS_PROFILE:
+        names.update({"gems.json", "constraints.json"})
     if set(manifest["files"]) != names:
         raise ValueError("Unexpected native facts payload inventory")
     actual = {p.relative_to(directory).as_posix() for p in directory.rglob("*") if p.is_file() or p.is_symlink()}
@@ -79,11 +84,19 @@ def validate_candidate(*, source_lock, source, raw, candidate, manifest_sha256=N
         _equal(manifest["files"][name], {"bytes": len(data), "sha256": schema_candidate._sha(data)}, name + " hash")
         payloads[name] = json.loads(data)
 
-    verified, identity = facts._verified_raw(source_lock, source, raw)
+    source_lock_bytes = Path(source_lock).read_bytes() if profile != facts.BASE_PROFILE else None
+    verified, identity = facts._verified_raw(source_lock, source, raw, profile=profile)
+    if profile != facts.BASE_PROFILE and (directory / "source-lock.json").read_bytes() != source_lock_bytes:
+        raise ValueError("Source-lock payload differs from exact input bytes")
     with pinned_pypoe() as tool_identity, redirect_stdout(sys.stderr):
-        expected_manifest, replay = facts._candidate_payloads(verified, identity, tool_identity)
+        expected_manifest, replay = facts._candidate_payloads(
+            verified, identity, tool_identity, profile=profile, source_lock_bytes=source_lock_bytes
+        )
     for key in ("format", "status", "production_ready", "source_identity", "row_key", "scope", "summary", "schema"):
         _equal(manifest[key], expected_manifest[key], "manifest." + key)
+    if profile != facts.BASE_PROFILE:
+        _equal(manifest.get("profile"), profile, "manifest.profile")
+        _equal(manifest["producer"], expected_manifest["producer"], "manifest.producer")
     pin = json.loads(PIN.read_bytes())
     if "trusted_source_pin_sha256" in manifest["decoder"]:
         _equal(manifest["decoder"]["trusted_source_pin_sha256"], tool_identity["pin_sha256"], "decoder source pin")
@@ -95,9 +108,14 @@ def validate_candidate(*, source_lock, source, raw, candidate, manifest_sha256=N
         or any(digest not in pin["sources"][name] for name, digest in manifest["decoder"]["sources"].items())
     ):
         raise ValueError("Candidate decoder identity differs from trusted Git pin")
+    if profile != facts.BASE_PROFILE and (
+        set(manifest["decoder"]["sources"]) != set(pin["sources"])
+        or manifest["decoder"].get("trusted_source_pin_sha256") != tool_identity["pin_sha256"]
+    ):
+        raise ValueError("Extended facts require the complete trusted decoder profile")
     # First establish the DAT authority, then independently check both PSG
     # representations. This also catches a future producer projection regression.
-    for name in facts.TABLES:
+    for name in selected_tables:
         file = f"tables/{name}.json"
         _equal(payloads[file], json.loads(replay[file]), file)
     instances = validate_graph_instances(
@@ -125,6 +143,7 @@ def main():
     parser.add_argument("--raw", required=True, type=Path)
     parser.add_argument("--facts", required=True, type=Path)
     parser.add_argument("--manifest-sha256")
+    parser.add_argument("--profile", choices=facts.PROFILES, default=facts.BASE_PROFILE)
     args = parser.parse_args()
     try:
         receipt = validate_candidate(
@@ -133,6 +152,7 @@ def main():
             raw=args.raw,
             candidate=args.facts,
             manifest_sha256=args.manifest_sha256,
+            profile=args.profile,
         )
     except (ValueError, OSError, KeyError, TypeError, struct.error) as error:
         parser.exit(1, f"Native facts validation rejected: {error}\n")
