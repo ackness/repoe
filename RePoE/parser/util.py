@@ -14,7 +14,6 @@ from pydantic import BaseModel
 import requests
 from PyPoE.poe.file.dat import RelationalReader
 from PyPoE.poe.file.file_system import FileSystem
-from PyPoE.poe.file.specification.data import generated, poe2
 
 from RePoE import __DATA_PATH__, __POE2_DATA_PATH__
 from RePoE.parser import Parser_Module
@@ -64,34 +63,27 @@ def write_any_json(
     root_obj: Any,
     data_path: str,
     file_name: str,
+    *,
+    omit_none: bool = True,
 ) -> None:
     os.makedirs(os.path.join(data_path, *file_name.split("/")[:-1]), exist_ok=True)
     print("Writing '" + str(file_name) + ".json' ...", end="", flush=True)
-    json.dump(
-        root_obj,
-        io.open(os.path.join(data_path, file_name + ".json"), mode="w"),
-        indent=2,
-        sort_keys=True,
-        default=lambda o: o.__dict__,
-    )
+    with io.open(os.path.join(data_path, file_name + ".json"), mode="w", encoding="utf-8") as out:
+        json.dump(root_obj, out, indent=2, sort_keys=True, default=lambda o: o.__dict__)
     print(" Done!")
     print("Writing '" + str(file_name) + ".min.json' ...", end="", flush=True)
-    json.dump(
-        minimize(root_obj),
-        io.open(os.path.join(data_path, file_name + ".min.json"), mode="w"),
-        separators=(",", ":"),
-        sort_keys=True,
-    )
+    with io.open(os.path.join(data_path, file_name + ".min.json"), mode="w", encoding="utf-8") as out:
+        json.dump(minimize(root_obj, omit_none=omit_none), out, separators=(",", ":"), sort_keys=True)
     print(" Done!")
 
 
-def minimize(value):
+def minimize(value, *, omit_none=True):
     if dataclasses.is_dataclass(value):
         value = dataclasses.asdict(value)
     if isinstance(value, dict):
-        return {k: minimize(v) for k, v in value.items() if v is not None}
+        return {k: minimize(v, omit_none=omit_none) for k, v in value.items() if v is not None or not omit_none}
     elif isinstance(value, list):
-        return [minimize(v) for v in value]
+        return [minimize(v, omit_none=omit_none) for v in value]
     else:
         return value
 
@@ -118,7 +110,18 @@ def load_file_system(ggpk_path: str) -> FileSystem:
     return FileSystem(ggpk_path)
 
 
-def create_relational_reader(file_system: FileSystem, language: str, poe2spec: bool) -> RelationalReader:
+def create_relational_reader(
+    file_system: FileSystem, language: str, poe2spec: bool, *, schema_spec=None
+) -> RelationalReader:
+    native = schema_spec is not None
+    if schema_spec is not None:
+        if not poe2spec or schema_spec.sequel != 2:
+            raise ValueError("Native schema candidates require PoE2")
+        schema_spec.validate()
+    else:
+        from PyPoE.poe.file.specification.data import generated, poe2
+
+        schema_spec = poe2.specification if poe2spec else generated.specification
     opt = {
         "use_dat_value": False,
         "auto_build_index": True,
@@ -126,9 +129,10 @@ def create_relational_reader(file_system: FileSystem, language: str, poe2spec: b
     }
     return RelationalReader(
         path_or_file_system=file_system,
-        specification=poe2.specification if poe2spec else generated.specification,
+        specification=schema_spec,
         read_options=opt,
         language=language,
+        raise_error_on_missing_relation=native,
     )
 
 

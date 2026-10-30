@@ -136,7 +136,6 @@ class base_items(Parser_Module):
         itfiles = {}
         by_class = defaultdict(dict)
         for item in relational_reader["BaseItemTypes.dat64"]:
-
             it_path = item["InheritsFrom"]
             itfile = self.get_cache(ITFileCache)[it_path + ".it"]
             itfiles[it_path] = itfile

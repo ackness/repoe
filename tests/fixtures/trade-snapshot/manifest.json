@@ -1,0 +1,42 @@
+{
+  "schema_version": 1,
+  "id": "20261012T081820011Z",
+  "captured_at": "2026-10-12T05:03:22.466Z",
+  "game_patch": null,
+  "note": "Synthetic catalog for offline exporter regression; not game evidence.",
+  "config_sha256": "0000000000000000000000000000000000000000000000000000000000000000",
+  "config": {
+    "trade": {
+      "en": "https://www.pathofexile.com/api/trade2/data/stats",
+      "cn": "https://poe.game.qq.com/api/trade2/data/stats"
+    }
+  },
+  "sources": [
+    {
+      "key": "trade-en",
+      "url": "https://www.pathofexile.com/api/trade2/data/stats",
+      "file": "raw/trade-en.json.gz",
+      "fetched_at": "2026-10-12T05:03:22.466Z",
+      "sha256": "96503dd8837cc1b6d3d316e87cce4f23a63123544857b4d2f5fc7b94b5b41aeb",
+      "bytes": 494,
+      "status": 200,
+      "content_type": "application/json",
+      "last_modified": null,
+      "etag": null
+    },
+    {
+      "key": "trade-cn",
+      "url": "https://poe.game.qq.com/api/trade2/data/stats",
+      "file": "raw/trade-cn.json.gz",
+      "fetched_at": "2026-10-12T05:03:22.466Z",
+      "sha256": "96503dd8837cc1b6d3d316e87cce4f23a63123544857b4d2f5fc7b94b5b41aeb",
+      "bytes": 494,
+      "status": 200,
+      "content_type": "application/json",
+      "last_modified": null,
+      "etag": null
+    }
+  ],
+  "pages": [],
+  "errors": []
+}

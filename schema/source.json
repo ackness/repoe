@@ -1,0 +1,19 @@
+{
+  "schema_version": 1,
+  "kind": "build-tool-schema-input",
+  "repository": "https://github.com/poe-tool-dev/dat-schema",
+  "revision": "6034b071846ef61b39046ebdb59e6d5717179509",
+  "upstream_file": "schema-poe2.min.json",
+  "schema_format": 7,
+  "upstream_created_at": 1793369394,
+  "generator": {
+    "command": "npm ci --ignore-scripts && npm run generate",
+    "node": "26.13.0",
+    "npm": "12.2.1",
+    "package_lock_sha256": "e7d139fe0b166f8893ca772804f40e43420272b3d9f19b9637cf3ddb1e84b0a4"
+  },
+  "checksum_file": "schema/SHA256SUMS",
+  "license": "LICENSE.dat-schema",
+  "game_patch": null,
+  "scope": "Pinned PoE2 schema tooling input; client patch compatibility and actual decoding are not certified."
+}

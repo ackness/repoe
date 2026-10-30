@@ -1,0 +1,69 @@
+{
+  "expected_stats": {
+    "armour_%_applies_to_fire_cold_lightning_damage": 15,
+    "block_chance_+%": 10,
+    "energy_shield_delay_-%": 10,
+    "energy_shield_gained_on_block": 10,
+    "recover_X_life_on_block": 10
+  },
+  "graph_id": 31955,
+  "row": {
+    "Ascendancy": null,
+    "AtlasNodeGroup": null,
+    "AtlasSubTree": null,
+    "FlavourText": null,
+    "GrantedSkill": null,
+    "Icon_DDSFile": null,
+    "Id": "energy_shield_and_armour44",
+    "IsAscendancyStartingNode": null,
+    "IsFree": null,
+    "IsJewelSocket": null,
+    "IsJustIcon": null,
+    "IsKeystone": null,
+    "IsMultipleChoice": null,
+    "IsMultipleChoiceOption": null,
+    "IsNotable": null,
+    "IsRootOfAtlasTree": null,
+    "Name": null,
+    "PassiveSkillBuffs": [],
+    "PassiveSkillGraphId": null,
+    "ReminderStrings": null,
+    "SkillPointsGranted": null,
+    "Stat1Value": 10,
+    "Stat2Value": 15,
+    "Stat3Value": 10,
+    "Stat4Value": 10,
+    "Stat5Value": 10,
+    "Stats": [
+      {
+        "Id": "energy_shield_delay_-%"
+      },
+      {
+        "Id": "armour_%_applies_to_fire_cold_lightning_damage"
+      },
+      {
+        "Id": "block_chance_+%"
+      },
+      {
+        "Id": "energy_shield_gained_on_block"
+      },
+      {
+        "Id": "recover_X_life_on_block"
+      }
+    ],
+    "WeaponPointsGranted": null
+  },
+  "source": {
+    "client_patch": "0.5.5.4.2",
+    "raw_repository": "https://github.com/repoe-fork/dat-export",
+    "raw_revision": "50fc9064269439013aea9cbd36ba59475882570f",
+    "scope": "Stat fields of fixed community CSV graph members through actual passive() function; no client binary, metadata, geometry or engine-semantic certification",
+    "sources": {
+      "PassiveSkills-50fc9064.csv": "8426dd5abbae6a994ebaae45b1f15b2fa67bcea8104267aa6968e6be07689f7a",
+      "Stats-50fc9064.csv": "51d303c766440c1e16c104e5099e99dd271a9dea84b9e31e3a97e4bf43c42563",
+      "repoe-tree-75885a09.json": "8983cc6c04e60a85a1f475894d1b1b41de418cec2fd17d18d1a514a88b0073f6"
+    },
+    "tree_repository": "https://github.com/repoe-fork/poe2",
+    "tree_revision": "75885a099f2e9be1619aa3c793fe6ab0754a511f"
+  }
+}

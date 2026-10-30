@@ -1,0 +1,91 @@
+{
+  "description": "Synthetic relational rows for augments.write; values are raw table integers, not a client snapshot or game-semantic assertions. SoulCore indexes refer to soul_cores below.",
+  "soul_cores": [
+    {
+      "BaseItemType": {"Id": "Metadata/Items/SyntheticAugment"},
+      "RequiredLevel": 12,
+      "Type": {"Id": "SyntheticType", "Name": "Displayed type"},
+      "Limit": {"Text": "Limited to {0}", "Limit": 1}
+    },
+    {"BaseItemType": null}
+  ],
+  "soul_core_stats": [
+    {
+      "SoulCore": 0,
+      "StatCategory": {
+        "Id": "weapons",
+        "Display": "Displayed weapon group",
+        "TargetItemClasses": [
+          {"Id": "OneHandSwords", "Name": "Same display name"},
+          {"Id": "TwoHandSwords", "Name": "Same display name"}
+        ]
+      },
+      "Stats": [
+        {"Id": "synthetic_shared_stat", "IsLocal": true},
+        {"Id": "synthetic_zero_stat", "IsLocal": false},
+        {"Id": "synthetic_negative_stat", "IsLocal": true}
+      ],
+      "StatsValues": [12500, 0, -375],
+      "BondedStats": [
+        {"Id": "synthetic_shared_stat", "IsLocal": true},
+        {"Id": "synthetic_bonded_stat", "IsLocal": false}
+      ],
+      "BondedStatsValues": [-20, 0]
+    },
+    {
+      "SoulCore": 0,
+      "StatCategory": {
+        "Id": "armour",
+        "Display": "",
+        "TargetItemClasses": [
+          {"Id": "Boots", "Name": "Displayed boots"},
+          {"Id": "Gloves", "Name": "Displayed gloves"}
+        ]
+      },
+      "Stats": [],
+      "StatsValues": [],
+      "BondedStats": [{"Id": "synthetic_bonded_only_stat", "IsLocal": false}],
+      "BondedStatsValues": [45]
+    },
+    {
+      "SoulCore": 0,
+      "StatCategory": {"Id": "empty", "Display": "", "TargetItemClasses": []},
+      "Stats": [],
+      "StatsValues": [],
+      "BondedStats": [],
+      "BondedStatsValues": []
+    }
+  ],
+  "expected": {
+    "Metadata/Items/SyntheticAugment": {
+      "required_level": 12,
+      "type_id": "SyntheticType",
+      "type_name": "Displayed type",
+      "limit": "Limited to 1",
+      "categories": {
+        "weapons": {
+          "target": "Displayed weapon group",
+          "target_item_classes": ["OneHandSwords", "TwoHandSwords"],
+          "stats": [
+            {"id": "synthetic_shared_stat", "local": true, "value": 12500},
+            {"id": "synthetic_zero_stat", "local": false, "value": 0},
+            {"id": "synthetic_negative_stat", "local": true, "value": -375}
+          ],
+          "stat_text": ["synthetic translation"],
+          "bonded_stats": [
+            {"id": "synthetic_shared_stat", "local": true, "value": -20},
+            {"id": "synthetic_bonded_stat", "local": false, "value": 0}
+          ],
+          "bonded_stat_text": ["synthetic translation"]
+        },
+        "armour": {
+          "target": ["Displayed boots", "Displayed gloves"],
+          "target_item_classes": ["Boots", "Gloves"],
+          "bonded_stats": [{"id": "synthetic_bonded_only_stat", "local": false, "value": 45}],
+          "bonded_stat_text": ["synthetic translation"]
+        },
+        "empty": {"target": [], "target_item_classes": []}
+      }
+    }
+  }
+}

@@ -25,8 +25,8 @@ from RePoE.parser import Parser_Module
 from RePoE.parser.util import call_with_default_args, get_stat_translation_file_name, write_json, write_model
 
 
-# When two different stats have the same text, the trade site tells them apart by appending a 
-# parenthetical that does not exist in game data, e.g. "+# to Armour (Local)". Pair each trade 
+# When two different stats have the same text, the trade site tells them apart by appending a
+# parenthetical that does not exist in game data, e.g. "+# to Armour (Local)". Pair each trade
 # site suffix with a check for the stat ids that should use it.
 TRADE_STAT_SUFFIXES = {
     " (Local)": lambda ids: any(id.startswith("local_") for id in ids),
@@ -90,7 +90,9 @@ class stat_translations(Parser_Module):
             "trade_stats": (
                 list(trade_stats.values())
                 if trade_stats
-                else list(partial_trade_stats.values()) if partial_trade_stats else None
+                else list(partial_trade_stats.values())
+                if partial_trade_stats
+                else None
             ),
         }
 
