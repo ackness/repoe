@@ -18,11 +18,11 @@ from RePoE.native_tools import PIN
 import test_native_facts as fixture
 
 
-def run_producer(test, out, *, pythonpath=None, code=None):
+def run_producer(test, out, *, pythonpath=None, code=None, executable=None):
     arguments = ["--source-lock", str(test.lock), "--source", "fixture", "--raw", str(test.raw), "--out", str(out)]
     entry = ["-m", "RePoE.native_facts"] if code is None else ["-c", code]
     return subprocess.run(
-        [sys.executable, "-B", *entry, *arguments],
+        [executable or sys.executable, "-B", *entry, *arguments],
         cwd=schema_candidate.ROOT,
         env={**os.environ, "PYTHONPATH": pythonpath or str(schema_candidate.ROOT)},
         capture_output=True,
@@ -32,6 +32,17 @@ def run_producer(test, out, *, pythonpath=None, code=None):
 
 
 class NativeToolPinTests(fixture.NativeFactsFixture):
+    def test_symlink_venv_uses_the_same_pinned_sources_and_candidate(self):
+        alias = self.root / "venv-alias"
+        alias.symlink_to(sys.prefix, target_is_directory=True)
+        direct = self.root / "direct-candidate"
+        for executable, out in ((sys.executable, direct), (alias / "bin" / Path(sys.executable).name, self.out)):
+            result = run_producer(self, out, executable=executable)
+            self.assertEqual(result.returncode, 0, result.stderr)
+        direct_files = {path.relative_to(direct): path.read_bytes() for path in direct.rglob("*") if path.is_file()}
+        alias_files = {path.relative_to(self.out): path.read_bytes() for path in self.out.rglob("*") if path.is_file()}
+        self.assertEqual(alias_files, direct_files)
+
     def copy_install(self):
         package = importlib.metadata.distribution("PyPoE")
         site = self.root / "site"

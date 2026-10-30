@@ -26,6 +26,12 @@ def _sha(raw):
     return hashlib.sha256(raw).hexdigest()
 
 
+def _matches_origin(spec, expected):
+    if spec is None or spec.origin is None:
+        return False
+    return Path(spec.origin).resolve(strict=True) == expected.resolve(strict=True)
+
+
 def _sources(root, pin):
     paths = {path.relative_to(root).as_posix(): path for path in root.rglob("*.py")}
     if paths.keys() != pin.keys():
@@ -79,7 +85,7 @@ class _Finder(importlib.abc.MetaPathFinder):
             raise ValueError(f"PyPoE module is outside the native tool pin: {fullname}")
         expected = self.root / name
         resolved = importlib.machinery.PathFinder.find_spec(fullname, path)
-        if resolved is None or resolved.origin != str(expected):
+        if not _matches_origin(resolved, expected):
             raise ValueError(f"PyPoE import path differs from pinned installation: {fullname}")
         return importlib.util.spec_from_file_location(
             fullname,
@@ -114,7 +120,7 @@ def pinned_pypoe():
         raise ValueError("Installed PyPoE differs from the noneditable Git pin")
     root = Path(package.locate_file("PyPoE")).resolve(strict=True)
     resolved = importlib.machinery.PathFinder.find_spec("PyPoE")
-    if resolved is None or resolved.origin != str(root / "__init__.py"):
+    if not _matches_origin(resolved, root / "__init__.py"):
         raise ValueError("PyPoE import path differs from pinned installation")
     sources = _sources(root, pin["sources"])
     previous = {name: module for name, module in sys.modules.copy().items() if _is_pypoe(name)}
