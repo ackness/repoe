@@ -47,6 +47,13 @@ modules may require further native field adaptation; generation success is not a
 full export or publication approval. The default CLI path retains the upstream
 specification for compatibility.
 
+`uv --offline` controls package resolution only. Exporter modules can still make
+network requests: in particular, `stat_translations` requests the live trade API,
+and a CDN client path can fetch game resources. Those API responses are not pinned
+or included in schema candidate receipts. Until the separate snapshot-input work
+is implemented, that module is not a reproducible offline export path. The offline
+tests and schema candidate generation do not run those live export requests.
+
 Passive export now reads every supplied stat slot, including zero and negative
 values, and rejects duplicate stat IDs or missing values instead of truncating
 or silently overwriting them. This is a general reader correction, not a table
