@@ -33,3 +33,7 @@ run = ["uv run --locked --offline ruff check .", "uv run --locked --offline ruff
 description = "Validate the lock, fixed schema, code and offline regression tests"
 depends = ["schema:check", "lint", "test"]
 run = ["uv lock --check --offline", "uv run --locked --offline repoe --help"]
+
+[tasks."facts:candidate"]
+description = "Export eight verified native DATs + default PSG; requires explicit source-lock/source/raw/out"
+run = "uv run --locked --offline python -B -m RePoE.native_facts"

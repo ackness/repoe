@@ -47,6 +47,14 @@ modules may require further native field adaptation; generation success is not a
 full export or publication approval. The default CLI path retains the upstream
 specification for compatibility.
 
+For a separate, offline eight-DAT + default-PSG facts candidate, use
+`mise run facts:candidate -- --source-lock <lock> --source <key> --raw <root> --out <new-dir>`.
+All inputs are explicit and raw bytes are verified in place. The versioned
+[`repoe-native-facts/v1` contract](RePoE/docs/native_facts.md) preserves every
+physical column plus passive/graph/class and quality relationships and diagnostics.
+This partial 0.5.5.5 candidate is not a production snapshot or runtime PoBR pack;
+it does not change the default exporter path or active data.
+
 PoE2 `stat_translations` exports client descriptions by default, without querying
 the trade API. Optional trade text associations require an explicitly supplied,
 previously captured snapshot. It reads the existing
