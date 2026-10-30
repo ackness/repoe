@@ -66,8 +66,10 @@ def validate_candidate(*, source_lock, source, raw, candidate, manifest_sha256=N
         "skills.json",
         "diagnostics.json",
     }
-    if profile == facts.SKILLS_PROFILE:
+    if profile != facts.BASE_PROFILE:
         names.update({"skill_core.json", "source-lock.json"})
+    if profile == facts.GEMS_PROFILE:
+        names.update({"gems.json", "constraints.json"})
     if set(manifest["files"]) != names:
         raise ValueError("Unexpected native facts payload inventory")
     actual = {p.relative_to(directory).as_posix() for p in directory.rglob("*") if p.is_file() or p.is_symlink()}
@@ -82,9 +84,9 @@ def validate_candidate(*, source_lock, source, raw, candidate, manifest_sha256=N
         _equal(manifest["files"][name], {"bytes": len(data), "sha256": schema_candidate._sha(data)}, name + " hash")
         payloads[name] = json.loads(data)
 
-    source_lock_bytes = Path(source_lock).read_bytes() if profile == facts.SKILLS_PROFILE else None
+    source_lock_bytes = Path(source_lock).read_bytes() if profile != facts.BASE_PROFILE else None
     verified, identity = facts._verified_raw(source_lock, source, raw, profile=profile)
-    if profile == facts.SKILLS_PROFILE and (directory / "source-lock.json").read_bytes() != source_lock_bytes:
+    if profile != facts.BASE_PROFILE and (directory / "source-lock.json").read_bytes() != source_lock_bytes:
         raise ValueError("Source-lock payload differs from exact input bytes")
     with pinned_pypoe() as tool_identity, redirect_stdout(sys.stderr):
         expected_manifest, replay = facts._candidate_payloads(
@@ -92,8 +94,8 @@ def validate_candidate(*, source_lock, source, raw, candidate, manifest_sha256=N
         )
     for key in ("format", "status", "production_ready", "source_identity", "row_key", "scope", "summary", "schema"):
         _equal(manifest[key], expected_manifest[key], "manifest." + key)
-    if profile == facts.SKILLS_PROFILE:
-        _equal(manifest.get("profile"), facts.SKILLS_PROFILE, "manifest.profile")
+    if profile != facts.BASE_PROFILE:
+        _equal(manifest.get("profile"), profile, "manifest.profile")
         _equal(manifest["producer"], expected_manifest["producer"], "manifest.producer")
     pin = json.loads(PIN.read_bytes())
     if "trusted_source_pin_sha256" in manifest["decoder"]:
@@ -106,11 +108,11 @@ def validate_candidate(*, source_lock, source, raw, candidate, manifest_sha256=N
         or any(digest not in pin["sources"][name] for name, digest in manifest["decoder"]["sources"].items())
     ):
         raise ValueError("Candidate decoder identity differs from trusted Git pin")
-    if profile == facts.SKILLS_PROFILE and (
+    if profile != facts.BASE_PROFILE and (
         set(manifest["decoder"]["sources"]) != set(pin["sources"])
         or manifest["decoder"].get("trusted_source_pin_sha256") != tool_identity["pin_sha256"]
     ):
-        raise ValueError("Core skills requires the complete trusted decoder profile")
+        raise ValueError("Extended facts require the complete trusted decoder profile")
     # First establish the DAT authority, then independently check both PSG
     # representations. This also catches a future producer projection regression.
     for name in selected_tables:
@@ -141,7 +143,7 @@ def main():
     parser.add_argument("--raw", required=True, type=Path)
     parser.add_argument("--facts", required=True, type=Path)
     parser.add_argument("--manifest-sha256")
-    parser.add_argument("--profile", choices=[facts.BASE_PROFILE, facts.SKILLS_PROFILE], default=facts.BASE_PROFILE)
+    parser.add_argument("--profile", choices=facts.PROFILES, default=facts.BASE_PROFILE)
     args = parser.parse_args()
     try:
         receipt = validate_candidate(

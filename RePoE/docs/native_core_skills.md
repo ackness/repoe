@@ -6,6 +6,10 @@ constants. It emits `repoe-native-facts/v2`, a **partial candidate**, with
 `production_ready: false`. It does not activate data in PoBR. Existing CLI
 defaults and the default `base-v1` resource inventory remain unchanged.
 
+The explicit [`gems-constraints-a1` profile](native_gems.md) adds gem-item,
+family, weapon and ordered constraint facts through this same ingress; it does
+not change the v2 profile's resource inventory or semantic payloads.
+
 ## Inputs and offline commands
 
 Use the same explicit source-lock, source key and raw root as the base producer,

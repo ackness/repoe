@@ -19,6 +19,8 @@ from RePoE.native_tools import pinned_pypoe
 FORMAT = "repoe-native-facts/v1"
 BASE_PROFILE = "base-v1"
 SKILLS_PROFILE = "core-skills-a0"
+GEMS_PROFILE = "gems-constraints-a1"
+PROFILES = (BASE_PROFILE, SKILLS_PROFILE, GEMS_PROFILE)
 TABLES = (
     "Characters",
     "ClassPassiveSkillOverrides",
@@ -53,9 +55,13 @@ def _json(value):
 def profile_tables(profile):
     if profile == BASE_PROFILE:
         return TABLES
-    if profile == SKILLS_PROFILE:
+    if profile in (SKILLS_PROFILE, GEMS_PROFILE):
         from RePoE.native_skills import TABLES as skill_tables
 
+        if profile == GEMS_PROFILE:
+            from RePoE.native_gems import TABLES as gem_tables
+
+            return TABLES + skill_tables + gem_tables
         return TABLES + skill_tables
     raise ValueError(f"Unknown native facts profile: {profile}")
 
@@ -84,7 +90,7 @@ def _verified_raw(source_lock, source_name, raw_root, *, profile=BASE_PROFILE):
     if set(source["resources"]) != set(resources):
         raise ValueError("Source lock must declare exactly the selected profile's DATs and default PSG")
     acquisition = None
-    if profile == SKILLS_PROFILE:
+    if profile != BASE_PROFILE:
         acquisition = source.get("acquisition")
         if (
             source.get("profile") != profile
@@ -93,7 +99,7 @@ def _verified_raw(source_lock, source_name, raw_root, *, profile=BASE_PROFILE):
             or not isinstance(acquisition.get("evidence"), list)
             or not acquisition["evidence"]
         ):
-            raise ValueError("Core skills source needs an explicit profile and acquisition evidence/status")
+            raise ValueError("Extended source needs an explicit profile and acquisition evidence/status")
         for evidence in acquisition["evidence"]:
             if (
                 not isinstance(evidence, dict)
@@ -495,11 +501,11 @@ def _projections(tables, graph):
 
 def _candidate_payloads(verified, source_identity, tool_identity, *, profile=BASE_PROFILE, source_lock_bytes=None):
     selected_tables = profile_tables(profile)
-    if profile == SKILLS_PROFILE and (
+    if profile != BASE_PROFILE and (
         not isinstance(source_lock_bytes, bytes)
         or schema_candidate._sha(source_lock_bytes) != source_identity["source_lock_sha256"]
     ):
-        raise ValueError("Core skills source-lock snapshot differs from verified identity")
+        raise ValueError("Extended source-lock snapshot differs from verified identity")
     # Regenerate only from trusted locked inputs; never execute a caller's specification.
     inputs, schema = schema_candidate._inputs(schema_candidate.ROOT)
     if (
@@ -517,7 +523,7 @@ def _candidate_payloads(verified, source_identity, tool_identity, *, profile=BAS
     graph = _decode_psg(verified[PSG])
     documents, summary = _projections(tables, graph)
     scope = LIMITS
-    if profile == SKILLS_PROFILE:
+    if profile != BASE_PROFILE:
         from RePoE import native_skills
 
         core, core_summary, diagnostics = native_skills.project(tables, _resolve)
@@ -526,6 +532,33 @@ def _candidate_payloads(verified, source_identity, tool_identity, *, profile=BAS
         scope = native_skills.LIMITS
         documents["diagnostics.json"]["scope"] = scope
         documents["diagnostics.json"]["diagnostics"].extend(diagnostics)
+    if profile == GEMS_PROFILE:
+        from RePoE import native_gems
+
+        gems, constraints, gem_summary, diagnostics = native_gems.project(tables, _resolve)
+        documents.update({"gems.json": gems, "constraints.json": constraints})
+        summary.update(gem_summary)
+        scope = native_gems.LIMITS
+        documents["diagnostics.json"]["scope"] = scope
+        documents["diagnostics.json"]["diagnostics"].extend(diagnostics)
+        # Schema enums are context, not missing DAT downloads. Keep historical
+        # v1/v2 payloads unchanged; make the expanded v3 distinction explicit.
+        for diagnostic in documents["diagnostics.json"]["diagnostics"]:
+            if diagnostic["code"] not in {"unavailable_relationship_target", "unknown_relationship_target"}:
+                continue
+            column = next(
+                column
+                for column in tables[diagnostic["table"]]["columns"]
+                if diagnostic["field"] in column["physical_fields"]
+            )
+            target = (diagnostic["target"] or {}).get("table")
+            diagnostic["target_kind"] = (
+                "schema-enumeration"
+                if column["schema"]["type"] == "enumrow"
+                else "unavailable-physical-table"
+                if target in schema_tables
+                else "unknown"
+            )
     documents.update({f"tables/{name}.json": table for name, table in tables.items()})
     documents["graph.json"] = graph
     if inputs["pypoe_sources"] != {
@@ -546,12 +579,22 @@ def _candidate_payloads(verified, source_identity, tool_identity, *, profile=BAS
             )
         },
     }
-    if profile == SKILLS_PROFILE:
+    if profile != BASE_PROFILE:
         producer["RePoE/native_skills.py"] = schema_candidate._sha(
             (schema_candidate.ROOT / "RePoE/native_skills.py").read_bytes()
         )
+    if profile == GEMS_PROFILE:
+        producer["RePoE/native_gems.py"] = schema_candidate._sha(
+            (schema_candidate.ROOT / "RePoE/native_gems.py").read_bytes()
+        )
     manifest = {
-        "format": FORMAT if profile == BASE_PROFILE else "repoe-native-facts/v2",
+        "format": (
+            FORMAT
+            if profile == BASE_PROFILE
+            else "repoe-native-facts/v2"
+            if profile == SKILLS_PROFILE
+            else "repoe-native-facts/v3"
+        ),
         "status": "partial-candidate",
         "production_ready": False,
         "source_identity": source_identity,
@@ -573,11 +616,11 @@ def _candidate_payloads(verified, source_identity, tool_identity, *, profile=BAS
         "producer": producer,
         "files": {},
     }
-    if profile == SKILLS_PROFILE:
+    if profile != BASE_PROFILE:
         manifest["profile"] = profile
     # Materialize only after every input, decoder and required join has passed.
     payloads = {name: _json(document) for name, document in documents.items()}
-    if profile == SKILLS_PROFILE:
+    if profile != BASE_PROFILE:
         payloads["source-lock.json"] = source_lock_bytes
     manifest["files"] = {
         name: {"sha256": schema_candidate._sha(data), "bytes": len(data)} for name, data in sorted(payloads.items())
@@ -595,7 +638,7 @@ def create_candidate(*, source_lock, source, raw, out, profile=BASE_PROFILE):
     output = Path(out).absolute()
     if output.exists() or output.is_symlink():
         raise FileExistsError(f"Refusing to replace existing output: {output}")
-    source_lock_bytes = Path(source_lock).read_bytes() if profile == SKILLS_PROFILE else None
+    source_lock_bytes = Path(source_lock).read_bytes() if profile != BASE_PROFILE else None
     verified, source_identity = _verified_raw(source_lock, source, raw, profile=profile)
     with pinned_pypoe() as tool_identity:
         manifest, payloads = _candidate_payloads(
@@ -624,7 +667,7 @@ def main():
     parser.add_argument("--source", required=True)
     parser.add_argument("--raw", required=True, type=Path)
     parser.add_argument("--out", required=True, type=Path)
-    parser.add_argument("--profile", choices=[BASE_PROFILE, SKILLS_PROFILE], default=BASE_PROFILE)
+    parser.add_argument("--profile", choices=PROFILES, default=BASE_PROFILE)
     args = parser.parse_args()
     try:
         manifest = create_candidate(

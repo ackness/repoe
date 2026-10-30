@@ -10,7 +10,7 @@ from RePoE import native_facts as facts, native_validate, schema_candidate
 import test_native_facts as fixture
 
 
-class NativeSkillsTests(fixture.NativeFactsFixture):
+class NativeSkillsFixture(fixture.NativeFactsFixture):
     def setUp(self):
         super().setUp()
         self.rows.update(
@@ -83,6 +83,8 @@ class NativeSkillsTests(fixture.NativeFactsFixture):
         manifest["files"][name] = {"bytes": len(data), "sha256": schema_candidate._sha(data)}
         (self.out / "manifest.json").write_bytes(facts._json(manifest))
 
+
+class NativeSkillsTests(NativeSkillsFixture):
     def test_complete_physical_channels_and_context_rows_retained_offline(self):
         with patch("socket.socket", side_effect=AssertionError("network")):
             manifest = self.create()
