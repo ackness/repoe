@@ -1,9 +1,14 @@
-#!/bin/bash
+#!/usr/bin/env bash
+set -euo pipefail
 
-all=(RePoE/schema/*)
-files=("${@:-${all[@]}}")
-for file in "${files[@]}"
-do
-  out=$(basename $file)
-  datamodel-codegen --formatters black --input $file --input-file-type jsonschema --output RePoE/model/${out/.json/.py} --output-model-type pydantic_v2.BaseModel --disable-timestamp --use-double-quotes --enable-version-header
+if (( $# == 0 )); then
+  set -- RePoE/schema/*.json
+fi
+for file in "$@"; do
+  name=$(basename "$file" .json)
+  uv run --locked --offline datamodel-codegen \
+    --formatters ruff-format \
+    --input "$file" --input-file-type jsonschema \
+    --output "RePoE/model/$name.py" --output-model-type pydantic_v2.BaseModel \
+    --disable-timestamp --use-double-quotes --enable-version-header
 done

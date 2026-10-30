@@ -6,7 +6,6 @@ class fossils(Parser_Module):
     def write(self) -> None:
         root = {}
         for row in self.relational_reader["DelveCraftingModifiers.dat64"]:
-
             base_item_key = row["BaseItemTypesKey"]["Id"]
             name_from_base_item = row["BaseItemTypesKey"]["Name"]
 

@@ -2,6 +2,108 @@
 
 Repository of Path of Exile resources for tool developers.
 
+## PoBR-maintained fork
+
+This fork is maintained as the game-fact exporter for PoBR. The upstream parser
+remains the base; PoBR calculation rules and the independent Chinese translation
+repository are maintained separately.
+
+Development uses mise + uv. `mise.toml` selects Python and uv; standard project
+metadata lives in `pyproject.toml`, and `uv.lock` fixes the resolved dependencies,
+including a full PyPoE Git revision. Run from this checkout after `mise trust` and
+`mise install`:
+
+```sh
+mise run setup
+mise run check
+mise run schema:candidate -- --out .cache/schema/example
+```
+
+`setup` uses `uv sync --locked` to create `.venv`; its first run needs dependency
+downloads. PyPoE is a noneditable Git dependency, not a sibling checkout. `check`
+runs the offline lock check, fixed schema checksum, Ruff lint/format checks,
+regression tests and CLI smoke test. `mise run test` and `mise run lint` are also
+available separately. Generated `RePoE/model/` files are excluded from regular
+lint/format; update them explicitly with `mise run models:generate -- [schema paths]`,
+which invokes the locked generator with Ruff formatting. The schema/model generator
+and PyPoE retain their own transitive dependencies; our workflow does not invoke
+Poetry, Flake8 or Black.
+
+The local PoE2 schema input and provenance are in [`schema/`](schema/README.md).
+`schema:candidate` creates a new, validated client-native candidate under `.cache/`,
+without modifying installed PyPoE files or downloading game resources. To explicitly
+try it against a selected client, use a separate output directory:
+
+```sh
+mise exec -- uv run --locked --offline repoe passives --poe2 \
+  --file /path/to/client --outdir .cache/exports/example \
+  --schema-candidate .cache/schema/example
+```
+
+Candidate generation and verification require this source checkout, its locked
+environment and schema inputs; they are not a standalone wheel feature. Client
+decoding and each exporter module still need patch-specific validation. Existing
+modules may require further native field adaptation; generation success is not a
+full export or publication approval. The default CLI path retains the upstream
+specification for compatibility.
+
+For a separate, offline eight-DAT + default-PSG facts candidate, use
+`mise run facts:candidate -- --source-lock <lock> --source <key> --raw <root> --out <new-dir>`.
+All inputs are explicit and raw bytes are verified in place. The versioned
+[`repoe-native-facts/v1` contract](RePoE/docs/native_facts.md) preserves every
+physical column plus passive/graph/class and quality relationships and diagnostics.
+This partial 0.5.5.5 candidate is not a production snapshot or runtime PoBR pack;
+it does not change the default exporter path or active data.
+
+PoE2 `stat_translations` exports client descriptions by default, without querying
+the trade API. Optional trade text associations require an explicitly supplied,
+previously captured snapshot. It reads the existing
+[poe2-zh-cn-stats schema-1 snapshot format](https://github.com/ackness/poe2-zh-cn-stats/blob/main/src/sources.mjs)
+(`manifest.json` and `raw/trade-en.json.gz`), not translation worksheets. No sibling
+checkout, collector, API access or translation dependency is needed at runtime:
+
+```sh
+# Pure client descriptions:
+mise exec -- uv run --locked --offline repoe stat_translations --poe2 \
+  --file /path/to/local/client --outdir .cache/exports/client-only
+
+# Explicit English international text candidates; replace the digest with a
+# manifest.json SHA-256 from a trusted source lock:
+mise exec -- uv run --locked --offline repoe stat_translations --poe2 \
+  --file /path/to/local/client --outdir .cache/exports/trade-candidates \
+  --trade-snapshot /path/to/snapshot \
+  --trade-snapshot-sha256 'REPLACE_WITH_TRUSTED_MANIFEST_SHA256' --trade-realm international
+```
+
+The expected manifest digest is optional; internal response checksums alone
+establish consistency, not authenticity. Snapshot validation precedes client
+loading, CDN discovery and output writes. Invalid or unsupported requested inputs
+fail without falling back to client-only export. English international input is
+the supported first slice; China, other languages and `--language all` with a
+trade snapshot are rejected. Client-only language exports retain their existing
+support. `stat_translations.provenance{,.min}.json` binds the consumed input bytes
+and produced output bytes. Text matches are candidates, not proof of game stat
+identity or calculation correctness. See the [description domain contract](RePoE/docs/stat_translations.md#poe2-offline-trade-candidates)
+for validation, scope, provenance and replay commands.
+
+`uv --offline` controls package resolution only. Select a local client with
+`--file` to avoid client/CDN networking; other exporter modules may still have
+their own network behavior. This change does not certify real-client decoding,
+identify the client patch or refresh published/active data.
+
+Passive export now reads every supplied stat slot, including zero and negative
+values, and rejects duplicate stat IDs or missing values instead of truncating
+or silently overwriting them. This is a general reader correction, not a table
+of hardcoded node values. It does not repair missing graph membership or geometry.
+
+PoE2 augment export retains each regular and bonded stat's raw `value` and the
+category's stable `target_item_classes` IDs alongside the existing display fields.
+It rejects unequal stat/value arrays and duplicate base/category identities.
+See the [augment output contract](RePoE/docs/augments.md) for compatibility and
+offline fixture coverage; real-client and gameplay validation remain separate.
+
+The original RePoE documentation follows.
+
 Forked from [brather1ng/RePoE](https://github.com/brather1ng/RePoE).
 
 Contains data about stats, mods, base items, gems and more. See the `data`
@@ -48,6 +150,9 @@ The following data is currently available:
   `mods.json`.
 - `item_classes.json`: Defines the item class ids and the tags added to items when they are
   Shaper/Elder items.
+- `augments.json` (PoE2): Describes socketable augments with raw regular/bonded
+  stat values, stable target item class IDs and display text; see
+  [the output documentation](RePoE/docs/augments.md).
 - `essences.json`: Describes essences. Defines the mods they spawn on items of the different
   item classes and general information like level and tier.
 - `default_monster_stats.json`: Describes the stat base values of monsters at specific levels.

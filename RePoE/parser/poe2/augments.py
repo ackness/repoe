@@ -20,6 +20,9 @@ class augments(Parser_Module):
             base_item_type = soul_core["BaseItemType"]
             if base_item_type is None:
                 continue
+            base_id = base_item_type["Id"]
+            if base_id in root:
+                raise ValueError(f"Duplicate augment base item: {base_id}")
 
             obj = {}
 
@@ -40,44 +43,45 @@ class augments(Parser_Module):
             obj["categories"] = categories
 
             for sc_stat in soul_core_stats.index["SoulCore"].get(soul_core, []):
+                category = sc_stat["StatCategory"]
+                category_id = category["Id"]
+                if category_id in categories:
+                    raise ValueError(f"Duplicate augment category: {base_id}/{category_id}")
                 results = {}
-                categories[sc_stat["StatCategory"]["Id"]] = results
-                if sc_stat["StatCategory"]["Display"]:
-                    results["target"] = sc_stat["StatCategory"]["Display"]
+                categories[category_id] = results
+                results["target_item_classes"] = [c["Id"] for c in category["TargetItemClasses"]]
+                if category["Display"]:
+                    results["target"] = category["Display"]
                 else:
-                    results["target"] = list(map(lambda c: c["Name"], sc_stat["StatCategory"]["TargetItemClasses"]))
+                    results["target"] = [c["Name"] for c in category["TargetItemClasses"]]
 
-                if sc_stat["Stats"]:
-                    stats = []
-                    stat_ids = []
-                    for s in sc_stat["Stats"]:
-                        stats.append({"id": s["Id"], "local": s["IsLocal"]})
-                        stat_ids.append(s["Id"])
-                    results["stats"] = stats
-                    result = trans_file.get_translation(stat_ids, sc_stat["StatsValues"], lang=self.language)
+                for stat_col, value_col, stat_key, text_key in [
+                    ("Stats", "StatsValues", "stats", "stat_text"),
+                    ("BondedStats", "BondedStatsValues", "bonded_stats", "bonded_stat_text"),
+                ]:
+                    source_stats = sc_stat[stat_col]
+                    values = sc_stat[value_col]
+                    if len(source_stats) != len(values):
+                        raise ValueError(
+                            f"Mismatched augment stat/value lengths: {base_id}/{category_id}/{stat_col}: "
+                            f"{len(source_stats)} stats, {len(values)} values"
+                        )
+                    if not source_stats:
+                        continue
+                    results[stat_key] = [
+                        {"id": stat["Id"], "local": stat["IsLocal"], "value": value}
+                        for stat, value in zip(source_stats, values, strict=True)
+                    ]
+                    stat_ids = [stat["Id"] for stat in source_stats]
+                    result = trans_file.get_translation(stat_ids, values, lang=self.language)
                     if hasattr(result, "lines"):
                         lines = result.lines
                     else:
                         lines = result
                     if lines:
-                        results["stat_text"] = lines
+                        results[text_key] = lines
 
-                if sc_stat["BondedStats"]:
-                    stats = []
-                    stat_ids = []
-                    for s in sc_stat["BondedStats"]:
-                        stats.append({"id": s["Id"], "local": s["IsLocal"]})
-                        stat_ids.append(s["Id"])
-                    results["bonded_stats"] = stats
-                    result = trans_file.get_translation(stat_ids, sc_stat["BondedStatsValues"], lang=self.language)
-                    if hasattr(result, "lines"):
-                        lines = result.lines
-                    else:
-                        lines = result
-                    if lines:
-                        results["bonded_stat_text"] = lines
-
-            root[base_item_type["Id"]] = obj
+            root[base_id] = obj
 
         write_any_json(root, self.data_path, "augments")
 

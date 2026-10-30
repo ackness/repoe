@@ -42,7 +42,7 @@ class ARMFile(AbstractFile):
         self.version = int(version.group(1))
 
         string_count = int(lines.pop(0))
-        self.strings = [self.quoted_string(l) for l in lines[:string_count]]
+        self.strings = [self.quoted_string(line) for line in lines[:string_count]]
 
         lines[:] = lines[string_count:]
 
