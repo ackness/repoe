@@ -1,8 +1,6 @@
-import json
 import re
-from collections import defaultdict
+from pathlib import Path
 from typing import Any, Dict, Iterator, List, Set, Union
-from urllib.request import urlopen, Request
 
 from PyPoE.poe.file.file_system import FileSystemNode
 from PyPoE.poe.file.translations import (
@@ -21,10 +19,21 @@ from RePoE.model import stat_value_handlers
 from RePoE.model import stats_by_file
 from RePoE.model.stat_translations import Stat
 from RePoE.parser import Parser_Module
-from RePoE.parser.util import call_with_default_args, write_json, write_model
+from RePoE.parser.util import call_with_default_args, write_any_json, write_json, write_model
+from RePoE.trade_snapshot import TradeSnapshot, fingerprint
 
 
 class stat_translations(Parser_Module):
+    def __init__(self, *args, trade_snapshot: TradeSnapshot | None = None, **kwargs):
+        super().__init__(*args, **kwargs)
+        if trade_snapshot is not None:
+            if not isinstance(trade_snapshot, TradeSnapshot):
+                raise ValueError("Use load_trade_snapshot before constructing the exporter")
+            if self.language != "English" or self.sequel != 2:
+                raise ValueError("Trade snapshots currently require English PoE2 exports")
+        self.trade_snapshot = trade_snapshot
+        self.trade_stats = trade_snapshot.index if trade_snapshot is not None else {}
+
     def _convert_tags(self, n_ids: int, tags: List[int], tags_types: List[str]) -> List[str]:
         f = ["ignore" for _ in range(n_ids)]
         for tag, tag_type in zip(tags, tags_types):
@@ -76,9 +85,9 @@ class stat_translations(Parser_Module):
             "ids": ids,
             self.language: [r for r in result if r],
             "trade_stats": (
-                list(trade_stats.values())
+                [trade_stats[key] for key in sorted(trade_stats)]
                 if trade_stats
-                else list(partial_trade_stats.values())
+                else [partial_trade_stats[key] for key in sorted(partial_trade_stats)]
                 if partial_trade_stats
                 else None
             ),
@@ -101,17 +110,17 @@ class stat_translations(Parser_Module):
             )
             if trade_format in self.trade_stats:
                 for trade_stat in self.trade_stats[trade_format]:
-                    trade_stats[trade_stat["id"]] = trade_stat
+                    trade_stats[(trade_stat["id"], trade_stat["text"])] = trade_stat
             elif "\n" in trade_format:
                 for line in trade_format.splitlines():
                     if line in self.trade_stats:
                         for trade_stat in self.trade_stats[line]:
-                            partial_trade_stats[trade_stat["id"]] = trade_stat
+                            partial_trade_stats[(trade_stat["id"], trade_stat["text"])] = trade_stat
             else:
                 trade_format = re.sub(r"\d+", "#", trade_format)
                 if trade_format in self.trade_stats:
                     for trade_stat in self.trade_stats[trade_format]:
-                        trade_stats[trade_stat["id"]] = trade_stat
+                        trade_stats[(trade_stat["id"], trade_stat["text"])] = trade_stat
 
             value = Stat(
                 condition=self._convert_range(s.range),
@@ -246,6 +255,7 @@ class stat_translations(Parser_Module):
                 pass
 
     def write(self) -> None:
+        outputs = ["stat_value_handlers", "stats_by_file"]
         self.lookup = stats_by_file.Model({})
         install_data_dependant_quantifiers(self.relational_reader)
 
@@ -293,29 +303,10 @@ class stat_translations(Parser_Module):
                 quantifiers[handler_name] = stat_value_handlers.Noop(type="noop")
         write_json(quantifiers, self.data_path, "stat_value_handlers")
 
-        with urlopen(
-            Request(
-                "https://www.pathofexile.com/api/trade2/data/stats",
-                headers={"User-Agent": "OAuth RePoE/1.0.0 (contact: https://github.com/lvlvllvlvllvlvl/RePoE/)"},
-            )
-        ) as req:
-            data = json.load(req)
-            if "result" not in data:
-                print(data)
-            self.trade_stats = defaultdict(list)
-            for trade_stat in [entry for v in data["result"] for entry in v["entries"]]:
-                if "option" in trade_stat:
-                    for option in trade_stat["option"]["options"]:
-                        self.trade_stats[trade_stat["text"].replace("#", option["text"])].append(trade_stat)
-                else:
-                    self.trade_stats[trade_stat["text"]].append(trade_stat)
-            for k, v in self.trade_stats.items():
-                self.trade_stats[k] = sorted(v, key=lambda v: v.get("id", ""))
-
         self.tag_set: Set[str] = set()
 
         node = self.file_system.build_directory()["Data"]["StatDescriptions"]
-        for file in self._build_stat_translation_file_map(node, "Data/StatDescriptions/"):
+        for file in sorted(self._build_stat_translation_file_map(node, "Data/StatDescriptions/")):
             try:
                 self.current_file = file
                 tf = self.get_cache(TranslationFileCache)[file]
@@ -323,11 +314,32 @@ class stat_translations(Parser_Module):
                 filename = file.replace("Data/StatDescriptions", "stat_translations")
                 filename = filename.replace(".csd", "")
                 write_json(result, self.data_path, filename, "stat_translations")
+                outputs.append(filename)
             except Exception as e:
                 print("Error processing file", file, e)
                 raise
 
         write_model(self.lookup, self.data_path, "stats_by_file")
+        write_any_json(
+            {
+                "schema_version": 1,
+                "kind": "repoe-poe2-stat-translations-provenance",
+                "game": "poe2",
+                "game_patch": None,  # Client patch is not established by a trade capture.
+                "language": self.language,
+                "mode": "trade-candidates" if self.trade_snapshot is not None else "client-only",
+                "association_evidence": "text-match-candidates; not game-stat identity proof",
+                "trade_snapshot": self.trade_snapshot.provenance if self.trade_snapshot is not None else None,
+                "outputs": {
+                    name + suffix: fingerprint((Path(self.data_path) / (name + suffix)).read_bytes())
+                    for name in sorted(outputs)
+                    for suffix in (".json", ".min.json")
+                },
+            },
+            self.data_path,
+            "stat_translations.provenance",
+            omit_none=False,
+        )
         print("Possible format tags: {}".format(self.tag_set))
 
 

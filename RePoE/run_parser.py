@@ -46,7 +46,46 @@ def main():
     parser.add_argument("-l", "--language", default="English", choices=list(LANGS.keys()) + ["all"])
     parser.add_argument("-rf", "--resume-from", default=None, choices=module_names)
     parser.add_argument("--schema-candidate", help="Verified native PoE2 schema candidate directory (experimental)")
+    parser.add_argument("--trade-snapshot", help="Local schema-1 snapshot directory; opt in to trade text candidates")
+    parser.add_argument(
+        "--trade-snapshot-sha256", help="Optional trusted SHA-256 of the snapshot's manifest.json bytes"
+    )
+    parser.add_argument(
+        "--trade-realm", choices=["international", "china"], help="Trade input realm (default: international)"
+    )
     args = parser.parse_args()
+
+    modules = modules2 if args.poe2 else modules1
+    if not args.module_names or "all" in args.module_names:
+        modules.sort(key=lambda m: m.__name__)
+    else:
+        missing = set(args.module_names) - {module.__name__ for module in modules}
+        if missing:
+            parser.error(f"Modules unavailable for the selected game: {', '.join(sorted(missing))}")
+        modules = [next(m for m in modules if m.__name__ == name) for name in args.module_names]
+
+    if args.resume_from:
+        if not any(module.__name__ == args.resume_from for module in modules):
+            parser.error("--resume-from must name a selected module")
+        modules = modules[modules.index(next(m for m in modules if m.__name__ == args.resume_from)) :]
+
+    trade_snapshot = None
+    if args.trade_snapshot is not None:
+        if not args.poe2 or not any(module.__name__ == "stat_translations" for module in modules):
+            parser.error("--trade-snapshot requires --poe2 and stat_translations in the selected modules")
+        from RePoE.trade_snapshot import load_trade_snapshot
+
+        try:
+            trade_snapshot = load_trade_snapshot(
+                args.trade_snapshot,
+                expected_sha256=args.trade_snapshot_sha256,
+                language=args.language,
+                realm=args.trade_realm or "international",
+            )
+        except (ValueError, OSError) as error:
+            parser.error(f"Trade snapshot rejected: {error}")
+    elif args.trade_snapshot_sha256 is not None or args.trade_realm is not None:
+        parser.error("--trade-snapshot-sha256 and --trade-realm require --trade-snapshot")
 
     schema_spec = None
     if args.schema_candidate:
@@ -59,15 +98,6 @@ def main():
     print("Loading GGPK ...", end="", flush=True)
     file_system = load_file_system(args.file or get_cdn_url(2 if args.poe2 else 1))
     print(" Done!")
-
-    modules = modules2 if args.poe2 else modules1
-    if not args.module_names or "all" in args.module_names:
-        modules.sort(key=lambda m: m.__name__)
-    else:
-        modules = [next(m for m in modules if m.__name__ == name) for name in args.module_names]
-
-    if args.resume_from:
-        modules = modules[modules.index(next(m for m in modules if m.__name__ == args.resume_from)) :]
 
     for language in LANGS.keys() if args.language == "all" else [args.language]:
         data_path = args.outdir or (__POE2_DATA_PATH__ if args.poe2 else __DATA_PATH__)
@@ -87,6 +117,11 @@ def main():
                 language=language,
                 caches=caches,
                 sequel=2 if args.poe2 else 1,
+                **(
+                    {"trade_snapshot": trade_snapshot}
+                    if parser_module.__name__ == "stat_translations" and args.poe2
+                    else {}
+                ),
             ).write()
 
 
