@@ -12,6 +12,8 @@ import tempfile
 import warnings
 
 from RePoE import schema_candidate
+from RePoE.native_dat import validate_dat
+from RePoE.native_tools import pinned_pypoe
 
 
 FORMAT = "repoe-native-facts/v1"
@@ -113,17 +115,14 @@ def _columns(table, physical_fields):
 
 
 def _decode_dat(name, raw, specification, schema_table):
+    row_width = validate_dat(name, raw, specification[f"{name}.dat"].fields)
     from PyPoE.poe.file.dat import DatReader
 
     with warnings.catch_warnings(record=True) as caught:
         warnings.simplefilter("always")
         reader = DatReader(f"{name}.datc64", specification=specification, use_dat_value=False, x64=True)
-        if len(raw) < 12:
-            raise ValueError(f"{name}: truncated DAT framing")
-        count = struct.unpack_from("<I", raw)[0]
-        boundary = 4 + count * reader.cast_size
-        if raw[boundary : boundary + 8] != b"\xbb" * 8:
-            raise ValueError(f"{name}: exact physical row width/framing mismatch")
+        if reader.cast_size != row_width:
+            raise ValueError(f"{name}: decoder/preflight physical row width mismatch")
         reader.read(raw)
         if reader.table_rows and reader.cast_size != reader.table_record_length:
             raise ValueError(
@@ -457,13 +456,7 @@ def _projections(tables, graph):
     }, summary
 
 
-def create_candidate(*, source_lock, source, raw, out):
-    # Native conversion must not write bytecode into the installed decoder.
-    sys.dont_write_bytecode = True
-    output = Path(out).absolute()
-    if output.exists() or output.is_symlink():
-        raise FileExistsError(f"Refusing to replace existing output: {output}")
-    verified, source_identity = _verified_raw(source_lock, source, raw)
+def _candidate_payloads(verified, source_identity, tool_identity):
     # Regenerate only from trusted locked inputs; never execute a caller's specification.
     inputs, schema = schema_candidate._inputs(schema_candidate.ROOT)
     if (
@@ -482,7 +475,24 @@ def create_candidate(*, source_lock, source, raw, out):
     documents, summary = _projections(tables, graph)
     documents.update({f"tables/{name}.json": table for name, table in tables.items()})
     documents["graph.json"] = graph
-    producer = {**inputs["producer"], "RePoE/native_facts.py": schema_candidate._sha(Path(__file__).read_bytes())}
+    if inputs["pypoe_sources"] != {
+        name: digest
+        for name, digest in tool_identity["sources"].items()
+        if not name.startswith("poe/file/specification/data/")
+    }:
+        raise ValueError("Imported PyPoE source inventory differs from verified tools")
+    producer = {
+        **inputs["producer"],
+        **{
+            name: schema_candidate._sha((schema_candidate.ROOT / name).read_bytes())
+            for name in (
+                "RePoE/native_facts.py",
+                "RePoE/native_dat.py",
+                "RePoE/native_tools.py",
+                "schema/pypoe-sources.json",
+            )
+        },
+    }
     manifest = {
         "format": FORMAT,
         "status": "partial-candidate",
@@ -494,7 +504,8 @@ def create_candidate(*, source_lock, source, raw, out):
         "decoder": {
             "pypoe_revision": inputs["pypoe_revision"],
             "python": inputs["python"],
-            "sources": inputs["pypoe_sources"],
+            "sources": tool_identity["sources"],
+            "trusted_source_pin_sha256": tool_identity["pin_sha256"],
         },
         "schema": {
             "revision": SCHEMA,
@@ -513,8 +524,19 @@ def create_candidate(*, source_lock, source, raw, out):
     payloads["manifest.json"] = _json(manifest)
     if schema_candidate._inputs(schema_candidate.ROOT)[0] != inputs:
         raise ValueError("Producer/schema inputs changed during generation")
-    if schema_candidate._sha(Path(__file__).read_bytes()) != producer["RePoE/native_facts.py"]:
+    if any(schema_candidate._sha((schema_candidate.ROOT / name).read_bytes()) != sha for name, sha in producer.items()):
         raise ValueError("Facts producer changed during generation")
+    return manifest, payloads
+
+
+def create_candidate(*, source_lock, source, raw, out):
+    sys.dont_write_bytecode = True
+    output = Path(out).absolute()
+    if output.exists() or output.is_symlink():
+        raise FileExistsError(f"Refusing to replace existing output: {output}")
+    verified, source_identity = _verified_raw(source_lock, source, raw)
+    with pinned_pypoe() as tool_identity:
+        manifest, payloads = _candidate_payloads(verified, source_identity, tool_identity)
     output.parent.mkdir(parents=True, exist_ok=True)
     with tempfile.TemporaryDirectory(prefix=".native-facts-", dir=output.parent) as temporary:
         staging = Path(temporary)

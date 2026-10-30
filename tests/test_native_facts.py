@@ -53,7 +53,7 @@ def psg_bytes():
     )
 
 
-class NativeFactsTests(unittest.TestCase):
+class NativeFactsFixture(unittest.TestCase):
     @classmethod
     def setUpClass(cls):
         cls.inputs, cls.schema = schema_candidate._inputs(schema_candidate.ROOT)
@@ -146,11 +146,20 @@ class NativeFactsTests(unittest.TestCase):
     def load(self, name):
         return json.loads((self.out / name).read_bytes())
 
+
+class NativeFactsTests(NativeFactsFixture):
     def test_complete_physical_and_native_projections_without_legacy_or_network(self):
-        from PyPoE.poe.file import specification
+        from RePoE.native_tools import _SourceLoader
+
+        execute = _SourceLoader.exec_module
+
+        def forbid_legacy(loader, module):
+            execute(loader, module)
+            if module.__name__ == "PyPoE.poe.file.specification":
+                module.load = lambda *a, **kw: self.fail("legacy specification load")
 
         with (
-            patch.object(specification, "load", side_effect=AssertionError("legacy")),
+            patch.object(_SourceLoader, "exec_module", forbid_legacy),
             patch("socket.socket", side_effect=AssertionError("network")),
         ):
             manifest = self.create()
@@ -257,21 +266,31 @@ class NativeFactsTests(unittest.TestCase):
         self.assertFalse(self.out.exists())
 
     def test_exact_row_width_and_warnings_are_rejected(self):
-        from PyPoE.poe.file.dat import DatReader
-
         raw = dat_bytes(self.spec, "ClassPassiveSkillOverrides", self.rows["ClassPassiveSkillOverrides"])
         bad = raw[:100] + b"\0" * 2 + raw[100:]
         with self.assertRaisesRegex(ValueError, "width/framing"):
             facts._decode_dat(
                 "ClassPassiveSkillOverrides", bad, self.spec, self.schema_tables["ClassPassiveSkillOverrides"]
             )
-        original = DatReader.read
+        decode = facts._decode_dat
 
-        def warn(reader, raw):
-            original(reader, raw)
-            warnings.warn("synthetic decoder warning")
+        def warning_decoder(*args):
+            # Patch the verified reader inside the isolated native operation.
+            from PyPoE.poe.file.dat import DatReader
 
-        with patch.object(DatReader, "read", warn), self.assertRaisesRegex(ValueError, "decoder warnings"):
+            original = DatReader.read
+
+            def warn(reader, raw):
+                original(reader, raw)
+                warnings.warn("synthetic decoder warning")
+
+            with patch.object(DatReader, "read", warn):
+                return decode(*args)
+
+        with (
+            patch.object(facts, "_decode_dat", warning_decoder),
+            self.assertRaisesRegex(ValueError, "decoder warnings"),
+        ):
             self.create()
         self.assertFalse(self.out.exists())
 
