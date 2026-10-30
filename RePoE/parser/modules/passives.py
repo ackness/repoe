@@ -30,7 +30,6 @@ CLASS_PASSIVES = [f"AscendancySpecialEldritch{i}" for i in range(1, 6)] + ["Asce
 
 
 class passives(Parser_Module):
-
     def write(self) -> None:
         all_passives = self.relational_reader["PassiveSkills.dat64"]
         if "PassiveSkillGraphId" not in all_passives.index:
@@ -86,7 +85,7 @@ class passives(Parser_Module):
         bg = row["BackgroundArt"]
         for size in ["Small", "Medium", "Large"]:
             for blank in [False, True]:
-                result[f"group_bg_{size.lower()}_{"blank" if blank else "normal"}"] = bg[
+                result[f"group_bg_{size.lower()}_{'blank' if blank else 'normal'}"] = bg[
                     f"{size}{'Blank' if blank else ''}"
                 ]
         for size in ["Passive", "Notable", "Keystone"]:

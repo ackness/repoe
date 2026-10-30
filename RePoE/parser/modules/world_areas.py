@@ -77,7 +77,7 @@ class world_areas(Parser_Module):
         if row in self.packs.index["WorldAreasKeys"]:
             result["packs"] = [self.process_pack(p) for p in self.packs.index["WorldAreasKeys"][row]]
         if row["TopologiesKeys"]:
-            result["topologies"] = [self.process_layout(l) for l in row["TopologiesKeys"]]
+            result["topologies"] = [self.process_layout(layout) for layout in row["TopologiesKeys"]]
 
         return result
 

@@ -228,7 +228,7 @@ class GemConverter:
                 if tag + 1 in v:
                     q.append(k)
             s.append(string.strings[i])
-            s.append(f'{{{"/".join(q)}}}')
+            s.append(f"{{{'/'.join(q)}}}")
         s.append(string.strings[-1])
         return "".join(s)
 

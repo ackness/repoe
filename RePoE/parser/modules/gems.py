@@ -224,7 +224,7 @@ class GemConverter:
                 if tag + 1 in v:
                     q.append(k)
             s.append(string.strings[i])
-            s.append(f'{{{"/".join(q)}}}')
+            s.append(f"{{{'/'.join(q)}}}")
         s.append(string.strings[-1])
         return "".join(s)
 
@@ -443,7 +443,7 @@ class GemConverter:
         gepls_dict = {}
         for gepl in gepls:
             if gepl["Level"] not in gesspls:
-                print(f"no level {gepl["Level"]} for {gess["Id"]}")
+                print(f"no level {gepl['Level']} for {gess['Id']}")
             else:
                 gepl_converted = self._convert_gepl(gepl, gess, gesspls[gepl["Level"]], multipliers, is_support, xp)
                 gepls_dict[str(gepl["Level"])] = gepl_converted

@@ -14,7 +14,6 @@ from pydantic import BaseModel
 import requests
 from PyPoE.poe.file.dat import RelationalReader
 from PyPoE.poe.file.file_system import FileSystem
-from PyPoE.poe.file.specification.data import generated, poe2
 
 from RePoE import __DATA_PATH__, __POE2_DATA_PATH__
 from RePoE.parser import Parser_Module
@@ -118,7 +117,18 @@ def load_file_system(ggpk_path: str) -> FileSystem:
     return FileSystem(ggpk_path)
 
 
-def create_relational_reader(file_system: FileSystem, language: str, poe2spec: bool) -> RelationalReader:
+def create_relational_reader(
+    file_system: FileSystem, language: str, poe2spec: bool, *, schema_spec=None
+) -> RelationalReader:
+    native = schema_spec is not None
+    if schema_spec is not None:
+        if not poe2spec or schema_spec.sequel != 2:
+            raise ValueError("Native schema candidates require PoE2")
+        schema_spec.validate()
+    else:
+        from PyPoE.poe.file.specification.data import generated, poe2
+
+        schema_spec = poe2.specification if poe2spec else generated.specification
     opt = {
         "use_dat_value": False,
         "auto_build_index": True,
@@ -126,9 +136,10 @@ def create_relational_reader(file_system: FileSystem, language: str, poe2spec: b
     }
     return RelationalReader(
         path_or_file_system=file_system,
-        specification=poe2.specification if poe2spec else generated.specification,
+        specification=schema_spec,
         read_options=opt,
         language=language,
+        raise_error_on_missing_relation=native,
     )
 
 

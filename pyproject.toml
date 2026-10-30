@@ -1,33 +1,43 @@
-[tool.poetry]
+[project]
 name = "repoe"
 version = "1.0.0"
 description = "Repository of Path of Exile resources for tool developers."
-authors = ["brather1ng"]
+authors = [{ name = "brather1ng" }]
 license = "MIT"
+license-files = ["LICENSE.md"]
 readme = "README.md"
-packages = [
-    { include = "RePoE", from = "." },
+requires-python = ">=3.13,<4"
+dependencies = [
+  "pillow==12.1.1",
+  "requests>=2.31,<3",
+  "pypoe",
+  "pydantic>=2.7.1,<3",
+  "datamodel-code-generator>0.60.2",
 ]
 
-[tool.poetry.scripts]
-repoe = 'RePoE.run_parser:main'
+[project.scripts]
+repoe = "RePoE.run_parser:main"
 
-[tool.poetry.dependencies]
-python = "^3.13"
-pillow = "12.1.1"
-requests = "^2.31.0"
-pypoe = {git = "https://github.com/repoe-fork/pypoe.git", rev = "66d1d7442c5718260e1a8efd24989d22987e91af"}
-pydantic = "^2.7.1"
-datamodel-code-generator = ">0.60.2"
+[dependency-groups]
+dev = ["ruff>=0.14,<1"]
+docs = ["json-schema-for-humans>=1.0.1,<2"]
 
-[tool.poetry.group.dev.dependencies]
-datamodel-code-generator = ">0.60.2"
-json-schema-for-humans = "^1.0.1"
-pre-commit = "^2.21.0"
+[tool.uv.sources]
+pypoe = { git = "https://github.com/repoe-fork/pypoe.git", rev = "66d1d7442c5718260e1a8efd24989d22987e91af" }
 
-[tool.black]
+[tool.uv.build-backend]
+module-name = "RePoE"
+module-root = ""
+source-exclude = ["RePoE/data/**"]
+
+[tool.ruff]
 line-length = 120
+target-version = "py313"
+extend-exclude = ["RePoE/model"]
+
+[tool.ruff.lint]
+select = ["E4", "E7", "E9", "F"]
 
 [build-system]
-requires = ["poetry-core"]
-build-backend = "poetry.core.masonry.api"
+requires = ["uv_build>=0.13.6,<0.14"]
+build-backend = "uv_build"

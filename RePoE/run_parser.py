@@ -45,7 +45,16 @@ def main():
     parser.add_argument("-o", "--outdir", help="output directory")
     parser.add_argument("-l", "--language", default="English", choices=list(LANGS.keys()) + ["all"])
     parser.add_argument("-rf", "--resume-from", default=None, choices=module_names)
+    parser.add_argument("--schema-candidate", help="Verified native PoE2 schema candidate directory (experimental)")
     args = parser.parse_args()
+
+    schema_spec = None
+    if args.schema_candidate:
+        if not args.poe2 or not args.file or not args.outdir:
+            parser.error("--schema-candidate requires --poe2, an explicit --file and --outdir")
+        from RePoE.schema_candidate import load_candidate
+
+        schema_spec = load_candidate(args.schema_candidate)
 
     print("Loading GGPK ...", end="", flush=True)
     file_system = load_file_system(args.file or get_cdn_url(2 if args.poe2 else 1))
@@ -61,13 +70,12 @@ def main():
         modules = modules[modules.index(next(m for m in modules if m.__name__ == args.resume_from)) :]
 
     for language in LANGS.keys() if args.language == "all" else [args.language]:
-
         data_path = args.outdir or (__POE2_DATA_PATH__ if args.poe2 else __DATA_PATH__)
         if language == "English" or (args.outdir and args.language != "all"):
             data_path = os.path.join(data_path, "")
         else:
             data_path = os.path.join(data_path, language, "")
-        rr = create_relational_reader(file_system, language, args.poe2)
+        rr = create_relational_reader(file_system, language, args.poe2, schema_spec=schema_spec)
         caches = {}
 
         for parser_module in modules:

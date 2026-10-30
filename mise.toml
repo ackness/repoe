@@ -2,21 +2,34 @@
 python = "3.14.10"
 uv = "0.13.6"
 
+[env]
+UV_PYTHON = "python"
+
 [tasks.setup]
-description = "Install the locked exporter environment with the selected Python"
-run = [
-  "uvx --python python --from poetry==2.5.1 poetry env use python",
-  "uvx --python python --from poetry==2.5.1 poetry sync --only main",
-]
+description = "Sync the locked runtime and development environment into .venv"
+run = "uv sync --locked"
 
 [tasks."schema:check"]
 description = "Verify the prepared schema input without activating it"
 run = "shasum -a 256 -c schema/SHA256SUMS"
 
+[tasks."schema:candidate"]
+description = "Generate a validated native schema candidate; --out must be inside .cache"
+run = "uv run --locked --offline python -m RePoE.schema_candidate"
+
+[tasks."models:generate"]
+description = "Regenerate JSON-schema models explicitly (optional schema paths)"
+run = "bash datamodel-codegen.sh"
+
+[tasks.test]
+description = "Run the exporter regression tests offline"
+run = "uv run --locked --offline python -m unittest discover -s tests -v"
+
+[tasks.lint]
+description = "Check Python lint rules and formatting"
+run = ["uv run --locked --offline ruff check .", "uv run --locked --offline ruff format --check ."]
+
 [tasks.check]
-description = "Check the lock, schema bytes and exporter CLI without fetching game data"
-run = [
-  "uvx --offline --python python --from poetry==2.5.1 poetry check --lock",
-  "shasum -a 256 -c schema/SHA256SUMS",
-  "uvx --offline --python python --from poetry==2.5.1 poetry run repoe --help",
-]
+description = "Validate the lock, fixed schema, code and offline regression tests"
+depends = ["schema:check", "lint", "test"]
+run = ["uv lock --check --offline", "uv run --locked --offline repoe --help"]
