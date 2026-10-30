@@ -1,6 +1,7 @@
 """Source-preservation and offline publication contracts for selected CSD facts."""
 
 import hashlib
+import json
 import os
 from pathlib import Path
 import socket
@@ -124,6 +125,21 @@ class LexicalTests(unittest.TestCase):
                 list(csd.iter_records(broken, LOCAL))
         with self.assertRaises(ValueError):
             list(csd.iter_records(files, LOCAL, max_depth=0))
+
+    def test_memoized_depth_and_occurrence_budget_keep_distinct_contracts(self):
+        files = {}
+        names = [f"Data/StatDescriptions/level{i}.csd" for i in range(18)]
+        for i, name in enumerate(names):
+            content = f'include "{names[i + 1]}"\n' * 8 if i + 1 < len(names) else '"leaf"\n'
+            files[name] = csd.parse_csd(name, raw(content))
+        self.assertEqual(csd.validate_closure(files, [names[-1], names[1]]), set(names[1:]))
+        with self.assertRaisesRegex(ValueError, "Over-depth"):
+            csd.validate_closure(files, [names[-1], names[0]])
+        with self.assertRaisesRegex(ValueError, "occurrence work budget"):
+            list(csd.iter_records(files, names[1], max_occurrences=50))
+        for invalid in [0, True, 1_000_001]:
+            with self.assertRaises(ValueError):
+                list(csd.iter_records(files, names[-1], max_occurrences=invalid))
 
 
 class CandidateTests(unittest.TestCase):
@@ -301,6 +317,22 @@ class CandidateTests(unittest.TestCase):
         self.assertTrue(changed)
         self.assertFalse((self.raw / "new").exists())
         self.assertEqual(list((moved / "new").iterdir()), [])
+
+    def test_candidate_validates_repeated_include_dag_without_occurrence_expansion(self):
+        names = [f"Data/StatDescriptions/dag{i}.csd" for i in range(17)]
+        resources = {}
+        for i, name in enumerate(names):
+            data = raw(f'include "{names[i + 1]}"\n' * 8 if i + 1 < len(names) else '"leaf"\n')
+            (self.raw / name).write_bytes(data)
+            resources[name] = {"bytes": len(data), "sha256": producer._sha(data)}
+        selected = self.lock["sources"]["test"]
+        selected["resources"] = resources
+        selected["roots"] = [names[0]]
+        with patch.object(csd, "iter_records", side_effect=AssertionError("closure must not expand occurrences")):
+            manifest = producer.create_candidate(**self.args("dag-output"))
+        self.assertEqual(manifest["summary"]["files"], 17)
+        output = json.loads((self.root / "dag-output/descriptions.json").read_bytes())
+        self.assertEqual(len(output["files"][names[0]]["records"]), 8)
 
 
 if __name__ == "__main__":
