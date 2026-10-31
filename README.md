@@ -80,6 +80,12 @@ select a translation or execute handlers. Join this domain to native numerical
 facts by game stat ID and exact game/patch/realm; international Simplified Chinese
 text does not establish CN-realm numerical equivalence.
 
+[`facts:player`](RePoE/docs/native_player_context.md) adds a separately pinned
+player-source context to the native v4 parent: complete starting-option and
+glossary tables plus ordered, lossless AO/OT metadata. Actor binding, stat merging
+and calculation formulas remain explicit PoBR responsibilities; this command
+does not allocate starting choices or promote a candidate to production.
+
 PoE2 `stat_translations` exports client descriptions by default, without querying
 the trade API. Optional trade text associations require an explicitly supplied,
 previously captured snapshot. It reads the existing
