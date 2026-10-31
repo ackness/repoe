@@ -143,6 +143,18 @@ game data information it requires. If you need other files converted, feel free 
 open an Issue or Pull Request for that. The source data files can be inspected with
 [poe-dat-viewer](https://snosme.github.io/poe-dat-viewer/).
 
+## Cross-repository contract
+
+The shared target architecture and ownership rules live in
+[PoBR data architecture](https://github.com/ackness/pobr/blob/master/docs/data-architecture.md).
+This repository owns raw client decoding, faithful facts/relationships and provenance;
+PoBR owns normalization, applicability policy, Rust semantics and player workflows.
+The [translation repository](https://github.com/ackness/poe2-zh-cn-stats) owns language
+pairing and curation, not numerical stat identity. Repair exporter omissions here,
+then hand consumers the fixed producer revision, schema, artifact digest, patch/realm,
+changed fields and actual validation limits. A merged exporter or verified byte replay
+does not approve a source or activate a PoBR runtime package.
+
 ## Files
 
 When running locally generated json data is exported to ./RePoE/data/. Each file has a
