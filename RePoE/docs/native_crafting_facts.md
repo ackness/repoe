@@ -22,10 +22,17 @@ table documents without performing I/O; its caller owns input authentication.
 
 The externally pinned manifest must identify a partial `repoe-native-facts/v4`
 `items-actors-bc` export with the exact native schema/specification and decoder
-revision. Its source must declare English PoE2, patch, realm, acquisition evidence,
+revision. Its source must declare PoE2, patch, realm, acquisition evidence,
 source-lock and selected-source identities. These are inherited declarations;
 this operation does not independently observe a client, verify acquisition
 evidence documents, authenticate raw resource bytes or promote source status.
+
+Language is optional inherited metadata, not an eligibility gate for these
+physical-ID/numeric joins. Missing or null language remains unknown; an explicit
+nonempty string is preserved as a declaration without verification. No English
+default or inference from names/paths is made. `observation` records the nullable
+declaration and `source_language_independently_observed: false`; absence in the
+original source identity is preserved. The original raw tables are not translated.
 
 Only these paths are consumed and verified against the manifest's byte lengths
 and SHA-256 values:

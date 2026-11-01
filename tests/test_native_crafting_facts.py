@@ -262,7 +262,7 @@ class CraftingFactsTests(unittest.TestCase):
         for key, value in [
             ("realm", None),
             ("game_patch", "unknown"),
-            ("language", "Simplified Chinese"),
+            ("language", 1),
             ("source_lock_sha256", None),
         ]:
             with self.subTest(key=key):
@@ -273,6 +273,23 @@ class CraftingFactsTests(unittest.TestCase):
                     self.create()
                 self.manifest = saved
         self.assertFalse((self.root / "candidate").exists())
+
+    def test_optional_language_is_preserved_without_default_or_observation(self):
+        for index, (present, value) in enumerate(
+            [(False, None), (True, None), (True, "English"), (True, "Simplified Chinese")]
+        ):
+            with self.subTest(present=present, language=value):
+                source = self.manifest["source_identity"]
+                if present:
+                    source["language"] = value
+                else:
+                    source.pop("language", None)
+                self.pin()
+                manifest = self.create(f"language-{index}")
+                self.assertEqual(manifest["source_identity"], source)
+                self.assertEqual("language" in manifest["source_identity"], present)
+                self.assertEqual(manifest["observation"]["source_language_declared"], value)
+                self.assertFalse(manifest["observation"]["source_language_independently_observed"])
 
     def test_missing_seventh_input_and_wrong_native_schema_reject(self):
         (self.input / "tables/EssenceMods.json").unlink()

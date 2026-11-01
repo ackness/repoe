@@ -58,13 +58,14 @@ def _inputs(facts, expected_manifest_sha256):
         raise ValueError("Expected partial F77 native facts with exact native schema")
     source = manifest["source_identity"]
     acquisition = source.get("acquisition", {})
+    language = source.get("language")
     if (
         source.get("kind") != "official-client-resource-candidate"
         or source.get("game") != "poe2"
         or not isinstance(source.get("game_patch"), str)
         or not re.fullmatch(r"\d+(?:\.\d+){2,5}", source["game_patch"])
         or source.get("realm") not in {"international", "china"}
-        or source.get("language", "English") != "English"
+        or (language is not None and (not isinstance(language, str) or not language))
         or not isinstance(source.get("source"), str)
         or not source["source"]
         or not env._digest(source.get("source_lock_sha256"))
@@ -73,7 +74,7 @@ def _inputs(facts, expected_manifest_sha256):
         or not isinstance(acquisition.get("evidence"), list)
         or not acquisition["evidence"]
     ):
-        raise ValueError("Explicit inherited English source/patch/realm and acquisition identity required")
+        raise ValueError("Explicit inherited source/patch/realm and acquisition identity required")
     for evidence in acquisition["evidence"]:
         if (
             not isinstance(evidence, dict)
@@ -387,6 +388,8 @@ def create_candidate(*, facts, expected_manifest_sha256, out):
             "method": "pinned-export-projection",
             "raw_decoding_performed": False,
             "client_identity_independently_observed": False,
+            "source_language_declared": source.get("language"),
+            "source_language_independently_observed": False,
         },
         "producer": producer,
         "python": sys.version.split()[0],
