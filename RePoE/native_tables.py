@@ -13,10 +13,12 @@ from RePoE.native_tools import pinned_pypoe
 
 ROOT = schema_candidate.ROOT
 FORMAT = "repoe-native-tables/v1"
+LOCALIZED_FORMAT = "repoe-localized-tables/v1"
+LANGUAGES = ("English", "Simplified Chinese", "Traditional Chinese")
 MAX_RAW_BYTES = 64 * 1024 * 1024
 
 
-def _inputs(source_lock, source, raw, expected_source_lock_sha256):
+def _inputs(source_lock, source, raw, expected_source_lock_sha256, language="English"):
     lock_bytes = envelope._read(Path(source_lock), 2 * 1024 * 1024)
     if not envelope._digest(expected_source_lock_sha256) or envelope._sha(lock_bytes) != expected_source_lock_sha256:
         raise ValueError("Source lock differs from external expected byte pin")
@@ -24,6 +26,9 @@ def _inputs(source_lock, source, raw, expected_source_lock_sha256):
     if type(lock.get("schema_version")) is not int or lock["schema_version"] != 1:
         raise ValueError("Unsupported source lock schema")
     selected = lock["sources"][source]
+    if language not in LANGUAGES or selected.get("language", "English") != language:
+        raise ValueError("Selected source language differs from explicit language")
+    prefix = "Data/Balance/" + ("" if language == "English" else language + "/")
     acquisition = selected.get("acquisition")
     if (
         selected.get("kind") != "official-client-resource-candidate"
@@ -64,7 +69,7 @@ def _inputs(source_lock, source, raw, expected_source_lock_sha256):
         raise ValueError("Raw input root is not a directory")
     verified, names, total = {}, set(), 0
     for name, pin in resources.items():
-        match = re.fullmatch(r"Data/Balance/([A-Za-z][A-Za-z0-9_]*)\.datc64", name)
+        match = re.fullmatch(re.escape(prefix) + r"([A-Za-z][A-Za-z0-9_]*)\.datc64", name)
         if not match or name.casefold() in names:
             raise ValueError("Unsafe, duplicate or non-DAT resource")
         names.add(name.casefold())
@@ -122,7 +127,7 @@ def _references(tables):
     return {"checked_internal_references": checked, "external_references": external}
 
 
-def _payloads(lock_bytes, selected, verified, source):
+def _payloads(lock_bytes, selected, verified, source, language="English"):
     with pinned_pypoe() as tools:
         inputs, schema = schema_candidate._inputs(ROOT)
         spec_raw, spec = schema_candidate._native_specification(schema)
@@ -135,6 +140,7 @@ def _payloads(lock_bytes, selected, verified, source):
             if name not in schemas:
                 raise ValueError(f"Selected table has no native schema: {name}")
             tables[name] = facts._decode_dat(name, raw, spec, schemas[name])
+            tables[name]["raw_resource"] = resource
         if inputs != schema_candidate._inputs(ROOT)[0]:
             raise ValueError("Native schema/tool inputs changed during decoding")
     producer = {
@@ -153,7 +159,7 @@ def _payloads(lock_bytes, selected, verified, source):
     }
     payloads = {"tables.json": facts._json(tables), "source-lock.json": lock_bytes}
     manifest = {
-        "format": FORMAT,
+        "format": FORMAT if language == "English" else LOCALIZED_FORMAT,
         "status": "partial-candidate",
         "production_ready": False,
         "source_identity": {
@@ -183,11 +189,14 @@ def _payloads(lock_bytes, selected, verified, source):
         "scope": "Selected physical DAT tables only. Preserve every field/order/null; no gameplay, localization or release-membership inference. External references require separately pinned inputs. Source status is not promoted.",
         "files": {name: {"bytes": len(raw), "sha256": envelope._sha(raw)} for name, raw in payloads.items()},
     }
+    if language != "English":
+        manifest["source_identity"]["language"] = language
+        manifest["scope"] += " Locale is explicit; no fallback to English, cross-locale joins or translation selection."
     payloads["manifest.json"] = facts._json(manifest)
     return manifest, payloads
 
 
-def create_candidate(*, source_lock, expected_source_lock_sha256, source, raw, out):
+def create_candidate(*, source_lock, expected_source_lock_sha256, source, raw, out, language="English"):
     sys.dont_write_bytecode = True
     output = Path(out).absolute()
     cache = ROOT.resolve(strict=True) / ".cache"
@@ -195,11 +204,11 @@ def create_candidate(*, source_lock, expected_source_lock_sha256, source, raw, o
         raise FileExistsError("Refusing to replace selected-table output")
     if output.resolve() == cache or not output.resolve().is_relative_to(cache):
         raise ValueError("Selected-table candidate must be inside this checkout's .cache")
-    args = (source_lock, source, raw, expected_source_lock_sha256)
+    args = (source_lock, source, raw, expected_source_lock_sha256, language)
     lock_bytes, selected, verified, raw_root = _inputs(*args)
     if output.resolve().is_relative_to(raw_root):
         raise ValueError("Selected-table output cannot be inside raw input")
-    manifest, payloads = _payloads(lock_bytes, selected, verified, source)
+    manifest, payloads = _payloads(lock_bytes, selected, verified, source, language)
     if _inputs(*args)[:3] != (lock_bytes, selected, verified):
         raise ValueError("Selected raw inputs changed during decoding")
     for name, digest in manifest["producer"].items():
@@ -213,12 +222,13 @@ def main():
     parser = argparse.ArgumentParser(description=__doc__)
     for name in ["source-lock", "expected-source-lock-sha256", "source", "raw", "out"]:
         parser.add_argument("--" + name, required=True)
+    parser.add_argument("--language", choices=LANGUAGES, default="English")
     args = parser.parse_args()
     try:
         manifest = create_candidate(**vars(args))
     except (ValueError, OSError, KeyError, TypeError) as error:
         parser.exit(1, f"Selected native tables rejected: {error}\n")
-    print(f"{FORMAT}: {manifest['summary']['tables']}; partial candidate, not adopted")
+    print(f"{manifest['format']}: {manifest['summary']['tables']}; partial candidate, not adopted")
 
 
 if __name__ == "__main__":
