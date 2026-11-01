@@ -1,9 +1,18 @@
 [tools]
-python = "3.14.10"
-uv = "0.13.6"
+# Refresh explicitly with `mise lock --bump`; replay uses the committed lock.
+python = "latest"
+uv = "latest"
 
 [env]
 UV_PYTHON = "python"
+
+# Needed when the frozen Pillow release has no wheel for the latest Python.
+[bootstrap.packages]
+"brew:jpeg-turbo" = { os = "macos" }
+"brew:zlib" = { os = "macos" }
+"apt:build-essential" = { os = "linux" }
+"apt:libjpeg-dev" = { os = "linux" }
+"apt:zlib1g-dev" = { os = "linux" }
 
 [tasks.setup]
 description = "Sync the locked runtime and development environment into .venv"
@@ -49,3 +58,11 @@ run = "uv run --locked --offline python -B -m RePoE.native_descriptions"
 [tasks."tables:candidate"]
 description = "Export explicitly pinned supplemental DAT tables through the existing native reader"
 run = "uv run --locked --offline python -B -m RePoE.native_tables"
+
+[tasks."publication:package"]
+description = "Package explicit pinned local exports; no decoding, networking or snapshot fallback"
+run = "python -B -m RePoE.data_publication package"
+
+[tasks."publication:git-handoff"]
+description = "Stage a local orphan RePoE artifact without a checkout, remote or push"
+run = "python -B -m RePoE.data_publication git-handoff"
