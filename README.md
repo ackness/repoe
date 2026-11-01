@@ -105,6 +105,10 @@ An explicit `--language` exports localized DATs as `repoe-localized-tables/v1`,
 with exact locale paths and no English fallback; translation selection remains
 the translation repository's responsibility.
 
+The [description-relation observation](RePoE/docs/description_relations.md)
+preserves two exact table resources and one missing-resource diagnostic in an
+independent draft artifact. Empty/generic rows do not enable PoE2 formatters.
+
 [`Native crafting relationships`](RePoE/docs/native_crafting_facts.md) projects
 exactly seven pinned, already exported F77 tables into a separate neutral facts
 candidate. It preserves all physical EssenceMods relations, eight Mods stat slots,

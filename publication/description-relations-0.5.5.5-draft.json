@@ -1,0 +1,81 @@
+{
+  "candidate_manifest": {
+    "bytes": 14811,
+    "path": "candidate/manifest.json",
+    "sha256": "2ec3a9a9d53734114963ce2ab47972aabbae7c29c077bc46fd47f6f7d60bed8f"
+  },
+  "handler_gaps": {
+    "before": 13,
+    "closed": 0,
+    "remaining": 13
+  },
+  "limits": [
+    "New SHA-256 values freeze observations, not original expected pins or official source acceptance.",
+    "Only the selected two-resource subset has a complete acquisition receipt; three-resource discovery was incomplete.",
+    "Patch, realm and English default resource namespace remain target declarations, not independently observed client identities.",
+    "An empty support table supplies no index/name relation or nonempty row-layout proof. The reward table supplies only signed raw enum key0, with no general key-base rule.",
+    "Both community formatter registrations are PoE1-guarded; PoE2 physical specs and CSD tokens do not establish a complete PoE2 formatter contract.",
+    "No handler, source registry, PoBR runtime data or CURRENT adoption."
+  ],
+  "missing_resources": [
+    "Data/Balance/IndexableNonActiveSupportGems.datc64"
+  ],
+  "observed_resources": {
+    "Data/Balance/AfflictionRewardTypeVisuals.datc64": {
+      "bytes": 98,
+      "raw_keys": [
+        0
+      ],
+      "rows": 1,
+      "sha256": "aa10babef65f2aca1dc22f8397c22d4f9f241e1068262f5c6b89f36c5b991d9f"
+    },
+    "Data/Balance/IndexableSupportGems.datc64": {
+      "bytes": 12,
+      "rows": 0,
+      "sha256": "dcee8ef773abb4496aab2c0d8b33b72e66440e0ec922b96d779f87a5c4514505"
+    }
+  },
+  "package": {
+    "bytes": 393315,
+    "expanded_bytes": 670924,
+    "manifest": {
+      "bytes": 13735,
+      "sha256": "86a91221d7ffb22792fb09eddeb5672c34da981738d25e1e8e800e344085f321"
+    },
+    "path": "handoff/description-relations-draft-20261101/source-package.zip",
+    "ref": "refs/heads/handoff/description-relations-draft-20261101",
+    "repository": "ackness/repoe",
+    "revision": "80feccafcb196f7e37cf9499da19dcde946247a9",
+    "sha256": "c3018660af1bffbf5c7a784bb1c06d92b11a05db3892bdbd9ce9a9ebcec3fbe6",
+    "target": {
+      "game": "poe2",
+      "game_patch": "0.5.5.5",
+      "realm": "international"
+    }
+  },
+  "package_schema": "repoe-description-relation-observation-package/v1",
+  "producer_revision": "d50918a3fc9c46ef381293e72a1ae284b4163a9b",
+  "schema": "repoe-description-relation-observation-publication/v1",
+  "source_lock": {
+    "bytes": 1686,
+    "path": "candidate/source-lock.json",
+    "sha256": "ca40e6366d721660d56e15f5f4bcc780103704d182bc72fea20b853c951a1c98"
+  },
+  "status": "published-draft; no source acceptance or formatter adoption",
+  "tables": {
+    "bytes": 2325,
+    "path": "candidate/tables.json",
+    "sha256": "2b8237e919018c28bac6d4e5b9e08145cff4f134ebe657d51e56fd76f5b78c3b"
+  },
+  "verification": {
+    "archive_members_byte_verified": 92,
+    "fresh_remote_git_fetch": true,
+    "os_network_denied_raw_to_facts_replay": true,
+    "producer_git_blobs_verified": 11,
+    "replayed_files": [
+      "tables.json",
+      "source-lock.json",
+      "manifest.json"
+    ]
+  }
+}
