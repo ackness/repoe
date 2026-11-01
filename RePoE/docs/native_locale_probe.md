@@ -1,4 +1,9 @@
-# Two-table memory probe
+# Memory locale decoding
+
+The interface now supports the fixed nine tables and a separately identified
+[v2 decoded-language ingress](decoded_locale_tables.md). The original two-table
+invocation below remains usable for a bounded first probe. Historical receipts
+retain their original two-table source hashes and comparison policy.
 
 `native_locale_probe.py` is a bounded diagnostic interface for already-extracted
 Words/Ascendancy DAT64 buffers. It uses only hashlib/json/struct, defines functions
