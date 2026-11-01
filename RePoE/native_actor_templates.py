@@ -38,6 +38,8 @@ def _structure(lines):
             elif line[i : i + 2] == "//" or (char == "#" and not line[:i].strip()):
                 masked.extend("\n" if c == "\n" else " " for c in line[i:])
                 break
+            elif line[i : i + 2] == "/*":
+                raise ValueError("Unsupported C-style actor block comment")
             elif char in "\"'":
                 quote = char
                 masked.append(char)
