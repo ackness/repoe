@@ -1,6 +1,7 @@
 [tools]
-python = "3.14.10"
-uv = "0.13.6"
+# Refresh explicitly with `mise lock --bump`; replay uses the committed lock.
+python = "latest"
+uv = "latest"
 
 [env]
 UV_PYTHON = "python"
