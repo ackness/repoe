@@ -216,8 +216,82 @@ def _payloads(lock_bytes, selected, verified, source):
     return manifest, payloads
 
 
+def _publish_windows(output, raw_root, payloads):
+    """Lock directory ancestors against rename and reject Windows reparse points."""
+    import ctypes
+    from ctypes import wintypes
+
+    root = ROOT.resolve(strict=True)
+    relative = output.relative_to(root)
+    if not relative.parts or relative.parts[0] != ".cache" or any(part in {".", ".."} for part in relative.parts):
+        raise ValueError("Invalid cache output path")
+    if output.resolve().is_relative_to(raw_root.resolve(strict=True)):
+        raise ValueError("Description output cannot enter raw input directory")
+    for name in payloads:
+        if not name or Path(name).name != name or name in {".", ".."} or ":" in name:
+            raise ValueError("Invalid publication payload name")
+    kernel = ctypes.WinDLL("kernel32", use_last_error=True)
+    kernel.CreateFileW.argtypes = [
+        wintypes.LPCWSTR,
+        wintypes.DWORD,
+        wintypes.DWORD,
+        ctypes.c_void_p,
+        wintypes.DWORD,
+        wintypes.DWORD,
+        wintypes.HANDLE,
+    ]
+    kernel.CreateFileW.restype = wintypes.HANDLE
+    kernel.GetFileInformationByHandleEx.argtypes = [wintypes.HANDLE, ctypes.c_int, ctypes.c_void_p, wintypes.DWORD]
+    kernel.GetFileInformationByHandleEx.restype = wintypes.BOOL
+    kernel.CloseHandle.argtypes = [wintypes.HANDLE]
+    kernel.CloseHandle.restype = wintypes.BOOL
+
+    class Attributes(ctypes.Structure):
+        _fields_ = [("attributes", wintypes.DWORD), ("tag", wintypes.DWORD)]
+
+    handles = []
+
+    def lock_directory(directory):
+        # No FILE_SHARE_DELETE: held ancestors cannot be renamed or replaced.
+        handle = kernel.CreateFileW(str(directory), 0x80000000, 0x3, None, 3, 0x02200000, None)
+        if handle == ctypes.c_void_p(-1).value:
+            raise ctypes.WinError(ctypes.get_last_error())
+        handles.append(handle)
+        info = Attributes()
+        if not kernel.GetFileInformationByHandleEx(handle, 9, ctypes.byref(info), ctypes.sizeof(info)):
+            raise ctypes.WinError(ctypes.get_last_error())
+        if not info.attributes & 0x10 or info.attributes & 0x400:
+            raise ValueError("Publication ancestor is not a plain directory")
+
+    try:
+        # Lock from the volume root, so replacing a checkout ancestor also fails.
+        for directory in reversed(root.parents):
+            lock_directory(directory)
+        lock_directory(root)
+        directory = root
+        for part in relative.parts[:-1]:
+            directory /= part
+            directory.mkdir(exist_ok=True)
+            lock_directory(directory)
+        output.mkdir()
+        lock_directory(output)
+        names = [name for name in payloads if name != "manifest.json"]
+        if "manifest.json" in payloads:
+            names.append("manifest.json")
+        for name in names:
+            with (output / name).open("xb") as stream:
+                stream.write(payloads[name])
+                stream.flush()
+                os.fsync(stream.fileno())
+    finally:
+        for handle in reversed(handles):
+            kernel.CloseHandle(handle)
+
+
 def _publish(output, raw_root, payloads):
     """Anchor exclusive writes to directory handles; completion manifest is last."""
+    if os.name == "nt":
+        return _publish_windows(output, raw_root, payloads)
     if os.name != "posix" or not hasattr(os, "O_NOFOLLOW"):
         raise ValueError("Description publication requires POSIX directory-relative operations")
     root = ROOT.resolve(strict=True)
