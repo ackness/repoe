@@ -110,7 +110,7 @@ def decode_table(name, raw, *, expected_bytes, expected_sha256):
                     end = raw.find(b"\0" * 4, end + 1)
                 if end == -1:
                     raise ValueError("Unterminated UTF-16 string")
-                strings[start] = raw[start:end].decode("utf-16")
+                strings[start] = raw[start:end].decode("utf-16-le")
             return strings[start]
         if kind == "bool":
             number = raw[at]
@@ -164,7 +164,11 @@ def compare_pair(default, localized):
         duplicates.append(repeated)
     left, right = maps
     differences = []
-    for identity in left.keys() & right.keys():
+
+    def order(identity):
+        return type(identity).__name__, str(identity)
+
+    for identity in sorted(left.keys() & right.keys(), key=order):
         for field in default["physical_fields"]:
             if field not in ignored and left[identity]["values"][field] != right[identity]["values"][field]:
                 differences.append(
@@ -178,8 +182,8 @@ def compare_pair(default, localized):
     return {
         "key": key,
         "duplicate_or_null_keys": duplicates,
-        "default_only": sorted(left.keys() - right.keys(), key=str),
-        "localized_only": sorted(right.keys() - left.keys(), key=str),
+        "default_only": sorted(left.keys() - right.keys(), key=order),
+        "localized_only": sorted(right.keys() - left.keys(), key=order),
         "nontext_differences": differences,
         "default_rows": len(default["rows"]),
         "localized_rows": len(localized["rows"]),

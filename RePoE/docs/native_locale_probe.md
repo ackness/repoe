@@ -33,7 +33,7 @@ schema SHA `50e098543345cf8323aeb294e2cfef1b6b44842faccf560ada935cebe22727df`.
 Embedded layouts are regression checked against its native converter. Words has
 64 physical bytes per row, seven columns; Ascendancy has 165 bytes, 19 columns.
 The decoder checks external raw pins before framing, exact marker/width, bounded
-arrays/pointers, UTF-16 termination, booleans and source order. It retains all
+arrays/pointers, explicit UTF-16LE termination/decoding, booleans and source order. It retains all
 columns, unknown fields, nulls and repeated array values. Foreign-reference
 second words are separate wire observations. It does not resolve external FKs.
 
@@ -52,3 +52,9 @@ table/rows hashes, schema/probe source fingerprints and the comparisons. A zero
 structural difference or matching Spark/default table hash does not certify the
 client patch, realm, or equivalence to the international numerical source. Those
 identities require independent root evidence before localized production export.
+
+Reports sort common and missing keys by type name and string value to remain
+deterministic. A literal U+FEFF at a string's start remains text. The pinned native
+reader uses BOM-sensitive `utf-16`; the four checked English/TW physical tables
+have no resulting row differences under explicit UTF-16LE. Preserve and report a
+future literal-BOM difference rather than silently removing the character.
