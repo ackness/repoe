@@ -15,12 +15,14 @@ production candidate exporter, patch detector or source-admission bypass.
 namespace = {}
 exec(reviewed_probe_source, namespace)  # transfer the reviewed source string
 words = namespace["decode_table"](
-    "Words", already_extracted_words_bytes,
+    "Words",
+    already_extracted_words_bytes,
     expected_bytes=472064,
     expected_sha256="88867218a823236c1c9667bd510c892003aa118464dfe48bbe5f4432c917619c",
 )
 ascendancy = namespace["decode_table"](
-    "Ascendancy", already_extracted_ascendancy_bytes,
+    "Ascendancy",
+    already_extracted_ascendancy_bytes,
     expected_bytes=12771,
     expected_sha256="78656ac3382e0eaf307156f16ab22c4c1a4b6f19813e5bbd30fc5ad5096852fc",
 )
