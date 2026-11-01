@@ -6,6 +6,14 @@ uv = "latest"
 [env]
 UV_PYTHON = "python"
 
+# Needed when the frozen Pillow release has no wheel for the latest Python.
+[bootstrap.packages]
+"brew:jpeg-turbo" = { os = "macos" }
+"brew:zlib" = { os = "macos" }
+"apt:build-essential" = { os = "linux" }
+"apt:libjpeg-dev" = { os = "linux" }
+"apt:zlib1g-dev" = { os = "linux" }
+
 [tasks.setup]
 description = "Sync the locked runtime and development environment into .venv"
 run = "uv sync --locked"
