@@ -103,6 +103,12 @@ unique mod/roll/variant ownership, or the seven missing crafting tables. Trade
 catalogue/crafting compatibility retains its exact identity; missing inputs are
 not recollected or replaced with empty values.
 
+The separate [retained buff source reconciliation](buff_source_reconciliation.md)
+binds the unchanged definition to exact old/new community Git sources and full
+procedural context pins. Its 15 relocated references authenticate, but changed
+upstream context keeps `guard_eligible=false`. This metadata is outside both
+runtime package plans and does not update source acceptance or runtime bytes.
+
 The metadata-only `publication/0.5.5.4.2-recovery.json` records the initial exact
 recovery inventory and the coordinator's subsequent publication of separate
 game/language rollback artifacts. The coordinator also reported successful
