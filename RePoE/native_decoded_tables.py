@@ -417,6 +417,7 @@ def _payloads(receipt_raw, receipt, parts_raw, pairs, lock_raw, targets, target_
         "decoder": receipt["decoder"],
         "ingest": {
             "method": "decoded-observation-validation/v1",
+            "python_version": sys.version.split()[0],
             "raw_dat_redecoded": False,
             "transfer_receipt_sha256": env._sha(receipt_raw),
             "parts_jsonl_sha256": env._sha(parts_raw),
