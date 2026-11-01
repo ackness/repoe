@@ -74,6 +74,11 @@ modifiers, native item/component/socketable joins, constants and actor facts.
 It remains partial, unfiltered source inventory; units, complete metadata and
 playable catalogue/actor semantics are not certified.
 
+[`Item inheritance`](RePoE/docs/native_item_inheritance.md) exports a separate
+pinned `.it` closure with ordered raw fields and source spans. Its opt-in tag
+interpretation is identified as pinned community parser behavior, separately
+from official literal facts and direct DAT tags.
+
 [`tables:candidate`](RePoE/docs/native_tables.md) exports an explicitly selected,
 pinned set of additional DAT tables with the same native reader. It preserves
 physical facts and unresolved foreign dependencies in a separately identified
