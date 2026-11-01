@@ -13,6 +13,19 @@ exports and clearly identified historical compatibility bytes into standalone
 RePoE Git artifacts. Language inputs stay in the translation repository; PoBR
 imports temporary build inputs and retains its own policies and interpretation.
 
+[`Client acquisition`](RePoE/docs/client-sources.md) is owned and implemented here:
+fixed-source replay/cache import, [unreviewed drafts](RePoE/docs/client-source-draft.md),
+[bounded index lookup and diagnostic inspection](RePoE/docs/client-index.md), and
+[offline source rebinding/verification](RePoE/docs/source-rebinding.md).
+Run `python -B -m RePoE.client_sources`, `RePoE.client_source_draft`,
+`RePoE.client_index` or `RePoE.source_rebinding` with `--help` from this checkout.
+The matching mise tasks are `client:source`, `client:draft`, `client:locate` and
+`source:rebind`; they use the selected Python directly without environment setup.
+The SDK uses the standard library and explicit package imports; native decoding
+requires a separately selected, fingerprinted external environment. Historical
+`pobr-*` wire names stay compatible. Acquisition and inspection do not approve a
+source or adopt active data; language production remains in the translation library.
+
 Development uses mise + uv. `mise.toml` requests the latest stable Python and uv;
 the committed `mise.lock` selects exact versions. Refresh them explicitly with
 `mise lock --bump --platform linux-x64,macos-arm64 python uv`. Standard project
