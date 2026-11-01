@@ -1,0 +1,448 @@
+{
+  "excluded": {
+    "ordinary": {
+      "base-items/codec-policy/0.5.5.5-inherited-tags-policy.json": "PoBR ownership/interpretation policy; CI reconstructs from small policy code and pinned external bindings.",
+      "minions/codec-policy/0.5.5.5-minions-prepared-policy.json": "PoBR ownership/interpretation policy; CI reconstructs from small policy code and pinned external bindings.",
+      "minions/codec-policy/original-policy.json": "PoBR ownership/interpretation policy; CI reconstructs from small policy code and pinned external bindings.",
+      "passive-tree/codec-policy/0.5.5.5-complete-text-tree-policy.json": "PoBR ownership/interpretation policy; CI reconstructs from small policy code and pinned external bindings.",
+      "passive-tree/codec-policy/original-policy.json": "PoBR ownership/interpretation policy; CI reconstructs from small policy code and pinned external bindings.",
+      "skill-overrides/codec-policy/0.5.5.5-implicit-ownership-policy.json": "PoBR ownership/interpretation policy; CI reconstructs from small policy code and pinned external bindings.",
+      "skill-overrides/codec-policy/original-policy.json": "PoBR ownership/interpretation policy; CI reconstructs from small policy code and pinned external bindings.",
+      "spectres/codec-policy/0.5.5.5-spectres-prepared-policy.json": "PoBR ownership/interpretation policy; CI reconstructs from small policy code and pinned external bindings.",
+      "spectres/codec-policy/original-policy.json": "PoBR ownership/interpretation policy; CI reconstructs from small policy code and pinned external bindings.",
+      "stat-descriptions/codec-policy/0.5.5.5-plain-display-policy.json": "PoBR ownership/interpretation policy; CI reconstructs from small policy code and pinned external bindings."
+    },
+    "tree-policy": {
+      "0.5.5.5-complete-text-tree-policy.json": "PoBR policy stays PoBR code; only declared versioned binding objects are retained separately."
+    }
+  },
+  "limits": [
+    "Storage migration only. Original patch/realm, candidate status, mixed fields and source metadata are unchanged.",
+    "Retained PoBR-format outputs are opaque historical compatibility, not a RePoE native schema or a new gameplay certification. PoBR owns their interpretation and future projections.",
+    "No source admission, completeness, freshness, redistribution approval, CURRENT update or remote publication is implied.",
+    "PoBR policies and language dictionaries are separate owner inputs. No tracked snapshot fallback is part of acquisition."
+  ],
+  "members": {
+    "base-items/codec-source/base_item_overrides.json": {
+      "bytes": 463930,
+      "kind": "retained-compatibility",
+      "member": "base-items/codec-source/base_item_overrides.json",
+      "note": "Opaque historical prepared codec at original 0.5.5.4.2, vendor bb52d6b368307457eb9c54bb13f1829993d390b1; preserve original _meta, not a native fact projection.",
+      "observed_identity": {
+        "game_patch": null,
+        "realm": null
+      },
+      "sha256": "5f6d40b302444becb5c379fa7bc46728d133461f48fba6d633f7e58f356a362c",
+      "source": "ordinary"
+    },
+    "base-items/supplement/inheritance.json": {
+      "bytes": 370770,
+      "kind": "native-facts",
+      "member": "base-items/supplement/inheritance.json",
+      "note": "Exact selected original bytes; original manifests/source locks retain scoped identity and incomplete candidate limits.",
+      "observed_identity": {
+        "game_patch": null,
+        "realm": null
+      },
+      "sha256": "178ab9f28cf5bd7347af7ffd730bf42350f662aee79342795b06b72541a48c81",
+      "source": "ordinary"
+    },
+    "base-items/supplement/manifest.json": {
+      "bytes": 14352,
+      "kind": "source-metadata",
+      "member": "base-items/supplement/manifest.json",
+      "note": "Exact selected original bytes; original manifests/source locks retain scoped identity and incomplete candidate limits.",
+      "observed_identity": {
+        "game_patch": null,
+        "realm": null
+      },
+      "sha256": "f8642243fc1d04cecb26c1bd770fb9bbfd70574b93c82969f737013be23c8f31",
+      "source": "ordinary"
+    },
+    "base-items/supplement/source-lock.json": {
+      "bytes": 22085,
+      "kind": "source-metadata",
+      "member": "base-items/supplement/source-lock.json",
+      "note": "Exact selected original bytes; original manifests/source locks retain scoped identity and incomplete candidate limits.",
+      "observed_identity": {
+        "game_patch": null,
+        "realm": null
+      },
+      "sha256": "e63b1abed9b085ffe8a62e8feb68c2927ad3aab7d0580fcb8788d250c49d5f33",
+      "source": "ordinary"
+    },
+    "handoff.json/handoff.json": {
+      "bytes": 2286,
+      "kind": "source-metadata",
+      "member": "handoff.json/handoff.json",
+      "note": "Exact selected original bytes; original manifests/source locks retain scoped identity and incomplete candidate limits.",
+      "observed_identity": {
+        "game_patch": null,
+        "realm": null
+      },
+      "sha256": "0ebf1750372dd876227e2a1a5f042b09ecf567d469baf18a0431706e1b54c24b",
+      "source": "ordinary"
+    },
+    "minions/codec-source/minions.json": {
+      "bytes": 49590,
+      "kind": "retained-compatibility",
+      "member": "minions/codec-source/minions.json",
+      "note": "Opaque historical prepared codec at original 0.5.5.4.2, vendor bb52d6b368307457eb9c54bb13f1829993d390b1; preserve original _meta, not a native fact projection.",
+      "observed_identity": {
+        "game_patch": null,
+        "realm": null
+      },
+      "sha256": "338aa6da92aa85143b3e4f0478c9c498ad52a154826ed1c15754573dee20799a",
+      "source": "ordinary"
+    },
+    "minions/supplement/manifest.json": {
+      "bytes": 14448,
+      "kind": "source-metadata",
+      "member": "minions/supplement/manifest.json",
+      "note": "Exact selected original bytes; original manifests/source locks retain scoped identity and incomplete candidate limits.",
+      "observed_identity": {
+        "game_patch": null,
+        "realm": null
+      },
+      "sha256": "c0f2a23f64a71ed479fb65c524d0fd1e6fb16e88bf7235248017aef082af0eff",
+      "source": "ordinary"
+    },
+    "minions/supplement/source-lock.json": {
+      "bytes": 930,
+      "kind": "source-metadata",
+      "member": "minions/supplement/source-lock.json",
+      "note": "Exact selected original bytes; original manifests/source locks retain scoped identity and incomplete candidate limits.",
+      "observed_identity": {
+        "game_patch": null,
+        "realm": null
+      },
+      "sha256": "6e602efa218e92fde9a519cc60a1cbec653743f42a68c590fb7ad361017a5ac9",
+      "source": "ordinary"
+    },
+    "minions/supplement/tables.json": {
+      "bytes": 2080,
+      "kind": "native-facts",
+      "member": "minions/supplement/tables.json",
+      "note": "Exact selected original bytes; original manifests/source locks retain scoped identity and incomplete candidate limits.",
+      "observed_identity": {
+        "game_patch": null,
+        "realm": null
+      },
+      "sha256": "a46afe07573c90d781aceb7a2a189813016739ef6b987fe1ae4517fbc31d1df8",
+      "source": "ordinary"
+    },
+    "ordinary-input.zip/ordinary-input.zip": {
+      "bytes": 9794461,
+      "kind": "native-facts-archive",
+      "member": "ordinary-input.zip/ordinary-input.zip",
+      "note": "Exact selected original bytes; original manifests/source locks retain scoped identity and incomplete candidate limits.",
+      "observed_identity": {
+        "game_patch": null,
+        "realm": null
+      },
+      "sha256": "7e399fe98e62d4feab6518b454e255c47837ba04167d93b23c9a9e444e02f8b5",
+      "source": "ordinary"
+    },
+    "passive-tree/codec-source/passive_tree.json": {
+      "bytes": 1718788,
+      "kind": "retained-compatibility",
+      "member": "passive-tree/codec-source/passive_tree.json",
+      "note": "Opaque historical prepared codec at original 0.5.5.4.2, vendor bb52d6b368307457eb9c54bb13f1829993d390b1; preserve original _meta, not a native fact projection.",
+      "observed_identity": {
+        "game_patch": null,
+        "realm": null
+      },
+      "sha256": "7e021c17f9679b3ff4d72cacdba20ee3d17bf8d0acf7ea02311dd29886996851",
+      "source": "ordinary"
+    },
+    "passive-tree/supplement/manifest.json": {
+      "bytes": 19785,
+      "kind": "source-metadata",
+      "member": "passive-tree/supplement/manifest.json",
+      "note": "Exact selected original bytes; original manifests/source locks retain scoped identity and incomplete candidate limits.",
+      "observed_identity": {
+        "game_patch": null,
+        "realm": null
+      },
+      "sha256": "54e72ff9f137275d8f2320dbb19cb5a617f160914377929d310a4c0ae29a3178",
+      "source": "ordinary"
+    },
+    "passive-tree/supplement/source-lock.json": {
+      "bytes": 1855,
+      "kind": "source-metadata",
+      "member": "passive-tree/supplement/source-lock.json",
+      "note": "Exact selected original bytes; original manifests/source locks retain scoped identity and incomplete candidate limits.",
+      "observed_identity": {
+        "game_patch": null,
+        "realm": null
+      },
+      "sha256": "465ff7243d4e32f846247ae544a306d3234e5ecf877053ef5d0e15ccd4c3c2e1",
+      "source": "ordinary"
+    },
+    "passive-tree/supplement/tables.json": {
+      "bytes": 10370194,
+      "kind": "native-facts",
+      "member": "passive-tree/supplement/tables.json",
+      "note": "Exact selected original bytes; original manifests/source locks retain scoped identity and incomplete candidate limits.",
+      "observed_identity": {
+        "game_patch": null,
+        "realm": null
+      },
+      "sha256": "319d53a80b4ef99d1c9a3210de6b748eba42f62dd67490d887c24bd62dcf44dc",
+      "source": "ordinary"
+    },
+    "passive-tree/tree-descriptions/descriptions.json": {
+      "bytes": 166255206,
+      "kind": "native-facts",
+      "member": "passive-tree/tree-descriptions/descriptions.json",
+      "note": "Exact selected original bytes; original manifests/source locks retain scoped identity and incomplete candidate limits.",
+      "observed_identity": {
+        "game_patch": null,
+        "realm": null
+      },
+      "sha256": "e9c403e11f5b3d7bc9a26af1b1cf636a6dbf439d9ca1e3503b1490568be1ad0e",
+      "source": "ordinary"
+    },
+    "passive-tree/tree-descriptions/manifest.json": {
+      "bytes": 4753,
+      "kind": "source-metadata",
+      "member": "passive-tree/tree-descriptions/manifest.json",
+      "note": "Exact selected original bytes; original manifests/source locks retain scoped identity and incomplete candidate limits.",
+      "observed_identity": {
+        "game_patch": null,
+        "realm": null
+      },
+      "sha256": "c8a475ba97b2fda3231ab05d23c4fdafa6b8593dec4a3d8307339b9cb6a794f2",
+      "source": "ordinary"
+    },
+    "passive-tree/tree-reference/official-tree-bd87e651.json": {
+      "bytes": 5140821,
+      "kind": "native-facts",
+      "member": "passive-tree/tree-reference/official-tree-bd87e651.json",
+      "note": "Exact selected original bytes; original manifests/source locks retain scoped identity and incomplete candidate limits.",
+      "observed_identity": {
+        "game_patch": null,
+        "realm": null
+      },
+      "sha256": "b52be9c4f17e4114064255ef1b8c58292e9db0e395d95af235a8d3fef0d44642",
+      "source": "ordinary"
+    },
+    "retained-policy-bindings/passive-tree-v4.json": {
+      "bytes": 1619811,
+      "fields": [
+        [
+          "compatibility_bindings"
+        ],
+        [
+          "excluded"
+        ],
+        [
+          "class_bindings"
+        ],
+        [
+          "ascendancy"
+        ],
+        [
+          "base_policy",
+          "legacy_metadata",
+          "value"
+        ]
+      ],
+      "kind": "retained-compatibility",
+      "member": "0.5.5.5-complete-text-tree-policy.json",
+      "note": "Exact version-bound mapping object values extracted from the fixed PoBR v4 policy. Not game laws; PoBR retains qualification, target rebinding and all interpretation. Legacy source metadata value is unchanged.",
+      "observed_identity": {
+        "game_patch": null,
+        "realm": null
+      },
+      "sha256": "c2fab3ff0a6d20b37e9c4b751426d211dba5a1d57f5180438e796a14707408e0",
+      "source": "tree-policy",
+      "source_pin": {
+        "bytes": 1624833,
+        "sha256": "e40e16e57deb4543708e47a3cbbdee8180f8d47aeec7832365ee02d06329a1a2"
+      }
+    },
+    "skill-overrides/branch-codec/stat_set_labels.json": {
+      "bytes": 207388,
+      "kind": "retained-compatibility",
+      "member": "skill-overrides/branch-codec/stat_set_labels.json",
+      "note": "Opaque historical prepared codec at original 0.5.5.4.2, vendor bb52d6b368307457eb9c54bb13f1829993d390b1; preserve original _meta, not a native fact projection.",
+      "observed_identity": {
+        "game_patch": null,
+        "realm": null
+      },
+      "sha256": "825e594f43f07a4115ee29e57622670688e5d1c099f7e11a30ba66b3b80cca06",
+      "source": "ordinary"
+    },
+    "skill-overrides/codec-source/skill_overrides.json": {
+      "bytes": 376541,
+      "kind": "retained-compatibility",
+      "member": "skill-overrides/codec-source/skill_overrides.json",
+      "note": "Opaque historical prepared codec at original 0.5.5.4.2, vendor bb52d6b368307457eb9c54bb13f1829993d390b1; preserve original _meta, not a native fact projection.",
+      "observed_identity": {
+        "game_patch": null,
+        "realm": null
+      },
+      "sha256": "02948c49387a0c83fb5bc013552b8bcc1b98edfc1027ceb743de3288d7652397",
+      "source": "ordinary"
+    },
+    "spectres/codec-source/spectres.json": {
+      "bytes": 941816,
+      "kind": "retained-compatibility",
+      "member": "spectres/codec-source/spectres.json",
+      "note": "Opaque historical prepared codec at original 0.5.5.4.2, vendor bb52d6b368307457eb9c54bb13f1829993d390b1; preserve original _meta, not a native fact projection.",
+      "observed_identity": {
+        "game_patch": null,
+        "realm": null
+      },
+      "sha256": "50b98756c340cadbaba1ff5d503e79cc06e744d5a100719941c6e1fc765fdd94",
+      "source": "ordinary"
+    },
+    "spectres/supplement/manifest.json": {
+      "bytes": 14448,
+      "kind": "source-metadata",
+      "member": "spectres/supplement/manifest.json",
+      "note": "Exact selected original bytes; original manifests/source locks retain scoped identity and incomplete candidate limits.",
+      "observed_identity": {
+        "game_patch": null,
+        "realm": null
+      },
+      "sha256": "c0f2a23f64a71ed479fb65c524d0fd1e6fb16e88bf7235248017aef082af0eff",
+      "source": "ordinary"
+    },
+    "spectres/supplement/source-lock.json": {
+      "bytes": 930,
+      "kind": "source-metadata",
+      "member": "spectres/supplement/source-lock.json",
+      "note": "Exact selected original bytes; original manifests/source locks retain scoped identity and incomplete candidate limits.",
+      "observed_identity": {
+        "game_patch": null,
+        "realm": null
+      },
+      "sha256": "6e602efa218e92fde9a519cc60a1cbec653743f42a68c590fb7ad361017a5ac9",
+      "source": "ordinary"
+    },
+    "spectres/supplement/tables.json": {
+      "bytes": 2080,
+      "kind": "native-facts",
+      "member": "spectres/supplement/tables.json",
+      "note": "Exact selected original bytes; original manifests/source locks retain scoped identity and incomplete candidate limits.",
+      "observed_identity": {
+        "game_patch": null,
+        "realm": null
+      },
+      "sha256": "a46afe07573c90d781aceb7a2a189813016739ef6b987fe1ae4517fbc31d1df8",
+      "source": "ordinary"
+    },
+    "stat-descriptions/codec-source/stat_descriptions.json": {
+      "bytes": 1512201,
+      "kind": "retained-compatibility",
+      "member": "stat-descriptions/codec-source/stat_descriptions.json",
+      "note": "Opaque historical prepared codec at original 0.5.5.4.2, vendor bb52d6b368307457eb9c54bb13f1829993d390b1; preserve original _meta, not a native fact projection.",
+      "observed_identity": {
+        "game_patch": null,
+        "realm": null
+      },
+      "sha256": "bed5ed56c8281e0c8ae1da2fb142e0f74ba1a3c79ffcee0011b3fbc3875f9b77",
+      "source": "ordinary"
+    },
+    "stat-descriptions/item-descriptions/descriptions.json": {
+      "bytes": 122477458,
+      "kind": "native-facts",
+      "member": "stat-descriptions/item-descriptions/descriptions.json",
+      "note": "Exact selected original bytes; original manifests/source locks retain scoped identity and incomplete candidate limits.",
+      "observed_identity": {
+        "game_patch": null,
+        "realm": null
+      },
+      "sha256": "36e81ebea92d5970b727298ca455078462fe4e14458f943dcfaabe358b4bfe3e",
+      "source": "ordinary"
+    },
+    "stat-descriptions/item-descriptions/manifest.json": {
+      "bytes": 3770,
+      "kind": "source-metadata",
+      "member": "stat-descriptions/item-descriptions/manifest.json",
+      "note": "Exact selected original bytes; original manifests/source locks retain scoped identity and incomplete candidate limits.",
+      "observed_identity": {
+        "game_patch": null,
+        "realm": null
+      },
+      "sha256": "922aece0ff2f8d9f86e306d7371060adaa4efc5fb4dda744e95134c2a3b41b25",
+      "source": "ordinary"
+    },
+    "stat-descriptions/supplement/manifest.json": {
+      "bytes": 20123,
+      "kind": "source-metadata",
+      "member": "stat-descriptions/supplement/manifest.json",
+      "note": "Exact selected original bytes; original manifests/source locks retain scoped identity and incomplete candidate limits.",
+      "observed_identity": {
+        "game_patch": null,
+        "realm": null
+      },
+      "sha256": "b3927aab8321fa1bbb8922fca8d5535f182c63c9357630bece7e015dd147008b",
+      "source": "ordinary"
+    },
+    "stat-descriptions/supplement/source-lock.json": {
+      "bytes": 2198,
+      "kind": "source-metadata",
+      "member": "stat-descriptions/supplement/source-lock.json",
+      "note": "Exact selected original bytes; original manifests/source locks retain scoped identity and incomplete candidate limits.",
+      "observed_identity": {
+        "game_patch": null,
+        "realm": null
+      },
+      "sha256": "af1e827c51bd35889212c9a4fe24d3d2f0cbe6256ad2eef249d3ec5e1ebd660e",
+      "source": "ordinary"
+    },
+    "stat-descriptions/supplement/tables.json": {
+      "bytes": 18099121,
+      "kind": "native-facts",
+      "member": "stat-descriptions/supplement/tables.json",
+      "note": "Exact selected original bytes; original manifests/source locks retain scoped identity and incomplete candidate limits.",
+      "observed_identity": {
+        "game_patch": null,
+        "realm": null
+      },
+      "sha256": "e5f61eb7176fe9abd638ac28baaffbd34062a0f0adc6dc15f8c79c26baa39c41",
+      "source": "ordinary"
+    }
+  },
+  "path": "handoff/independent-0.5.5.5/ordinary-inputs.zip",
+  "ref": "refs/heads/handoff/independent-ordinary-20261101",
+  "repository": "ackness/repoe",
+  "schema": "repoe-data-publication-plan/v1",
+  "sources": {
+    "ordinary": {
+      "bytes": 40144880,
+      "expanded_bytes": 341203042,
+      "manifest": {
+        "bytes": 6650,
+        "sha256": "40850ecad4caa16303e4b94005a10f68e74784e5889041832f24b0d8e6f48385"
+      },
+      "path": "handoff/ordinary-0.5.5.5/ordinary-producer-inputs.zip",
+      "repository": "ackness/pobr",
+      "revision": "a9ed05f8a9d34794aa10a399aabd5bf70d054926",
+      "sha256": "112c9a91d1cf405d8c100998d5b0c92f10a484ae91b5a10b245af3ae14ae1dc4"
+    },
+    "tree-policy": {
+      "files": {
+        "0.5.5.5-complete-text-tree-policy.json": {
+          "bytes": 1624833,
+          "sha256": "e40e16e57deb4543708e47a3cbbdee8180f8d47aeec7832365ee02d06329a1a2"
+        }
+      },
+      "inventory_paths": [
+        "pipeline/passive-tree/0.5.5.5-complete-text-tree-policy.json"
+      ],
+      "path": "pipeline/passive-tree",
+      "repository": "ackness/pobr",
+      "revision": "7793f93b0a0b9e5172a19811b4af856b5b7538f1",
+      "type": "git-tree"
+    }
+  },
+  "target": {
+    "game": "poe2",
+    "game_patch": "0.5.5.5",
+    "realm": "international"
+  }
+}

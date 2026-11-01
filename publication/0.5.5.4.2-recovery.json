@@ -1,0 +1,540 @@
+{
+  "coordinator_update": {
+    "full_acquisition_pins": "Use coordinator rollback/build-data-0.5.5.4.2.lock.json; prefixes here are status metadata, not acquisition pins.",
+    "game": {
+      "ref": "refs/heads/handoff/rollback-0.5.5.4.2-20261101",
+      "reported_revision_prefix": "684d42ab",
+      "repository": "ackness/repoe"
+    },
+    "language": {
+      "ref": "refs/heads/handoff/rollback-0.5.5.4.2-20261101",
+      "reported_revision_prefix": "93d9e164",
+      "repository": "ackness/poe2-zh-cn-stats"
+    },
+    "repeated_in_this_thread": false,
+    "reported_restored_runtime_prefix": "dcfc32c2",
+    "status": "rollback-parts-published-and-offline-composed-by-coordinator"
+  },
+  "excluded_nonruntime_files": [
+    "data/0.5.5.4.2/generated/modifier-audit.json",
+    "data/0.5.5.4.2/generated/parse-coverage.json",
+    "data/0.5.5.4.2/generated/parsed_mods.json",
+    "data/0.5.5.4.2/generated/test_pins.json",
+    "data/0.5.5.4.2/generated/translation-audit.json",
+    "data/0.5.5.4.2/overlay/stat_id_map.json"
+  ],
+  "files": {
+    "data/0.5.5.4.2/base/base_items.json": {
+      "bytes": 1578970,
+      "git_blob": "f01c6db676e622ce3d6914bb293883a6c51e6191",
+      "owner": "repoe-retained-compatibility",
+      "sha256": "525275795877d850b993f1771b3809e081ed5da7d1e3da8de5e05ef7dda2b032"
+    },
+    "data/0.5.5.4.2/base/base_player_mods.json": {
+      "bytes": 2035,
+      "git_blob": "76e7f7613caa09d41b7908f02ec55f96d53ee385",
+      "owner": "repoe-retained-compatibility",
+      "sha256": "5f93bf335cd2dd71ae1ce8bf137a7a0dfe621ee6e3778d0fc6c9f83befc85687"
+    },
+    "data/0.5.5.4.2/base/character_constants.json": {
+      "bytes": 385,
+      "git_blob": "e59e85ac0473e59951363eb3ee35785e0d1d66a8",
+      "owner": "repoe-retained-compatibility",
+      "sha256": "e64bd63f5c2288447ff22e878297752aae8ec5ee9a6135e460f514914ed22150"
+    },
+    "data/0.5.5.4.2/base/cost_types.json": {
+      "bytes": 1125,
+      "git_blob": "91b5c3bc50c9f8e09d3728a99c743b9f57468019",
+      "owner": "repoe-retained-compatibility",
+      "sha256": "5dac3a7f08d63b8512f1d24870d50f876cf7907c6cc2a405473a4c65926fb88a"
+    },
+    "data/0.5.5.4.2/base/enemy_presets.json": {
+      "bytes": 7973,
+      "git_blob": "39f75014121b0e381499b58975ec55a91e2a0599",
+      "owner": "repoe-retained-compatibility",
+      "sha256": "d8504ef38860682d03872e9b006493cecb91f078650c3f7580d056d34d3cb861"
+    },
+    "data/0.5.5.4.2/base/game_constants.json": {
+      "bytes": 2611,
+      "git_blob": "687ede616f74b010fea0d2b02dade535288ae8da",
+      "owner": "repoe-retained-compatibility",
+      "sha256": "7a90760b853088493bbcd377d274c5bf6582384c2ad8d59a30dbe0221f2e0e22"
+    },
+    "data/0.5.5.4.2/base/granted_effect_levels.json": {
+      "bytes": 2927324,
+      "git_blob": "7c3f5bf90b4aeb56e56e8b4be52f6ac16d582748",
+      "owner": "repoe-retained-compatibility",
+      "sha256": "3a66d591def23772ff43b3b63ec96e9a12fc4f3c88be40f741681914926f51da"
+    },
+    "data/0.5.5.4.2/base/granted_effect_stat_sets.json": {
+      "bytes": 15279515,
+      "git_blob": "e4d886fd769e4f952e55507a6e617de2b16297e4",
+      "owner": "repoe-retained-compatibility",
+      "sha256": "15df0520fc6254acda05bb955dad65299c0b40350b2639cfbd2b96348cfc8c5d"
+    },
+    "data/0.5.5.4.2/base/granted_effects.json": {
+      "bytes": 2413688,
+      "git_blob": "46cc2e5aa8e5920111fff4d09246f23384b26b96",
+      "owner": "repoe-retained-compatibility",
+      "sha256": "9ee4caaf5d398942e1a57cde4fc4245755feb38ba2035e1f80d607313da32518"
+    },
+    "data/0.5.5.4.2/base/jewel_radii.json": {
+      "bytes": 1507,
+      "git_blob": "904d10f945c00dbee1b65329f882aad2dee78e7d",
+      "owner": "repoe-retained-compatibility",
+      "sha256": "00c1e71af6666521c2e1fc3afd7af7f5eb9cb14b1a4537dbb44e8f2de6d7d336"
+    },
+    "data/0.5.5.4.2/base/mods.json": {
+      "bytes": 7760583,
+      "git_blob": "d720cd3e12667b0222978f70d9f5bb83688a17f6",
+      "owner": "repoe-retained-compatibility",
+      "sha256": "a776da514ee5ce151d17b67def3429811a7f78338d68bc0d165f72ee79199b5a"
+    },
+    "data/0.5.5.4.2/base/monster_resistances.json": {
+      "bytes": 422032,
+      "git_blob": "9423c9f265a7862ef8b4f02b709a52033e889104",
+      "owner": "repoe-retained-compatibility",
+      "sha256": "26109a7d9a76a5bdc83db0b3959fe57db94f85c00685a51dfbc7ae56ebc2fc08"
+    },
+    "data/0.5.5.4.2/base/monster_scaling.json": {
+      "bytes": 9295,
+      "git_blob": "354ee251fe38ef0e67296a88808c7a11133071cd",
+      "owner": "repoe-retained-compatibility",
+      "sha256": "7117f594207dcfa249e9ce4accc0de89a3bb32e057bf891d0f5e3ecc2d6f988b"
+    },
+    "data/0.5.5.4.2/base/non_damaging_ailments.json": {
+      "bytes": 1385,
+      "git_blob": "a047a204054bb52bf584d536e1a36dbe9f2e0a20",
+      "owner": "repoe-retained-compatibility",
+      "sha256": "8a15a0840b02f76b5b3dbad8474f438e2611252582d2b57a747ec065e0da1291"
+    },
+    "data/0.5.5.4.2/base/passive_tree.json": {
+      "bytes": 1718788,
+      "git_blob": "f7e698a98e0fa000f448a3f56e5f673647596380",
+      "owner": "repoe-retained-compatibility",
+      "sha256": "7e021c17f9679b3ff4d72cacdba20ee3d17bf8d0acf7ea02311dd29886996851"
+    },
+    "data/0.5.5.4.2/base/passive_tree_meta.json": {
+      "bytes": 3362,
+      "git_blob": "8547d144d0249e6ae31761f264cf7d9e29084825",
+      "owner": "repoe-retained-compatibility",
+      "sha256": "6247ea4b7d75853f3b4947e8946ecf4c7b45450e057dab57516ebe2ec7534ce8"
+    },
+    "data/0.5.5.4.2/base/passive_trees/0_1.json": {
+      "bytes": 552789,
+      "git_blob": "d65dc58bc0379a33ea30dc82bef3d0b0fee3ecef",
+      "owner": "repoe-retained-compatibility",
+      "sha256": "861042ea66f2e9252c571192e2b4f7fcbb5e58049344a5cbd20195ca63b76dd7"
+    },
+    "data/0.5.5.4.2/base/passive_trees/0_2.json": {
+      "bytes": 607893,
+      "git_blob": "01fd9ab720d371b52a83da7258794bdc7e7e54bf",
+      "owner": "repoe-retained-compatibility",
+      "sha256": "bdf47e023ed4e7b4ebc284e5c426fc8497e2de1e7fc1c9b87ca88dcc0a0c8b43"
+    },
+    "data/0.5.5.4.2/base/passive_trees/0_3.json": {
+      "bytes": 745706,
+      "git_blob": "af298a9b92b77db98c28f269f3d37dcd49d7cddf",
+      "owner": "repoe-retained-compatibility",
+      "sha256": "da6ea9249d6a4d84756e3ca7a0abddbce9c87258323fa99c892dc4f0650e63a8"
+    },
+    "data/0.5.5.4.2/base/passive_trees/0_4.json": {
+      "bytes": 862059,
+      "git_blob": "bd9d73ef7ade6c5defdb59f2da03a4cb236b2ba1",
+      "owner": "repoe-retained-compatibility",
+      "sha256": "798630f4d3c4131a113e9611f509ceb85146a92cba36fea7d9b1780924d77f1a"
+    },
+    "data/0.5.5.4.2/base/skill_gems.json": {
+      "bytes": 631856,
+      "git_blob": "c963751702e3406ab1d98676640475c7ff7253a6",
+      "owner": "repoe-retained-compatibility",
+      "sha256": "2a65df5da5144d88046f3fb9eab302ebf93293bc0bb29c88d8930ca5eb8f31b7"
+    },
+    "data/0.5.5.4.2/base/stats.json": {
+      "bytes": 2911521,
+      "git_blob": "dea00996d41da8eb498902229b4aa915efb23985",
+      "owner": "repoe-retained-compatibility",
+      "sha256": "c006461cf0997b96d24f4aa5112dd03979c3a377ff8a8d4c1d308adad00a8f8d"
+    },
+    "data/0.5.5.4.2/base/unarmed_data.json": {
+      "bytes": 1647,
+      "git_blob": "96915539ef19d599e9f175f9020597d833ae563d",
+      "owner": "repoe-retained-compatibility",
+      "sha256": "5c363209d25e131ef54f69229252b02e6d99a7178b125537cf0d83bec131e803"
+    },
+    "data/0.5.5.4.2/base/weapon_types.json": {
+      "bytes": 1848,
+      "git_blob": "0de3e084611f9795446658de456635916ad3eb00",
+      "owner": "repoe-retained-compatibility",
+      "sha256": "5b15e7302f73422664fee33dde6d24e4868a731510991b7709c4b274a162f214"
+    },
+    "data/0.5.5.4.2/generated/special_derived.json": {
+      "bytes": 11909,
+      "git_blob": "daab66aec3f55355a9e3a62dabbe4bb048cb35cb",
+      "owner": "repoe-retained-compatibility",
+      "sha256": "d18157d99c7620f096aa485d1f93d33166a578d45a9e4a064817d629e023a105"
+    },
+    "data/0.5.5.4.2/generated/special_vendor.json": {
+      "bytes": 1466053,
+      "git_blob": "b1c47340f48e09b8b6ab75127b8376bfaf2a79ae",
+      "owner": "repoe-retained-compatibility",
+      "sha256": "12d91522257bfb57b5cdfc63073bd3a5df8c7a87d2b1c13c3ba3f959c936d4a5"
+    },
+    "data/0.5.5.4.2/i18n/zh-CN/_meta.json": {
+      "bytes": 901,
+      "git_blob": "48a99e59249e0d19ae05ac4ba15cc16993a616d5",
+      "owner": "translation",
+      "sha256": "14e0ff55f8dcfab5e91868dc2db56e65fc75551a64c59579d6a75469c98bb68f"
+    },
+    "data/0.5.5.4.2/i18n/zh-CN/base_items.json": {
+      "bytes": 370795,
+      "git_blob": "f29e47ecb1d4ec872799eaca1fe16da199231716",
+      "owner": "translation",
+      "sha256": "910c5ebb7af9efe976f01414dfae4bda22132c23c5138eb0cbadaeb5e86e4d53"
+    },
+    "data/0.5.5.4.2/i18n/zh-CN/classes.json": {
+      "bytes": 1128,
+      "git_blob": "7cc40b44cc45ccddedea2695be3f9e5f0a04e878",
+      "owner": "translation",
+      "sha256": "6944676a4fd017fde321ee2758992ee4b18a835ce59ed45e6c9708b01a275bed"
+    },
+    "data/0.5.5.4.2/i18n/zh-CN/mods.json": {
+      "bytes": 93053,
+      "git_blob": "fee958337dc350b4b0ca4d96794744d6389fd158",
+      "owner": "translation",
+      "sha256": "8d62bf95d9a54650fff127815580e169f7e83983235a56dc3ed295c9d1a1a76d"
+    },
+    "data/0.5.5.4.2/i18n/zh-CN/passive_names.json": {
+      "bytes": 134582,
+      "git_blob": "99f3f7816c8021a07db5e4d1c1d4da40f9d223ca",
+      "owner": "translation",
+      "sha256": "6becc784be1f24e4b3dbc4ed8a16335c2602b1c90b4e3f73a5c23e5879af26dd"
+    },
+    "data/0.5.5.4.2/i18n/zh-CN/rare_words.json": {
+      "bytes": 124951,
+      "git_blob": "4e1491252b53008e168b3996fb0bf9b127a58922",
+      "owner": "translation",
+      "sha256": "ab23836d0f2034914bf799777134cf51482708425c909f7bf713400c67105915"
+    },
+    "data/0.5.5.4.2/i18n/zh-CN/skills.json": {
+      "bytes": 33008,
+      "git_blob": "59c0fcdb013872ce8570c040f43e01d66fa82b25",
+      "owner": "translation",
+      "sha256": "16eb4a451e3472c0b06fd36f21c6f308b2ebca24287d5c240a1345491c91eb77"
+    },
+    "data/0.5.5.4.2/i18n/zh-CN/stat_lines.json": {
+      "bytes": 3857237,
+      "git_blob": "a5a0a0eef0108a478c0f82c8db0551ad410ce8a9",
+      "owner": "translation",
+      "sha256": "28da2be7c44a4d872a94ad653d0002ff798f02de7a2b503d020d318cd170275e"
+    },
+    "data/0.5.5.4.2/i18n/zh-CN/words.json": {
+      "bytes": 132463,
+      "git_blob": "300bcf538fc2490978bd434e924c62e9e38fe4b3",
+      "owner": "translation",
+      "sha256": "7ba0c43e90c3909c725f8a563ab169ccfcbcf3b53c05a2748d17d7508cce58cc"
+    },
+    "data/0.5.5.4.2/i18n/zh-TW/base_items.json": {
+      "bytes": 370188,
+      "git_blob": "4b5e6938f65f403240292c1bca5db87a24842170",
+      "owner": "translation",
+      "sha256": "511ab8228f4a0a26bec004885ad79b1d8215d260b49ca4084d8bcbfa3dc36708"
+    },
+    "data/0.5.5.4.2/i18n/zh-TW/mods.json": {
+      "bytes": 333567,
+      "git_blob": "e2f779c3b34d1115daa606c6d9a4168fb117a626",
+      "owner": "translation",
+      "sha256": "c0212690817a81753a26e078c59c58e71b51c51857084a964dc297ce4237b944"
+    },
+    "data/0.5.5.4.2/i18n/zh-TW/skills.json": {
+      "bytes": 31144,
+      "git_blob": "c75c8dfa3e833767009b584d7bcd4dcdd0085ecb",
+      "owner": "translation",
+      "sha256": "e262bf149b778a7426078fb08ac38903393e1146b7fc1835a1238dca5691e8dd"
+    },
+    "data/0.5.5.4.2/manifest.json": {
+      "bytes": 7587,
+      "git_blob": "c4179b27dd831e804309d30dd07b0ff3b2e5c416",
+      "owner": "snapshot-contract-metadata",
+      "sha256": "bfd31a4607da98af53b139ed101f31a67a3122e4520434fd2e3fda14672fcca4"
+    },
+    "data/0.5.5.4.2/overlay/base_item_overrides.json": {
+      "bytes": 463930,
+      "git_blob": "903ebe746dbd70a5175db240d748f36d6d9add44",
+      "owner": "repoe-retained-compatibility",
+      "sha256": "5f6d40b302444becb5c379fa7bc46728d133461f48fba6d633f7e58f356a362c"
+    },
+    "data/0.5.5.4.2/overlay/catalysts.json": {
+      "bytes": 2207,
+      "git_blob": "1649a825e45b74cfbed6bb99bd30b68838162204",
+      "owner": "repoe-retained-compatibility",
+      "sha256": "e177a36dc34c001687c726a0168a0e29b9de8c50629b44fd945f0efa38be5157"
+    },
+    "data/0.5.5.4.2/overlay/config_options.json": {
+      "bytes": 414791,
+      "git_blob": "2c739699c8c984b7e930a1a19c91a08bebe145f0",
+      "owner": "repoe-retained-compatibility",
+      "sha256": "5eec7db8f2dfe39caaa02e5d69ea03b9d5aede46b8640bc77e2731dfe152444b"
+    },
+    "data/0.5.5.4.2/overlay/curse_priority.json": {
+      "bytes": 1197,
+      "git_blob": "16e1d96bf8a67a3e8c07e92a0ba77bfa301d6fdc",
+      "owner": "repoe-retained-compatibility",
+      "sha256": "0767ba472ecaa863557a0988556000b44183c45a82f7726fa898aae916df721a"
+    },
+    "data/0.5.5.4.2/overlay/gem_effects.json": {
+      "bytes": 188958,
+      "git_blob": "36556247653f5ce0fc5eef9159bf158645a2a691",
+      "owner": "repoe-retained-compatibility",
+      "sha256": "6bee113b2068e80caece3d15db1c521d98f507c56c4726f5b927d9f259bd4f13"
+    },
+    "data/0.5.5.4.2/overlay/gem_quality_stats.json": {
+      "bytes": 144285,
+      "git_blob": "90e76dfd1df353eb8d1a2f81d2de5f4bd1554868",
+      "owner": "repoe-retained-compatibility",
+      "sha256": "d97dacea54e13a1d38b446b3572cf205b5d1c609b94335ebe16192cc29c1cb5d"
+    },
+    "data/0.5.5.4.2/overlay/granted_effect_minions.json": {
+      "bytes": 18848,
+      "git_blob": "2b706356c021f56a09c929cddb02d45c7d765b84",
+      "owner": "repoe-retained-compatibility",
+      "sha256": "356efcf25802787c52de25e5e34700ebb2cada2d6cafc71895e7fcf41a95e16c"
+    },
+    "data/0.5.5.4.2/overlay/minions.json": {
+      "bytes": 49590,
+      "git_blob": "360dc95d37ff634ac722b29057fb811fae5d0a67",
+      "owner": "repoe-retained-compatibility",
+      "sha256": "338aa6da92aa85143b3e4f0478c9c498ad52a154826ed1c15754573dee20799a"
+    },
+    "data/0.5.5.4.2/overlay/mirage_configs.json": {
+      "bytes": 3501,
+      "git_blob": "34787ba3da4b93b395c006487bd0062d707c295d",
+      "owner": "repoe-retained-compatibility",
+      "sha256": "57a0b855062e1ec1a62461c634900fcb0b97e8b634ad0db9e09cc88a70c104c9"
+    },
+    "data/0.5.5.4.2/overlay/mod_parser_rules.json": {
+      "bytes": 399196,
+      "git_blob": "dd3258041752957f7d49ee165da519171a8c1f12",
+      "owner": "repoe-retained-compatibility",
+      "sha256": "c719c7c3eeed65048067f264fd0a62f81cc20d89b917f05e2aa53753166242af"
+    },
+    "data/0.5.5.4.2/overlay/mod_scalability.json": {
+      "bytes": 2496835,
+      "git_blob": "3c9bbbc5dfd41b0136f3ed67e3fdb902f26f42bb",
+      "owner": "repoe-retained-compatibility",
+      "sha256": "4713a22c2f32dc21fe0c017f6fed792cb799ac449171187fbb2d2b7acd814fc8"
+    },
+    "data/0.5.5.4.2/overlay/passive_jewels.json": {
+      "bytes": 14663,
+      "git_blob": "3c309a870767368e878ede4b1156af47a1ed80ec",
+      "owner": "repoe-retained-compatibility",
+      "sha256": "a93b2729bb015f8902a909367e62a1a2abc2787cde0f6d929191222283c33690"
+    },
+    "data/0.5.5.4.2/overlay/runes.json": {
+      "bytes": 341499,
+      "git_blob": "756708de7d149087825707eeeba269e620bf707c",
+      "owner": "repoe-retained-compatibility",
+      "sha256": "cfec5d6eb345045c558b004bc241348378ef5b25f49060c948ac4e6b56f3671d"
+    },
+    "data/0.5.5.4.2/overlay/skill_overrides.json": {
+      "bytes": 376541,
+      "git_blob": "eb6b93e2d4b883ed649445cce870d108f94d6b16",
+      "owner": "repoe-retained-compatibility",
+      "sha256": "02948c49387a0c83fb5bc013552b8bcc1b98edfc1027ceb743de3288d7652397"
+    },
+    "data/0.5.5.4.2/overlay/skill_stat_map.json": {
+      "bytes": 559713,
+      "git_blob": "bdd0dab3f3b58ea58ce36f072e0491a713a4c5c7",
+      "owner": "repoe-retained-compatibility",
+      "sha256": "944e86eb729899a547daedc8eab6741d773eb40ec1f64a380a9acd2c20054661"
+    },
+    "data/0.5.5.4.2/overlay/special_mods.json": {
+      "bytes": 10725,
+      "git_blob": "69cc931d599de0d033060c9b41d723a6a9c34493",
+      "owner": "repoe-retained-compatibility",
+      "sha256": "1d4ea323c6a980865119dad5e86c05d7097097a055bc026fa16eb52f483f097e"
+    },
+    "data/0.5.5.4.2/overlay/spectres.json": {
+      "bytes": 941816,
+      "git_blob": "3bad2fbb64bd24611303545aa16362eb4e4605fa",
+      "owner": "repoe-retained-compatibility",
+      "sha256": "50b98756c340cadbaba1ff5d503e79cc06e744d5a100719941c6e1fc765fdd94"
+    },
+    "data/0.5.5.4.2/overlay/stat_descriptions.json": {
+      "bytes": 1512201,
+      "git_blob": "7696c217029c1274497e7100faecdb7aabcdf110",
+      "owner": "repoe-retained-compatibility",
+      "sha256": "bed5ed56c8281e0c8ae1da2fb142e0f74ba1a3c79ffcee0011b3fbc3875f9b77"
+    },
+    "data/0.5.5.4.2/overlay/stat_set_labels.json": {
+      "bytes": 207388,
+      "git_blob": "7be47695372547fdf047822307b5c3e08c2c6861",
+      "owner": "repoe-retained-compatibility",
+      "sha256": "825e594f43f07a4115ee29e57622670688e5d1c099f7e11a30ba66b3b80cca06"
+    },
+    "data/0.5.5.4.2/overlay/trade_catalog.json": {
+      "bytes": 3104568,
+      "git_blob": "9eb4f93769e53447864b688988ce8f1d5948094c",
+      "owner": "repoe-retained-compatibility",
+      "sha256": "de57e010c8bf93f18bf557c650d6cdc06d98bc3fbde58049227b31feda9deea6"
+    },
+    "data/0.5.5.4.2/overlay/trade_crafting_sources.json": {
+      "bytes": 31192,
+      "git_blob": "91d93f8d13c9595e5e2ff7e761d9203af8286f8d",
+      "owner": "repoe-retained-compatibility",
+      "sha256": "6153ccd3eee148312fac673c9669896c66c8ab1cf712167a5e836544821a4202"
+    },
+    "data/0.5.5.4.2/overlay/trade_stat_map.json": {
+      "bytes": 124884,
+      "git_blob": "92c0c157f520968ed2d95e64474259aa7cf76532",
+      "owner": "repoe-retained-compatibility",
+      "sha256": "b4fcaca76ed5c653e06d3bb2d9e7f146fca4643417d508159de48d9c910ce839"
+    },
+    "data/0.5.5.4.2/overlay/trigger_configs.json": {
+      "bytes": 21125,
+      "git_blob": "74619ce1a02c8074146a1b32d83a2bc0d2d3208b",
+      "owner": "repoe-retained-compatibility",
+      "sha256": "89634d02d0f25b5c2214e639c3217058e3ad8c0c4f973b242aa05194633a8646"
+    },
+    "data/0.5.5.4.2/overlay/uniques.json": {
+      "bytes": 241759,
+      "git_blob": "04f04e936b64f60c266091e6ab632c7c7f258f0b",
+      "owner": "repoe-retained-compatibility",
+      "sha256": "06dbd5055882cf8d883c94dd56b989fc847d19e9f8da023494178deac7066600"
+    }
+  },
+  "known_previous_runtime_identity": {
+    "evidence": "PoBR .cache/version-0.5.5.5-root-20261101/decision.json previous_runtime_identity",
+    "recomputed_here": false,
+    "value": "dcfc32c2524e35ff7f9b1e948deac3c8bbea80c802acf61298bda998fe09af7a"
+  },
+  "recovery_steps": [
+    "Read only the listed immutable Git blobs at revision:path; verify lengths/SHA-256 from this metadata. Never use the checkout or CURRENT as a fallback.",
+    "Split game retained compatibility and i18n into RePoE/translation artifacts; split shared policy using the explicit seven/eleven classification. Preserve the original old-version manifest bytes.",
+    "Publish exact owner artifact commits to existing RePoE and translation repositories, not PoBR. Fresh-fetch and compose in a temporary directory, authenticate old snapshot and runtime before enabling rollback.",
+    "Only the coordinator can retire the old tracked copy after both versions are independently recoverable. This file alone does not satisfy remote recovery."
+  ],
+  "schema": "repoe-historical-data-recovery/v1",
+  "scope": "Original old version bytes only. No official-source/patch re-certification. Original metadata and target/observed distinctions remain.",
+  "shared_git_objects": {
+    "data/overlay-common/archon_config_options.json": {
+      "bytes": 634,
+      "git_blob": "e97de2c1398b3b1d6a9c447caf4bca563ef4e542",
+      "mode": "100644",
+      "owner": "see-0.5.5.5-game-plan-classification"
+    },
+    "data/overlay-common/beira_config_options.json": {
+      "bytes": 843,
+      "git_blob": "7f2e3513152f359227a9ce86338a37175aa67e6d",
+      "mode": "100644",
+      "owner": "see-0.5.5.5-game-plan-classification"
+    },
+    "data/overlay-common/boss_poise_thresholds.json": {
+      "bytes": 1475,
+      "git_blob": "b45b9c71affe494f4becf2329bcc7c30f4688367",
+      "mode": "100644",
+      "owner": "see-0.5.5.5-game-plan-classification"
+    },
+    "data/overlay-common/buff_definitions.json": {
+      "bytes": 14694,
+      "git_blob": "3fefec298ab41471f855358ed4fc7f87b5982ee7",
+      "mode": "100644",
+      "owner": "see-0.5.5.5-game-plan-classification"
+    },
+    "data/overlay-common/cadiro_config_options.json": {
+      "bytes": 1664,
+      "git_blob": "7c1f532b8dae8033cec504e0c68097666244b431",
+      "mode": "100644",
+      "owner": "see-0.5.5.5-game-plan-classification"
+    },
+    "data/overlay-common/combo_config_options.json": {
+      "bytes": 875,
+      "git_blob": "6e91bfcfb598ff428c724a343b97ae98f6d8392b",
+      "mode": "100644",
+      "owner": "see-0.5.5.5-game-plan-classification"
+    },
+    "data/overlay-common/consecrated_ground_config_options.json": {
+      "bytes": 1596,
+      "git_blob": "bd9f123fcd40160d9c6e91e04b6d1eb071141f4b",
+      "mode": "100644",
+      "owner": "see-0.5.5.5-game-plan-classification"
+    },
+    "data/overlay-common/enemy_type_and_consumption_config_options.json": {
+      "bytes": 4736,
+      "git_blob": "f94647753c9429644d17053c2f3a67d711409079",
+      "mode": "100644",
+      "owner": "see-0.5.5.5-game-plan-classification"
+    },
+    "data/overlay-common/energy_config_options.json": {
+      "bytes": 4605,
+      "git_blob": "e6f05b3be94b0e953ac4cd09b5695c229a67fec3",
+      "mode": "100644",
+      "owner": "see-0.5.5.5-game-plan-classification"
+    },
+    "data/overlay-common/high_precision_mods.json": {
+      "bytes": 2849,
+      "git_blob": "50408d5fedf638909095c0af7a7e2f03899ea930",
+      "mode": "100644",
+      "owner": "see-0.5.5.5-game-plan-classification"
+    },
+    "data/overlay-common/item_granted_skills.json": {
+      "bytes": 3240,
+      "git_blob": "fdd2bc6cd0dde62820045507bd45f6c5637a5251",
+      "mode": "100644",
+      "owner": "see-0.5.5.5-game-plan-classification"
+    },
+    "data/overlay-common/local_mods.json": {
+      "bytes": 1488,
+      "git_blob": "9136b021490a1bc709a95798f534c2f683df669f",
+      "mode": "100644",
+      "owner": "see-0.5.5.5-game-plan-classification"
+    },
+    "data/overlay-common/passive_jewel_slots.json": {
+      "bytes": 5786,
+      "git_blob": "6ece7bd82a1939f9d924d3fb7e0a62a510745ca5",
+      "mode": "100644",
+      "owner": "see-0.5.5.5-game-plan-classification"
+    },
+    "data/overlay-common/remnant_pickup_config_options.json": {
+      "bytes": 2192,
+      "git_blob": "7085b75feb7e9e209539af0fe1e5c33194005ab5",
+      "mode": "100644",
+      "owner": "see-0.5.5.5-game-plan-classification"
+    },
+    "data/overlay-common/special_mods.json": {
+      "bytes": 307737,
+      "git_blob": "c404300f9e962a5ba3723ddc4baa765e43435c5c",
+      "mode": "100644",
+      "owner": "see-0.5.5.5-game-plan-classification"
+    },
+    "data/overlay-common/totem_varieties.json": {
+      "bytes": 4583,
+      "git_blob": "aa751e0774c09e203596cf571e443693d91b5ebc",
+      "mode": "100644",
+      "owner": "see-0.5.5.5-game-plan-classification"
+    },
+    "data/overlay-common/vendor_name_aliases.json": {
+      "bytes": 14378,
+      "git_blob": "2dcae1922185a77ee787befde237e1a999a23c57",
+      "mode": "100644",
+      "owner": "see-0.5.5.5-game-plan-classification"
+    },
+    "data/overlay-common/volatility_config_options.json": {
+      "bytes": 1562,
+      "git_blob": "54d17b91add42d7b7598726edf7b0591b5f7e331",
+      "mode": "100644",
+      "owner": "see-0.5.5.5-game-plan-classification"
+    }
+  },
+  "snapshot_manifest": {
+    "bytes": 7587,
+    "sha256": "bfd31a4607da98af53b139ed101f31a67a3122e4520434fd2e3fda14672fcca4"
+  },
+  "source": {
+    "git_tree": "5d8aa13b23929858ce84d22a5cab36e730516c73",
+    "path": "data/0.5.5.4.2",
+    "repository": "ackness/pobr",
+    "revision": "7793f93b0a0b9e5172a19811b4af856b5b7538f1"
+  },
+  "status": "historical-recovery-inventory-with-coordinator-publication-update"
+}

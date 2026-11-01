@@ -8,6 +8,11 @@ This fork is maintained as the game-fact exporter for PoBR. The upstream parser
 remains the base; PoBR calculation rules and the independent Chinese translation
 repository are maintained separately.
 
+[`Independent data publication`](RePoE/docs/data_publication.md) packages pinned
+exports and clearly identified historical compatibility bytes into standalone
+RePoE Git artifacts. Language inputs stay in the translation repository; PoBR
+imports temporary build inputs and retains its own policies and interpretation.
+
 Development uses mise + uv. `mise.toml` requests the latest stable Python and uv;
 the committed `mise.lock` selects exact versions. Refresh them explicitly with
 `mise lock --bump --platform linux-x64,macos-arm64 python uv`. Standard project
