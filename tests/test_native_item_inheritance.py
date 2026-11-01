@@ -173,6 +173,19 @@ class ItemInheritanceTests(unittest.TestCase):
                 expected_source_lock_sha256=self.digest,
             )
 
+    def test_input_changes_during_parse_reject_before_publication(self):
+        original = producer._payloads
+
+        def mutate(*args):
+            result = original(*args)
+            (self.raw / BASE).write_bytes(item(fields='tag = "changed"'))
+            return result
+
+        with patch.object(producer, "_payloads", side_effect=mutate):
+            with self.assertRaisesRegex(ValueError, "fingerprint|changed during"):
+                self.create()
+        self.assertFalse((self.root / "a").exists())
+
 
 if __name__ == "__main__":
     unittest.main()
