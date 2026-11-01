@@ -1,6 +1,7 @@
 """Memory-only locale probing: preserve physical fields and reject bad buffers."""
 
 import hashlib
+import json
 from pathlib import Path
 import struct
 import unittest
@@ -99,8 +100,13 @@ class LocaleProbeTests(unittest.TestCase):
         self.assertFalse(result["patch_certified"])
 
     def test_embedded_layout_exactly_matches_fixed_native_schema(self):
+        schema = (Path(schema_candidate.ROOT) / "schema/poe2.json").read_bytes()
+        tables = {table["name"]: table for table in json.loads(schema)["tables"]}
         for name, layout in probe.LAYOUTS.items():
             self.assertEqual(layout, [(field, spec.type) for field, spec in self.spec[name + ".dat"].fields.items()])
+            self.assertEqual(
+                hashlib.sha256(probe.encoded(tables[name]["columns"])).hexdigest(), probe.COLUMN_PINS[name]
+            )
         self.assertEqual(
             hashlib.sha256((Path(schema_candidate.ROOT) / "schema/poe2.json").read_bytes()).hexdigest(),
             probe.SCHEMA_SHA256,
@@ -115,6 +121,29 @@ class LocaleProbeTests(unittest.TestCase):
         )
         result = probe.compare_pair(default, localized)
         self.assertEqual([row["key"] for row in result["nontext_differences"]], [11, 20, 3])
+
+    def test_nine_table_wire_types_and_all_columns_survive(self):
+        values = {
+            "int": -17,
+            "uint": 4294967294,
+            "ushort": 65535,
+            "byte": -3,
+            "float": 1.25,
+            "bool": True,
+            "ref|string": "原文😀",
+            "ref|out": None,
+            "ref|generic": None,
+            "ref|list|byte": [-128, 0, 127],
+            "ref|list|int": [-17, 0, 17],
+            "ref|list|ref|out": [3, None, 3],
+            "ref|list|ref|generic": [3, None, 3],
+        }
+        self.assertEqual(len(probe.LAYOUTS), 9)
+        for name, layout in probe.LAYOUTS.items():
+            source = {field: values[kind] for field, kind in layout}
+            decoded = self.decode(name, dat_bytes(self.spec, name, [source]))
+            probe.validate_table(decoded)
+            self.assertEqual(decoded["rows"][0]["values"], source)
 
 
 if __name__ == "__main__":
