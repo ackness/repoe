@@ -1,0 +1,99 @@
+{
+  "archive": {
+    "bytes": 1497807,
+    "file": "english-targets.zip",
+    "sha256": "2d7bba399172db959b25b07912d7024f23da36edea5fe70fcb4cb4c7b72bfa0d"
+  },
+  "files": {
+    "f56e-selected/manifest.json": {
+      "bytes": 37475,
+      "sha256": "56e71e00a72c8079d100b64861fc030206b12aaeb5ad655ccb4ab4e6726332d0"
+    },
+    "f56e-selected/tables/ActiveSkills.json": {
+      "bytes": 1363288,
+      "sha256": "8b4b8779f8e68cc669afc6322eebc33cca5d9a590c0edfad1c8236a91308bdaa"
+    },
+    "f56e-selected/tables/BaseItemTypes.json": {
+      "bytes": 4119490,
+      "sha256": "8225d82000eadd38f547fc431a94b40c8effebc2be2b5e8537e2944666674b3d"
+    },
+    "f56e-selected/tables/Characters.json": {
+      "bytes": 40857,
+      "sha256": "b68686433b51073348f18fb1322057900b0742ddcfde3c4cd91cb32e40f8b0da"
+    },
+    "f56e-selected/tables/ItemClasses.json": {
+      "bytes": 80878,
+      "sha256": "5bbac0ae80a98bbf069b85c3207c72c7d64d0fa0c392079b9d17211b19e8b84e"
+    },
+    "f56e-selected/tables/Mods.json": {
+      "bytes": 25724416,
+      "sha256": "9d31219bb40ba9c6651fd627905f091e35978beefa84fcd5a8789a45e819df1b"
+    },
+    "f56e-selected/tables/PassiveSkills.json": {
+      "bytes": 12984257,
+      "sha256": "4d659f07e12df4c2df7f684a21c87f99458b575db6da636b96062d2f530a561c"
+    },
+    "supplement-selected/manifest.json": {
+      "bytes": 16020,
+      "sha256": "edad16f5a5ed2ab78671a8cecf8d7d24724a0d679741da6752051ab3f4a4f16c"
+    },
+    "supplement-selected/tables.json": {
+      "bytes": 39039,
+      "sha256": "c961ce0b10ef6b7af22a4f95be50ca9f6c9b9b715827e203d78750fd39610da7"
+    },
+    "words-selected/manifest.json": {
+      "bytes": 14521,
+      "sha256": "a9597d71ed0f7086d552dfd1213615ce79bd5c05e0f2af1ed8e2e72e6fef15e6"
+    },
+    "words-selected/tables.json": {
+      "bytes": 585523,
+      "sha256": "2815ff804797a664e220f65b7f974a32f72942936f3732988bcfbdaea3bd011a"
+    }
+  },
+  "implementation_head": "49852b2e79e0e9846df542896f8bb3f5177bc49c",
+  "original_mac_target_lock_sha256": "3b0ccf519d722992dce0d46ba7fe2a41839c66c7d12adfeba22a26f1475f6119",
+  "schema": "pobr-windows-language-input-handoff/v1",
+  "scope": "Selected English consumer input closure; unchanged original manifests, not complete original packages; draft, no source admission or CURRENT change",
+  "target_lock_template": {
+    "format": "repoe-language-target-lock/v1",
+    "tables": {
+      "ActiveSkills": {
+        "manifest_sha256": "56e71e00a72c8079d100b64861fc030206b12aaeb5ad655ccb4ab4e6726332d0",
+        "package": "f56e-selected"
+      },
+      "AlternateQualityTypes": {
+        "manifest_sha256": "edad16f5a5ed2ab78671a8cecf8d7d24724a0d679741da6752051ab3f4a4f16c",
+        "package": "supplement-selected"
+      },
+      "Ascendancy": {
+        "manifest_sha256": "edad16f5a5ed2ab78671a8cecf8d7d24724a0d679741da6752051ab3f4a4f16c",
+        "package": "supplement-selected"
+      },
+      "BaseItemTypes": {
+        "manifest_sha256": "56e71e00a72c8079d100b64861fc030206b12aaeb5ad655ccb4ab4e6726332d0",
+        "package": "f56e-selected"
+      },
+      "Characters": {
+        "manifest_sha256": "56e71e00a72c8079d100b64861fc030206b12aaeb5ad655ccb4ab4e6726332d0",
+        "package": "f56e-selected"
+      },
+      "ItemClasses": {
+        "manifest_sha256": "56e71e00a72c8079d100b64861fc030206b12aaeb5ad655ccb4ab4e6726332d0",
+        "package": "f56e-selected"
+      },
+      "Mods": {
+        "manifest_sha256": "56e71e00a72c8079d100b64861fc030206b12aaeb5ad655ccb4ab4e6726332d0",
+        "package": "f56e-selected"
+      },
+      "PassiveSkills": {
+        "manifest_sha256": "56e71e00a72c8079d100b64861fc030206b12aaeb5ad655ccb4ab4e6726332d0",
+        "package": "f56e-selected"
+      },
+      "Words": {
+        "manifest_sha256": "a9597d71ed0f7086d552dfd1213615ce79bd5c05e0f2af1ed8e2e72e6fef15e6",
+        "package": "words-selected"
+      }
+    }
+  },
+  "translation_head": "1213517f31aeaba3a9b33d7c6e0474313232ce29"
+}
