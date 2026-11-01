@@ -45,3 +45,7 @@ run = "uv run --locked --offline python -B -m RePoE.native_validate"
 [tasks."descriptions:candidate"]
 description = "Export selected byte-pinned CSD branches offline without choosing translations or executing handlers"
 run = "uv run --locked --offline python -B -m RePoE.native_descriptions"
+
+[tasks."tables:candidate"]
+description = "Export explicitly pinned supplemental DAT tables through the existing native reader"
+run = "uv run --locked --offline python -B -m RePoE.native_tables"
