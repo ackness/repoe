@@ -66,3 +66,19 @@ run = "python -B -m RePoE.data_publication package"
 [tasks."publication:git-handoff"]
 description = "Stage a local orphan RePoE artifact without a checkout, remote or push"
 run = "python -B -m RePoE.data_publication git-handoff"
+
+[tasks."client:source"]
+description = "Acquire one fixed source or import archived ranges with explicit inputs"
+run = "python -B -m RePoE.client_sources"
+
+[tasks."client:draft"]
+description = "Collect a location-only selection as an unreviewed acquisition draft"
+run = "python -B -m RePoE.client_source_draft"
+
+[tasks."client:locate"]
+description = "Locate explicit paths in a fixed index; --diagnostic retains missing paths without a selection"
+run = "python -B -m RePoE.client_index"
+
+[tasks."source:rebind"]
+description = "Create or verify a pinned offline draft source envelope"
+run = "python -B -m RePoE.source_rebinding"
