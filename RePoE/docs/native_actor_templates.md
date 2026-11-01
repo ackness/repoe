@@ -81,3 +81,46 @@ PlayerSummonedMinionBase extends Monster, which declares `extends "nothing"`.
 All three schema-declared OTC candidates lack matches in the selected fixed index.
 These are bounded observed facts, not complete directory-name evidence, numerical
 effect certification, acquisition acceptance, or a mod-list migration.
+
+## Recovering the observed draft
+
+The immutable handoff is recorded in
+[`publication/actor-templates-0.5.5.5-draft.json`](../../publication/actor-templates-0.5.5.5-draft.json).
+It pins the RePoE repository, full artifact revision, archive path, byte length,
+SHA-256, expanded size and top-level manifest. The source branch contains only
+code and publication metadata; the complete data archive is on the separate
+RePoE artifact ref. Publication does not change its draft acquisition status.
+
+The archive has schema `repoe-actor-template-source-package/v1`. Authenticate its
+outer archive and exact `manifest.json.files` inventory before extracting it to
+a fresh temporary directory. `raw/` contains all six acquired resources;
+`facts/` contains the corrected producer's three output files. Original receipts,
+failed runs, selected index records, the MonsterVarieties table and its original
+F77 manifest are under `evidence/`. Only that table is included from the F77
+inventory. `portable-path-map.json` locates included copies of historical absolute
+receipt paths; those old paths are evidence strings, not replay input paths.
+
+Using the pinned `producer_revision`, replay without network access:
+
+```python
+from pathlib import Path
+from RePoE.native_actor_templates import create_candidate
+
+restored = Path("/temporary/authenticated-source-package")
+create_candidate(
+    source_lock=restored / "facts/source-lock.json",
+    source="actor-templates-0.5.5.5-draft",
+    raw=restored / "raw",
+    out=Path(".cache/fresh-actor-replay"),
+    expected_source_lock_sha256="60f2be3627ff1be190367c2379d01162841a59c57fd1ca42df7caacc94136f22",
+)
+```
+
+A fresh remote Git fetch verified all 62 archive members and the producer blobs;
+OS-denied-network raw-to-facts replay reproduced all three output files byte for
+byte. Replaying the acquisition and full index additionally needs their separately
+pinned prior index/range cache and decoder; those large inputs are not embedded
+in this small handoff. Neither replay certifies official semantics. In particular,
+the meaning of `set_`, OT/DAT precedence and `Special_Mods` applicability remain
+unclosed, so BearCompanion, LivingLightning and SummonedRagingSpirit keep their
+existing compatibility effects in PoBR.
