@@ -106,6 +106,16 @@ class LocaleProbeTests(unittest.TestCase):
             probe.SCHEMA_SHA256,
         )
 
+    def test_little_endian_strings_preserve_literal_bom_and_pair_order_is_stable(self):
+        source = [{"HASH32": key, "Wordlist": 2, "Text": "\ufeff原文"} for key in [20, 3, 11]]
+        default = self.decode("Words", dat_bytes(self.spec, "Words", source))
+        self.assertEqual(default["rows"][0]["values"]["Text"], "\ufeff原文")
+        localized = self.decode(
+            "Words", dat_bytes(self.spec, "Words", [{**row, "Wordlist": 4} for row in reversed(source)])
+        )
+        result = probe.compare_pair(default, localized)
+        self.assertEqual([row["key"] for row in result["nontext_differences"]], [11, 20, 3])
+
 
 if __name__ == "__main__":
     unittest.main()
