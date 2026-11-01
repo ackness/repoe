@@ -1,0 +1,68 @@
+{
+  "schema": "repoe-native-crafting-handoff/v1",
+  "producer_revision": "74c4881581be64771f5604c03a0be34e00f21f1e",
+  "publication": null,
+  "adoption": "not-adopted",
+  "native_source_manifest": {
+    "bytes": 22247,
+    "sha256": "4dda6ae1639252df3f0afdd2965c14a85c282bcce599eeaf27d0c9a54e858e7a"
+  },
+  "crafting_archive": {
+    "bytes": 2319239,
+    "sha256": "d04a692744f1debce1826987bfee0be77844847e31da0ff9c0b2faaacb82a75e"
+  },
+  "game_archive": {
+    "bytes": 4419797,
+    "sha256": "fc2e05bc6c1f99f06c8439a2d43642e13b4109d9201c7abebd5902c22b8fbb02"
+  },
+  "snapshot_manifest": {
+    "bytes": 8234,
+    "sha256": "73b2d77e669743ced67df5cf6e0245f79e333bb9b2a481b796da7099d8f63a06"
+  },
+  "runtime_identity": "dba0615e55471570b22cb7759b3906b1db9e78629a2a6846a743e070708f0e72",
+  "baseline": {
+    "crafting": {
+      "bytes": 31192,
+      "sha256": "6153ccd3eee148312fac673c9669896c66c8ab1cf712167a5e836544821a4202"
+    },
+    "business_equal": true,
+    "snapshot_manifest": {
+      "bytes": 8234,
+      "sha256": "2a03ad79cc33b10e103895e2bae8b5984cadf341c0cc58425ac97dacb90348fd"
+    },
+    "runtime_identity": "d7ac23c544a4d8ccc50b3237e20301e4fb1164c40a84745a9d3d4f1602dee9e8"
+  },
+  "projection": {
+    "output": {
+      "bytes": 31587,
+      "sha256": "0c32984db22e5e4d9a7fb8bfe3bd5b79340673ee10c804bf35bcba652da68fb2"
+    },
+    "policy_sha256": "c0823bd5a443ca936062f8949514f87ea6a99bf9de441cb4fde88115e944e267",
+    "summary": {
+      "selected_rows": 89,
+      "catalog_mods": 92
+    },
+    "diagnostics": [
+      {
+        "code": "unidentified_stat_interval",
+        "mod": {
+          "id": "AlloyBallistaLimit1",
+          "row": 15531,
+          "table": "Mods"
+        },
+        "sources": [
+          {
+            "row": 175,
+            "table": "EssenceMods"
+          }
+        ],
+        "max_hardmode_raw": 0,
+        "max_raw": -20,
+        "min_hardmode_raw": 0,
+        "min_raw": -20,
+        "slot": 2,
+        "stat": null
+      }
+    ]
+  }
+}
