@@ -8,10 +8,12 @@ This fork is maintained as the game-fact exporter for PoBR. The upstream parser
 remains the base; PoBR calculation rules and the independent Chinese translation
 repository are maintained separately.
 
-Development uses mise + uv. `mise.toml` selects Python and uv; standard project
+Development uses mise + uv. `mise.toml` requests the latest stable Python and uv;
+the committed `mise.lock` selects exact versions. Refresh them explicitly with
+`mise lock --bump --platform linux-x64,macos-arm64 python uv`. Standard project
 metadata lives in `pyproject.toml`, and `uv.lock` fixes the resolved dependencies,
 including a full PyPoE Git revision. Run from this checkout after `mise trust` and
-`mise install`:
+`mise install --locked`:
 
 ```sh
 mise run setup
