@@ -1,0 +1,40 @@
+{
+  "schema": "pobr-fk-target-handoff/v1",
+  "archive": {
+    "file": "targets.zip",
+    "bytes": 1792836,
+    "sha256": "9d1dbce5d22702c8ff26b820757659e392e9442b64d9aa246d78fa26df038e6e"
+  },
+  "files": {
+    "f77/manifest.json": {
+      "bytes": 37475,
+      "sha256": "56e71e00a72c8079d100b64861fc030206b12aaeb5ad655ccb4ab4e6726332d0"
+    },
+    "f77/source-lock.json": {
+      "bytes": 41544,
+      "sha256": "d7a59a052109f411a62b1398ac844ff31ca8afd6d4158e3488446a19cb75743f"
+    },
+    "f77/tables/ModType.json": {
+      "bytes": 1338243,
+      "sha256": "c022a02f02cdbd0dc9f5199038bcf1d1133b08d4fa5043087250aa300b5ccf14"
+    },
+    "f77/tables/Stats.json": {
+      "bytes": 11634008,
+      "sha256": "bef280b241a844972de0020e57c64cc403ac7e44fddf346b1014d17e1372376a"
+    },
+    "item-visual-identity/manifest.json": {
+      "bytes": 16349,
+      "sha256": "50eea83614dcceb4518a20bb1b8ef62d53973703dd2ba21577fd0ec50f11704c"
+    },
+    "item-visual-identity/source-lock.json": {
+      "bytes": 1099,
+      "sha256": "ae14da5782fea86211ad7ec206c99aab5b54d4b0a43e33223fc016b9621f4027"
+    },
+    "item-visual-identity/tables.json": {
+      "bytes": 31283482,
+      "sha256": "8f28de79e5b9e4f32c218b781892a71c37247962336f6a94a91faed76e5f179c"
+    }
+  },
+  "source_status": "draft-not-promoted",
+  "note": "Original manifests and selected payload bytes retained. F77 is a partial copied closure; do not claim the omitted files were copied. This package carries target English facts only."
+}
