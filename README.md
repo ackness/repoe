@@ -8,21 +8,37 @@ This fork is maintained as the game-fact exporter for PoBR. The upstream parser
 remains the base; PoBR calculation rules and the independent Chinese translation
 repository are maintained separately.
 
-Development uses mise + uv. `mise.toml` selects Python and uv; standard project
+[`Independent data publication`](RePoE/docs/data_publication.md) packages pinned
+exports and clearly identified historical compatibility bytes into standalone
+RePoE Git artifacts. Language inputs stay in the translation repository; PoBR
+imports temporary build inputs and retains its own policies and interpretation.
+
+Development uses mise + uv. `mise.toml` requests the latest stable Python and uv;
+the committed `mise.lock` selects exact versions. Refresh them explicitly with
+`mise lock --bump --platform linux-x64,macos-arm64 python uv`. Standard project
 metadata lives in `pyproject.toml`, and `uv.lock` fixes the resolved dependencies,
 including a full PyPoE Git revision. Run from this checkout after `mise trust` and
-`mise install`:
+`mise install --locked`:
 
 ```sh
+mise bootstrap --only packages
 mise run setup
 mise run check
 mise run schema:candidate -- --out .cache/schema/example
 ```
 
 `setup` uses `uv sync --locked` to create `.venv`; its first run needs dependency
-downloads. PyPoE is a noneditable Git dependency, not a sibling checkout. `check`
+downloads. The frozen Pillow dependency may build from source on a new Python;
+the bootstrap packages supply its required JPEG/zlib headers and Linux compiler.
+Keep any receipt-bound decoder environment unchanged; validate an upgrade in a
+separate directory with `UV_PROJECT_ENVIRONMENT=.cache/toolchain-python315 mise run setup`.
+PyPoE is a noneditable Git dependency, not a sibling checkout. `check`
 runs the offline lock check, fixed schema checksum, Ruff lint/format checks,
-regression tests and CLI smoke test. `mise run test` and `mise run lint` are also
+regression tests and CLI smoke test. Pull requests and master pushes run that
+same check in a read-only GitHub Actions job after installing the locked tools,
+declared host packages and frozen dependencies. CI does not acquire a client,
+export production data, publish artifacts or change source acceptance. Passing
+these offline checks does not certify a real client or activate a PoBR package. `mise run test` and `mise run lint` are also
 available separately. Generated `RePoE/model/` files are excluded from regular
 lint/format; update them explicitly with `mise run models:generate -- [schema paths]`,
 which invokes the locked generator with Ruff formatting. The schema/model generator
@@ -71,6 +87,11 @@ extends the same native ingress to 77 DATs plus PSG. It preserves eight-slot
 modifiers, native item/component/socketable joins, constants and actor facts.
 It remains partial, unfiltered source inventory; units, complete metadata and
 playable catalogue/actor semantics are not certified.
+
+[`Item inheritance`](RePoE/docs/native_item_inheritance.md) exports a separate
+pinned `.it` closure with ordered raw fields and source spans. Its opt-in tag
+interpretation is identified as pinned community parser behavior, separately
+from official literal facts and direct DAT tags.
 
 [`tables:candidate`](RePoE/docs/native_tables.md) exports an explicitly selected,
 pinned set of additional DAT tables with the same native reader. It preserves

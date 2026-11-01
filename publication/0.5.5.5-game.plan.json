@@ -1,0 +1,1408 @@
+{
+  "excluded": {
+    "snapshot": {
+      "0.5.5.5/i18n/zh-CN/_meta.json": "Language owner: poe2-zh-cn-stats; CI imports its separate language part.",
+      "0.5.5.5/i18n/zh-CN/base_items.json": "Language owner: poe2-zh-cn-stats; CI imports its separate language part.",
+      "0.5.5.5/i18n/zh-CN/classes.json": "Language owner: poe2-zh-cn-stats; CI imports its separate language part.",
+      "0.5.5.5/i18n/zh-CN/display_texts.json": "Language owner: poe2-zh-cn-stats; CI imports its separate language part.",
+      "0.5.5.5/i18n/zh-CN/mods.json": "Language owner: poe2-zh-cn-stats; CI imports its separate language part.",
+      "0.5.5.5/i18n/zh-CN/passive_names.json": "Language owner: poe2-zh-cn-stats; CI imports its separate language part.",
+      "0.5.5.5/i18n/zh-CN/rare_words.json": "Language owner: poe2-zh-cn-stats; CI imports its separate language part.",
+      "0.5.5.5/i18n/zh-CN/skills.json": "Language owner: poe2-zh-cn-stats; CI imports its separate language part.",
+      "0.5.5.5/i18n/zh-CN/stat_lines.json": "Language owner: poe2-zh-cn-stats; CI imports its separate language part.",
+      "0.5.5.5/i18n/zh-CN/words.json": "Language owner: poe2-zh-cn-stats; CI imports its separate language part.",
+      "0.5.5.5/i18n/zh-TW/base_items.json": "Language owner: poe2-zh-cn-stats; CI imports its separate language part.",
+      "0.5.5.5/i18n/zh-TW/mods.json": "Language owner: poe2-zh-cn-stats; CI imports its separate language part.",
+      "0.5.5.5/i18n/zh-TW/skills.json": "Language owner: poe2-zh-cn-stats; CI imports its separate language part.",
+      "overlay-common/archon_config_options.json": "PoBR interpretation/static configuration policy; CI materializes from PoBR code.",
+      "overlay-common/beira_config_options.json": "PoBR interpretation/static configuration policy; CI materializes from PoBR code.",
+      "overlay-common/cadiro_config_options.json": "PoBR interpretation/static configuration policy; CI materializes from PoBR code.",
+      "overlay-common/combo_config_options.json": "PoBR interpretation/static configuration policy; CI materializes from PoBR code.",
+      "overlay-common/consecrated_ground_config_options.json": "PoBR interpretation/static configuration policy; CI materializes from PoBR code.",
+      "overlay-common/enemy_type_and_consumption_config_options.json": "PoBR interpretation/static configuration policy; CI materializes from PoBR code.",
+      "overlay-common/energy_config_options.json": "PoBR interpretation/static configuration policy; CI materializes from PoBR code.",
+      "overlay-common/local_mods.json": "PoBR interpretation/static configuration policy; CI materializes from PoBR code.",
+      "overlay-common/remnant_pickup_config_options.json": "PoBR interpretation/static configuration policy; CI materializes from PoBR code.",
+      "overlay-common/special_mods.json": "PoBR interpretation/static configuration policy; CI materializes from PoBR code.",
+      "overlay-common/volatility_config_options.json": "PoBR interpretation/static configuration policy; CI materializes from PoBR code."
+    }
+  },
+  "kind": "game",
+  "limits": [
+    "Storage migration only. Original patch/realm, candidate status, mixed fields and source metadata are unchanged.",
+    "Retained PoBR-format outputs are opaque historical compatibility, not a RePoE native schema or a new gameplay certification. PoBR owns their interpretation and future projections.",
+    "No source admission, completeness, freshness, redistribution approval, CURRENT update or remote publication is implied.",
+    "PoBR policies and language dictionaries are separate owner inputs. No tracked snapshot fallback is part of acquisition."
+  ],
+  "members": {
+    "data/0.5.5.5/base/base_items.json": {
+      "bytes": 1840876,
+      "kind": "retained-compatibility",
+      "member": "0.5.5.5/base/base_items.json",
+      "note": "Exact previously processed PoBR-format bytes migrated from the fixed adoption commit; original _meta/patch/vendor provenance stays byte-preserved. PoBR owns the schema and domain projection. No new native-fact or official-source certification.",
+      "observed_identity": {
+        "game_patch": null,
+        "realm": null
+      },
+      "sha256": "9ea58e913fe788d174ad2c2ca95baae1fc4982638363382dc771fc4aac5a1c70",
+      "source": "snapshot"
+    },
+    "data/0.5.5.5/base/base_player_mods.json": {
+      "bytes": 2035,
+      "kind": "retained-compatibility",
+      "member": "0.5.5.5/base/base_player_mods.json",
+      "note": "Mixed fixed player modifiers and selection; retained processed numerical/compatibility values, no missing-input default inference.",
+      "observed_identity": {
+        "game_patch": null,
+        "realm": null
+      },
+      "original_producer": {
+        "independently_verified": false,
+        "path": "data/0.5.5.5/base/base_player_mods.json",
+        "recorded_metadata": null,
+        "snapshot_revision": "7793f93b0a0b9e5172a19811b4af856b5b7538f1",
+        "storage_repository": "ackness/pobr"
+      },
+      "sha256": "5f93bf335cd2dd71ae1ce8bf137a7a0dfe621ee6e3778d0fc6c9f83befc85687",
+      "source": "snapshot"
+    },
+    "data/0.5.5.5/base/character_constants.json": {
+      "bytes": 430,
+      "kind": "retained-compatibility",
+      "member": "0.5.5.5/base/character_constants.json",
+      "note": "Game numerical constants; not reclassified as PoBR code. Original exporter is not independently identified by this payload.",
+      "observed_identity": {
+        "game_patch": null,
+        "realm": null
+      },
+      "original_producer": {
+        "independently_verified": false,
+        "path": "data/0.5.5.5/base/character_constants.json",
+        "recorded_metadata": null,
+        "snapshot_revision": "7793f93b0a0b9e5172a19811b4af856b5b7538f1",
+        "storage_repository": "ackness/pobr"
+      },
+      "sha256": "66c4c54ff85f937d44580ee0bfad5488415f68eb2f6709679483a6c98cbf50af",
+      "source": "snapshot"
+    },
+    "data/0.5.5.5/base/cost_types.json": {
+      "bytes": 1125,
+      "kind": "retained-compatibility",
+      "member": "0.5.5.5/base/cost_types.json",
+      "note": "Exact previously processed PoBR-format bytes migrated from the fixed adoption commit; original _meta/patch/vendor provenance stays byte-preserved. PoBR owns the schema and domain projection. No new native-fact or official-source certification.",
+      "observed_identity": {
+        "game_patch": null,
+        "realm": null
+      },
+      "sha256": "5dac3a7f08d63b8512f1d24870d50f876cf7907c6cc2a405473a4c65926fb88a",
+      "source": "snapshot"
+    },
+    "data/0.5.5.5/base/enemy_presets.json": {
+      "bytes": 7973,
+      "kind": "retained-compatibility",
+      "member": "0.5.5.5/base/enemy_presets.json",
+      "note": "Mixed target numerical values and scenario selection; retaining bytes does not certify a default scenario or enemy policy.",
+      "observed_identity": {
+        "game_patch": null,
+        "realm": null
+      },
+      "original_producer": {
+        "independently_verified": false,
+        "path": "data/0.5.5.5/base/enemy_presets.json",
+        "recorded_metadata": null,
+        "snapshot_revision": "7793f93b0a0b9e5172a19811b4af856b5b7538f1",
+        "storage_repository": "ackness/pobr"
+      },
+      "sha256": "d8504ef38860682d03872e9b006493cecb91f078650c3f7580d056d34d3cb861",
+      "source": "snapshot"
+    },
+    "data/0.5.5.5/base/game_constants.json": {
+      "bytes": 2610,
+      "kind": "retained-compatibility",
+      "member": "0.5.5.5/base/game_constants.json",
+      "note": "Game numerical constants; storage migration does not re-evaluate formula or unit semantics.",
+      "observed_identity": {
+        "game_patch": null,
+        "realm": null
+      },
+      "original_producer": {
+        "independently_verified": false,
+        "path": "data/0.5.5.5/base/game_constants.json",
+        "recorded_metadata": null,
+        "snapshot_revision": "7793f93b0a0b9e5172a19811b4af856b5b7538f1",
+        "storage_repository": "ackness/pobr"
+      },
+      "sha256": "5a06b87ffec6776d4623b372ccd050f2a103c7720b2be5b88242630856cc9323",
+      "source": "snapshot"
+    },
+    "data/0.5.5.5/base/granted_effect_levels.json": {
+      "bytes": 2927324,
+      "kind": "retained-compatibility",
+      "member": "0.5.5.5/base/granted_effect_levels.json",
+      "note": "Exact previously processed PoBR-format bytes migrated from the fixed adoption commit; original _meta/patch/vendor provenance stays byte-preserved. PoBR owns the schema and domain projection. No new native-fact or official-source certification.",
+      "observed_identity": {
+        "game_patch": null,
+        "realm": null
+      },
+      "sha256": "3a66d591def23772ff43b3b63ec96e9a12fc4f3c88be40f741681914926f51da",
+      "source": "snapshot"
+    },
+    "data/0.5.5.5/base/granted_effect_stat_sets.json": {
+      "bytes": 15306716,
+      "kind": "retained-compatibility",
+      "member": "0.5.5.5/base/granted_effect_stat_sets.json",
+      "note": "Exact previously processed PoBR-format bytes migrated from the fixed adoption commit; original _meta/patch/vendor provenance stays byte-preserved. PoBR owns the schema and domain projection. No new native-fact or official-source certification.",
+      "observed_identity": {
+        "game_patch": null,
+        "realm": null
+      },
+      "sha256": "f2a58ba510a388108c73dac55c10dc6743d35e7ee4d5ef7343bfbcd0e45de7c7",
+      "source": "snapshot"
+    },
+    "data/0.5.5.5/base/granted_effects.json": {
+      "bytes": 2419331,
+      "kind": "retained-compatibility",
+      "member": "0.5.5.5/base/granted_effects.json",
+      "note": "Exact previously processed PoBR-format bytes migrated from the fixed adoption commit; original _meta/patch/vendor provenance stays byte-preserved. PoBR owns the schema and domain projection. No new native-fact or official-source certification.",
+      "observed_identity": {
+        "game_patch": null,
+        "realm": null
+      },
+      "sha256": "1ec310c6878a644c4390592d31c4a294ef84bbfee3d7375a85b183ccb8d10994",
+      "source": "snapshot"
+    },
+    "data/0.5.5.5/base/jewel_radii.json": {
+      "bytes": 1507,
+      "kind": "retained-compatibility",
+      "member": "0.5.5.5/base/jewel_radii.json",
+      "note": "Exact previously processed PoBR-format bytes migrated from the fixed adoption commit; original _meta/patch/vendor provenance stays byte-preserved. PoBR owns the schema and domain projection. No new native-fact or official-source certification.",
+      "observed_identity": {
+        "game_patch": null,
+        "realm": null
+      },
+      "sha256": "4ac9e16361d48897350464dd967a2d16ae690bddecd6a7498c827385a2a5b6c9",
+      "source": "snapshot"
+    },
+    "data/0.5.5.5/base/mods.json": {
+      "bytes": 8811358,
+      "kind": "retained-compatibility",
+      "member": "0.5.5.5/base/mods.json",
+      "note": "Exact previously processed PoBR-format bytes migrated from the fixed adoption commit; original _meta/patch/vendor provenance stays byte-preserved. PoBR owns the schema and domain projection. No new native-fact or official-source certification.",
+      "observed_identity": {
+        "game_patch": null,
+        "realm": null
+      },
+      "sha256": "ef56f044022e1750c19777dccb9e9a6f32dda5fbdf393db9f062c9217f345c10",
+      "source": "snapshot"
+    },
+    "data/0.5.5.5/base/monster_resistances.json": {
+      "bytes": 437456,
+      "kind": "retained-compatibility",
+      "member": "0.5.5.5/base/monster_resistances.json",
+      "note": "Exact previously processed PoBR-format bytes migrated from the fixed adoption commit; original _meta/patch/vendor provenance stays byte-preserved. PoBR owns the schema and domain projection. No new native-fact or official-source certification.",
+      "observed_identity": {
+        "game_patch": null,
+        "realm": null
+      },
+      "sha256": "3085f5b99c05518651efd2a6337d0492436d7bcc242e2a7715b11017286c1ed3",
+      "source": "snapshot"
+    },
+    "data/0.5.5.5/base/monster_scaling.json": {
+      "bytes": 25069,
+      "kind": "retained-compatibility",
+      "member": "0.5.5.5/base/monster_scaling.json",
+      "note": "Exact previously processed PoBR-format bytes migrated from the fixed adoption commit; original _meta/patch/vendor provenance stays byte-preserved. PoBR owns the schema and domain projection. No new native-fact or official-source certification.",
+      "observed_identity": {
+        "game_patch": null,
+        "realm": null
+      },
+      "sha256": "c6240de2eddd88020db83e11397f8a274a0fc64ec8d0af8b0c6e5a399604f964",
+      "source": "snapshot"
+    },
+    "data/0.5.5.5/base/non_damaging_ailments.json": {
+      "bytes": 1385,
+      "kind": "retained-compatibility",
+      "member": "0.5.5.5/base/non_damaging_ailments.json",
+      "note": "Game ailment numerical data and existing interpretations are preserved together; no numerical redesign.",
+      "observed_identity": {
+        "game_patch": null,
+        "realm": null
+      },
+      "original_producer": {
+        "independently_verified": false,
+        "path": "data/0.5.5.5/base/non_damaging_ailments.json",
+        "recorded_metadata": null,
+        "snapshot_revision": "7793f93b0a0b9e5172a19811b4af856b5b7538f1",
+        "storage_repository": "ackness/pobr"
+      },
+      "sha256": "9dfe31a4a218088bcc32b30f5fb3deec142ad61cf9924430756e2ff2bec0be8b",
+      "source": "snapshot"
+    },
+    "data/0.5.5.5/base/passive_tree.json": {
+      "bytes": 1955198,
+      "kind": "retained-compatibility",
+      "member": "0.5.5.5/base/passive_tree.json",
+      "note": "Exact previously processed PoBR-format bytes migrated from the fixed adoption commit; original _meta/patch/vendor provenance stays byte-preserved. PoBR owns the schema and domain projection. No new native-fact or official-source certification.",
+      "observed_identity": {
+        "game_patch": null,
+        "realm": null
+      },
+      "sha256": "160092e9e2fb7d8bd1e4f3dfd967f4f2b3f6e3607514c963622405c950c8b554",
+      "source": "snapshot"
+    },
+    "data/0.5.5.5/base/passive_tree_meta.json": {
+      "bytes": 3362,
+      "kind": "retained-compatibility",
+      "member": "0.5.5.5/base/passive_tree_meta.json",
+      "note": "Exact previously processed PoBR-format bytes migrated from the fixed adoption commit; original _meta/patch/vendor provenance stays byte-preserved. PoBR owns the schema and domain projection. No new native-fact or official-source certification.",
+      "observed_identity": {
+        "game_patch": null,
+        "realm": null
+      },
+      "sha256": "2632710bc6a671303b4c1dbe3abd1f28b215491fa2b501c9778193a5e5ba1731",
+      "source": "snapshot"
+    },
+    "data/0.5.5.5/base/passive_trees/0_1.json": {
+      "bytes": 552789,
+      "kind": "retained-compatibility",
+      "member": "0.5.5.5/base/passive_trees/0_1.json",
+      "note": "Exact previously processed PoBR-format bytes migrated from the fixed adoption commit; original _meta/patch/vendor provenance stays byte-preserved. PoBR owns the schema and domain projection. No new native-fact or official-source certification.",
+      "observed_identity": {
+        "game_patch": null,
+        "realm": null
+      },
+      "sha256": "861042ea66f2e9252c571192e2b4f7fcbb5e58049344a5cbd20195ca63b76dd7",
+      "source": "snapshot"
+    },
+    "data/0.5.5.5/base/passive_trees/0_2.json": {
+      "bytes": 607893,
+      "kind": "retained-compatibility",
+      "member": "0.5.5.5/base/passive_trees/0_2.json",
+      "note": "Exact previously processed PoBR-format bytes migrated from the fixed adoption commit; original _meta/patch/vendor provenance stays byte-preserved. PoBR owns the schema and domain projection. No new native-fact or official-source certification.",
+      "observed_identity": {
+        "game_patch": null,
+        "realm": null
+      },
+      "sha256": "bdf47e023ed4e7b4ebc284e5c426fc8497e2de1e7fc1c9b87ca88dcc0a0c8b43",
+      "source": "snapshot"
+    },
+    "data/0.5.5.5/base/passive_trees/0_3.json": {
+      "bytes": 745706,
+      "kind": "retained-compatibility",
+      "member": "0.5.5.5/base/passive_trees/0_3.json",
+      "note": "Exact previously processed PoBR-format bytes migrated from the fixed adoption commit; original _meta/patch/vendor provenance stays byte-preserved. PoBR owns the schema and domain projection. No new native-fact or official-source certification.",
+      "observed_identity": {
+        "game_patch": null,
+        "realm": null
+      },
+      "sha256": "da6ea9249d6a4d84756e3ca7a0abddbce9c87258323fa99c892dc4f0650e63a8",
+      "source": "snapshot"
+    },
+    "data/0.5.5.5/base/passive_trees/0_4.json": {
+      "bytes": 862059,
+      "kind": "retained-compatibility",
+      "member": "0.5.5.5/base/passive_trees/0_4.json",
+      "note": "Exact previously processed PoBR-format bytes migrated from the fixed adoption commit; original _meta/patch/vendor provenance stays byte-preserved. PoBR owns the schema and domain projection. No new native-fact or official-source certification.",
+      "observed_identity": {
+        "game_patch": null,
+        "realm": null
+      },
+      "sha256": "798630f4d3c4131a113e9611f509ceb85146a92cba36fea7d9b1780924d77f1a",
+      "source": "snapshot"
+    },
+    "data/0.5.5.5/base/skill_gems.json": {
+      "bytes": 631856,
+      "kind": "retained-compatibility",
+      "member": "0.5.5.5/base/skill_gems.json",
+      "note": "Exact previously processed PoBR-format bytes migrated from the fixed adoption commit; original _meta/patch/vendor provenance stays byte-preserved. PoBR owns the schema and domain projection. No new native-fact or official-source certification.",
+      "observed_identity": {
+        "game_patch": null,
+        "realm": null
+      },
+      "sha256": "2a65df5da5144d88046f3fb9eab302ebf93293bc0bb29c88d8930ca5eb8f31b7",
+      "source": "snapshot"
+    },
+    "data/0.5.5.5/base/stats.json": {
+      "bytes": 2911521,
+      "kind": "retained-compatibility",
+      "member": "0.5.5.5/base/stats.json",
+      "note": "Exact previously processed PoBR-format bytes migrated from the fixed adoption commit; original _meta/patch/vendor provenance stays byte-preserved. PoBR owns the schema and domain projection. No new native-fact or official-source certification.",
+      "observed_identity": {
+        "game_patch": null,
+        "realm": null
+      },
+      "sha256": "c006461cf0997b96d24f4aa5112dd03979c3a377ff8a8d4c1d308adad00a8f8d",
+      "source": "snapshot"
+    },
+    "data/0.5.5.5/base/unarmed_data.json": {
+      "bytes": 2547,
+      "kind": "retained-compatibility",
+      "member": "0.5.5.5/base/unarmed_data.json",
+      "note": "Exact previously processed PoBR-format bytes migrated from the fixed adoption commit; original _meta/patch/vendor provenance stays byte-preserved. PoBR owns the schema and domain projection. No new native-fact or official-source certification.",
+      "observed_identity": {
+        "game_patch": null,
+        "realm": null
+      },
+      "sha256": "d224263fde5b621da26573bb1d6316ebf6fd09e54d3e7bce302867da2bd406c9",
+      "source": "snapshot"
+    },
+    "data/0.5.5.5/base/weapon_types.json": {
+      "bytes": 1848,
+      "kind": "retained-compatibility",
+      "member": "0.5.5.5/base/weapon_types.json",
+      "note": "Existing weapon-type processed inventory and interpretation; no native field-coverage certification.",
+      "observed_identity": {
+        "game_patch": null,
+        "realm": null
+      },
+      "original_producer": {
+        "independently_verified": false,
+        "path": "data/0.5.5.5/base/weapon_types.json",
+        "recorded_metadata": null,
+        "snapshot_revision": "7793f93b0a0b9e5172a19811b4af856b5b7538f1",
+        "storage_repository": "ackness/pobr"
+      },
+      "sha256": "5b15e7302f73422664fee33dde6d24e4868a731510991b7709c4b274a162f214",
+      "source": "snapshot"
+    },
+    "data/0.5.5.5/generated/special_derived.json": {
+      "bytes": 11909,
+      "kind": "retained-compatibility",
+      "member": "0.5.5.5/generated/special_derived.json",
+      "note": "PoBR pobr-data-adapter --emit-special-derived output for 33 original tree keystones; retain original tree-derived output identity, not a generic game policy table.",
+      "observed_identity": {
+        "game_patch": null,
+        "realm": null
+      },
+      "original_producer": {
+        "independently_verified": false,
+        "path": "data/0.5.5.5/generated/special_derived.json",
+        "recorded_metadata": {
+          "generator": "pobr-data-adapter --emit-special-derived",
+          "note": "33 个 keystone（passive_tree kind=Keystone）派生；对照 vendor ModParser.lua:6151-6158 data.keystones（超集无害）",
+          "schema": "special_derived/v1"
+        },
+        "snapshot_revision": "7793f93b0a0b9e5172a19811b4af856b5b7538f1",
+        "storage_repository": "ackness/pobr"
+      },
+      "sha256": "d18157d99c7620f096aa485d1f93d33166a578d45a9e4a064817d629e023a105",
+      "source": "snapshot"
+    },
+    "data/0.5.5.5/generated/special_vendor.json": {
+      "bytes": 1466053,
+      "kind": "retained-compatibility",
+      "member": "0.5.5.5/generated/special_vendor.json",
+      "note": "Exact previously processed PoBR-format bytes migrated from the fixed adoption commit; original _meta/patch/vendor provenance stays byte-preserved. PoBR owns the schema and domain projection. No new native-fact or official-source certification.",
+      "observed_identity": {
+        "game_patch": null,
+        "realm": null
+      },
+      "sha256": "12d91522257bfb57b5cdfc63073bd3a5df8c7a87d2b1c13c3ba3f959c936d4a5",
+      "source": "snapshot"
+    },
+    "data/0.5.5.5/manifest.json": {
+      "bytes": 8234,
+      "kind": "source-metadata",
+      "member": "0.5.5.5/manifest.json",
+      "note": "Exact previously processed PoBR-format bytes migrated from the fixed adoption commit; original _meta/patch/vendor provenance stays byte-preserved. PoBR owns the schema and domain projection. No new native-fact or official-source certification.",
+      "observed_identity": {
+        "game_patch": null,
+        "realm": null
+      },
+      "sha256": "2a03ad79cc33b10e103895e2bae8b5984cadf341c0cc58425ac97dacb90348fd",
+      "source": "snapshot"
+    },
+    "data/0.5.5.5/overlay/base_item_overrides.json": {
+      "bytes": 118101,
+      "kind": "retained-compatibility",
+      "member": "0.5.5.5/overlay/base_item_overrides.json",
+      "note": "Exact previously processed PoBR-format bytes migrated from the fixed adoption commit; original _meta/patch/vendor provenance stays byte-preserved. PoBR owns the schema and domain projection. No new native-fact or official-source certification.",
+      "observed_identity": {
+        "game_patch": null,
+        "realm": null
+      },
+      "sha256": "72659116a12117ea8e6cb2d9c47d8b1736493a39256fca73cdebac16e0b42ad1",
+      "source": "snapshot"
+    },
+    "data/0.5.5.5/overlay/boss_poise_thresholds.json": {
+      "bytes": 831,
+      "kind": "retained-compatibility",
+      "member": "0.5.5.5/overlay/boss_poise_thresholds.json",
+      "note": "Exact previously processed PoBR-format bytes migrated from the fixed adoption commit; original _meta/patch/vendor provenance stays byte-preserved. PoBR owns the schema and domain projection. No new native-fact or official-source certification.",
+      "observed_identity": {
+        "game_patch": null,
+        "realm": null
+      },
+      "sha256": "7d6ff365fd3369a7aaf9a34591a720da48f792caf63826d5002510ff14efaa6d",
+      "source": "snapshot"
+    },
+    "data/0.5.5.5/overlay/catalysts.json": {
+      "bytes": 2005,
+      "kind": "retained-compatibility",
+      "member": "0.5.5.5/overlay/catalysts.json",
+      "note": "Exact previously processed PoBR-format bytes migrated from the fixed adoption commit; original _meta/patch/vendor provenance stays byte-preserved. PoBR owns the schema and domain projection. No new native-fact or official-source certification.",
+      "observed_identity": {
+        "game_patch": null,
+        "realm": null
+      },
+      "sha256": "b8f80cda954d1f92e13310dd56f48daffca0567f09d39a074b236bf2a45c85f1",
+      "source": "snapshot"
+    },
+    "data/0.5.5.5/overlay/config_options.json": {
+      "bytes": 414791,
+      "kind": "retained-compatibility",
+      "member": "0.5.5.5/overlay/config_options.json",
+      "note": "Exact previously processed PoBR-format bytes migrated from the fixed adoption commit; original _meta/patch/vendor provenance stays byte-preserved. PoBR owns the schema and domain projection. No new native-fact or official-source certification.",
+      "observed_identity": {
+        "game_patch": null,
+        "realm": null
+      },
+      "sha256": "5eec7db8f2dfe39caaa02e5d69ea03b9d5aede46b8640bc77e2731dfe152444b",
+      "source": "snapshot"
+    },
+    "data/0.5.5.5/overlay/curse_priority.json": {
+      "bytes": 1197,
+      "kind": "retained-compatibility",
+      "member": "0.5.5.5/overlay/curse_priority.json",
+      "note": "Exact previously processed PoBR-format bytes migrated from the fixed adoption commit; original _meta/patch/vendor provenance stays byte-preserved. PoBR owns the schema and domain projection. No new native-fact or official-source certification.",
+      "observed_identity": {
+        "game_patch": null,
+        "realm": null
+      },
+      "sha256": "0767ba472ecaa863557a0988556000b44183c45a82f7726fa898aae916df721a",
+      "source": "snapshot"
+    },
+    "data/0.5.5.5/overlay/gem_effects.json": {
+      "bytes": 233820,
+      "kind": "retained-compatibility",
+      "member": "0.5.5.5/overlay/gem_effects.json",
+      "note": "Exact previously processed PoBR-format bytes migrated from the fixed adoption commit; original _meta/patch/vendor provenance stays byte-preserved. PoBR owns the schema and domain projection. No new native-fact or official-source certification.",
+      "observed_identity": {
+        "game_patch": null,
+        "realm": null
+      },
+      "sha256": "63bb4d8d0fe0ecee85dff7a35b629901b4ebf5360a9917f1311b273959ecda1c",
+      "source": "snapshot"
+    },
+    "data/0.5.5.5/overlay/gem_quality_stats.json": {
+      "bytes": 161264,
+      "kind": "retained-compatibility",
+      "member": "0.5.5.5/overlay/gem_quality_stats.json",
+      "note": "Exact previously processed PoBR-format bytes migrated from the fixed adoption commit; original _meta/patch/vendor provenance stays byte-preserved. PoBR owns the schema and domain projection. No new native-fact or official-source certification.",
+      "observed_identity": {
+        "game_patch": null,
+        "realm": null
+      },
+      "sha256": "875dd8e06c24e0ac7315b92c2167b932e3c24391c372e805f81b37afd4028c2c",
+      "source": "snapshot"
+    },
+    "data/0.5.5.5/overlay/granted_effect_minions.json": {
+      "bytes": 38380,
+      "kind": "retained-compatibility",
+      "member": "0.5.5.5/overlay/granted_effect_minions.json",
+      "note": "Exact previously processed PoBR-format bytes migrated from the fixed adoption commit; original _meta/patch/vendor provenance stays byte-preserved. PoBR owns the schema and domain projection. No new native-fact or official-source certification.",
+      "observed_identity": {
+        "game_patch": null,
+        "realm": null
+      },
+      "sha256": "0d9701e2e00b274b6ef5e89c4e6d961ac978da2384724933347f4a9693622057",
+      "source": "snapshot"
+    },
+    "data/0.5.5.5/overlay/item_granted_skills.json": {
+      "bytes": 4217,
+      "kind": "retained-compatibility",
+      "member": "0.5.5.5/overlay/item_granted_skills.json",
+      "note": "Exact previously processed PoBR-format bytes migrated from the fixed adoption commit; original _meta/patch/vendor provenance stays byte-preserved. PoBR owns the schema and domain projection. No new native-fact or official-source certification.",
+      "observed_identity": {
+        "game_patch": null,
+        "realm": null
+      },
+      "sha256": "fc1f874a99372d86d6ec30fba0f42bd099d74643e3adb76265a3e0b4785815dd",
+      "source": "snapshot"
+    },
+    "data/0.5.5.5/overlay/minions.json": {
+      "bytes": 68915,
+      "kind": "retained-compatibility",
+      "member": "0.5.5.5/overlay/minions.json",
+      "note": "Exact previously processed PoBR-format bytes migrated from the fixed adoption commit; original _meta/patch/vendor provenance stays byte-preserved. PoBR owns the schema and domain projection. No new native-fact or official-source certification.",
+      "observed_identity": {
+        "game_patch": null,
+        "realm": null
+      },
+      "sha256": "a60f4da389e0b844166ae793d14cdd6dcc688eb0ba5aa053594a777315342109",
+      "source": "snapshot"
+    },
+    "data/0.5.5.5/overlay/mirage_configs.json": {
+      "bytes": 3501,
+      "kind": "retained-compatibility",
+      "member": "0.5.5.5/overlay/mirage_configs.json",
+      "note": "PoBR sync-pob-catalog gen-mirage-configs embedded projection of pinned PoB2 CalcMirages.lua; original producer, old path and metadata retained. PoBR owns interpretation.",
+      "observed_identity": {
+        "game_patch": null,
+        "realm": null
+      },
+      "original_producer": {
+        "independently_verified": false,
+        "path": "data/0.5.5.5/overlay/mirage_configs.json",
+        "recorded_metadata": {
+          "extracted_files": [
+            "Modules/CalcMirages.lua"
+          ],
+          "generator": "sync-pob-catalog gen-mirage-configs（数据内嵌于工具源码）",
+          "regen_command": "cargo run -p sync-pob-catalog -- gen-mirage-configs --vendor-root vendor/PathOfBuilding-PoE2/src --out data/0.5.5.4.2/overlay/mirage_configs.json",
+          "schema": "mirage_configs/v1",
+          "vendor": "PathOfBuilding-PoE2",
+          "vendor_commit": "bb52d6b368307457eb9c54bb13f1829993d390b1",
+          "vendor_commit_subject": "bb52d6b368307457eb9c54bb13f1829993d390b1",
+          "vendor_fingerprint": "422L:19200B"
+        },
+        "snapshot_revision": "7793f93b0a0b9e5172a19811b4af856b5b7538f1",
+        "storage_repository": "ackness/pobr"
+      },
+      "sha256": "57a0b855062e1ec1a62461c634900fcb0b97e8b634ad0db9e09cc88a70c104c9",
+      "source": "snapshot"
+    },
+    "data/0.5.5.5/overlay/mod_parser_rules.json": {
+      "bytes": 399196,
+      "kind": "retained-compatibility",
+      "member": "0.5.5.5/overlay/mod_parser_rules.json",
+      "note": "Exact previously processed PoBR-format bytes migrated from the fixed adoption commit; original _meta/patch/vendor provenance stays byte-preserved. PoBR owns the schema and domain projection. No new native-fact or official-source certification.",
+      "observed_identity": {
+        "game_patch": null,
+        "realm": null
+      },
+      "sha256": "c719c7c3eeed65048067f264fd0a62f81cc20d89b917f05e2aa53753166242af",
+      "source": "snapshot"
+    },
+    "data/0.5.5.5/overlay/mod_scalability.json": {
+      "bytes": 2496835,
+      "kind": "retained-compatibility",
+      "member": "0.5.5.5/overlay/mod_scalability.json",
+      "note": "Exact previously processed PoBR-format bytes migrated from the fixed adoption commit; original _meta/patch/vendor provenance stays byte-preserved. PoBR owns the schema and domain projection. No new native-fact or official-source certification.",
+      "observed_identity": {
+        "game_patch": null,
+        "realm": null
+      },
+      "sha256": "4713a22c2f32dc21fe0c017f6fed792cb799ac449171187fbb2d2b7acd814fc8",
+      "source": "snapshot"
+    },
+    "data/0.5.5.5/overlay/passive_jewel_slots.json": {
+      "bytes": 5012,
+      "kind": "retained-compatibility",
+      "member": "0.5.5.5/overlay/passive_jewel_slots.json",
+      "note": "Exact previously processed PoBR-format bytes migrated from the fixed adoption commit; original _meta/patch/vendor provenance stays byte-preserved. PoBR owns the schema and domain projection. No new native-fact or official-source certification.",
+      "observed_identity": {
+        "game_patch": null,
+        "realm": null
+      },
+      "sha256": "26bf7ad0d96fb2fe84392da141b2cf8c63d8313aeb620be165f33c65746439e2",
+      "source": "snapshot"
+    },
+    "data/0.5.5.5/overlay/passive_jewels.json": {
+      "bytes": 14663,
+      "kind": "retained-compatibility",
+      "member": "0.5.5.5/overlay/passive_jewels.json",
+      "note": "Exact previously processed PoBR-format bytes migrated from the fixed adoption commit; original _meta/patch/vendor provenance stays byte-preserved. PoBR owns the schema and domain projection. No new native-fact or official-source certification.",
+      "observed_identity": {
+        "game_patch": null,
+        "realm": null
+      },
+      "sha256": "a93b2729bb015f8902a909367e62a1a2abc2787cde0f6d929191222283c33690",
+      "source": "snapshot"
+    },
+    "data/0.5.5.5/overlay/runes.json": {
+      "bytes": 314790,
+      "kind": "retained-compatibility",
+      "member": "0.5.5.5/overlay/runes.json",
+      "note": "Exact previously processed PoBR-format bytes migrated from the fixed adoption commit; original _meta/patch/vendor provenance stays byte-preserved. PoBR owns the schema and domain projection. No new native-fact or official-source certification.",
+      "observed_identity": {
+        "game_patch": null,
+        "realm": null
+      },
+      "sha256": "9fb6561f34a795ed92ec9cce6e55f900de55ce3af250283f8a4f2085ece5e322",
+      "source": "snapshot"
+    },
+    "data/0.5.5.5/overlay/skill_overrides.json": {
+      "bytes": 401610,
+      "kind": "retained-compatibility",
+      "member": "0.5.5.5/overlay/skill_overrides.json",
+      "note": "Exact previously processed PoBR-format bytes migrated from the fixed adoption commit; original _meta/patch/vendor provenance stays byte-preserved. PoBR owns the schema and domain projection. No new native-fact or official-source certification.",
+      "observed_identity": {
+        "game_patch": null,
+        "realm": null
+      },
+      "sha256": "c1d9dbb294a5aa33374c0672e2f1e415e9681ee272fc7fc4e99cbe295583779c",
+      "source": "snapshot"
+    },
+    "data/0.5.5.5/overlay/skill_stat_map.json": {
+      "bytes": 559713,
+      "kind": "retained-compatibility",
+      "member": "0.5.5.5/overlay/skill_stat_map.json",
+      "note": "Exact previously processed PoBR-format bytes migrated from the fixed adoption commit; original _meta/patch/vendor provenance stays byte-preserved. PoBR owns the schema and domain projection. No new native-fact or official-source certification.",
+      "observed_identity": {
+        "game_patch": null,
+        "realm": null
+      },
+      "sha256": "944e86eb729899a547daedc8eab6741d773eb40ec1f64a380a9acd2c20054661",
+      "source": "snapshot"
+    },
+    "data/0.5.5.5/overlay/special_mods.json": {
+      "bytes": 10725,
+      "kind": "retained-compatibility",
+      "member": "0.5.5.5/overlay/special_mods.json",
+      "note": "Exact previously processed PoBR-format bytes migrated from the fixed adoption commit; original _meta/patch/vendor provenance stays byte-preserved. PoBR owns the schema and domain projection. No new native-fact or official-source certification.",
+      "observed_identity": {
+        "game_patch": null,
+        "realm": null
+      },
+      "sha256": "1d4ea323c6a980865119dad5e86c05d7097097a055bc026fa16eb52f483f097e",
+      "source": "snapshot"
+    },
+    "data/0.5.5.5/overlay/spectres.json": {
+      "bytes": 963042,
+      "kind": "retained-compatibility",
+      "member": "0.5.5.5/overlay/spectres.json",
+      "note": "Exact previously processed PoBR-format bytes migrated from the fixed adoption commit; original _meta/patch/vendor provenance stays byte-preserved. PoBR owns the schema and domain projection. No new native-fact or official-source certification.",
+      "observed_identity": {
+        "game_patch": null,
+        "realm": null
+      },
+      "sha256": "cfc3785415db69cbebcae6916a49107c289d17b68f38a26340322eb6e1aa5b00",
+      "source": "snapshot"
+    },
+    "data/0.5.5.5/overlay/stat_descriptions.json": {
+      "bytes": 12982918,
+      "kind": "retained-compatibility",
+      "member": "0.5.5.5/overlay/stat_descriptions.json",
+      "note": "Exact previously processed PoBR-format bytes migrated from the fixed adoption commit; original _meta/patch/vendor provenance stays byte-preserved. PoBR owns the schema and domain projection. No new native-fact or official-source certification.",
+      "observed_identity": {
+        "game_patch": null,
+        "realm": null
+      },
+      "sha256": "9b451579b0a545853020da5e8ed92a9e13de2032780ecd6a5377d6fa4c1daf66",
+      "source": "snapshot"
+    },
+    "data/0.5.5.5/overlay/stat_set_labels.json": {
+      "bytes": 207388,
+      "kind": "retained-compatibility",
+      "member": "0.5.5.5/overlay/stat_set_labels.json",
+      "note": "Exact previously processed PoBR-format bytes migrated from the fixed adoption commit; original _meta/patch/vendor provenance stays byte-preserved. PoBR owns the schema and domain projection. No new native-fact or official-source certification.",
+      "observed_identity": {
+        "game_patch": null,
+        "realm": null
+      },
+      "sha256": "825e594f43f07a4115ee29e57622670688e5d1c099f7e11a30ba66b3b80cca06",
+      "source": "snapshot"
+    },
+    "data/0.5.5.5/overlay/totem_varieties.json": {
+      "bytes": 19731,
+      "kind": "retained-compatibility",
+      "member": "0.5.5.5/overlay/totem_varieties.json",
+      "note": "Exact previously processed PoBR-format bytes migrated from the fixed adoption commit; original _meta/patch/vendor provenance stays byte-preserved. PoBR owns the schema and domain projection. No new native-fact or official-source certification.",
+      "observed_identity": {
+        "game_patch": null,
+        "realm": null
+      },
+      "sha256": "24973936b7fd2bb035cd2a1175477acdf490e416764c6fb86ba80752335c3791",
+      "source": "snapshot"
+    },
+    "data/0.5.5.5/overlay/trade_catalog.json": {
+      "bytes": 3104568,
+      "kind": "retained-compatibility",
+      "member": "0.5.5.5/overlay/trade_catalog.json",
+      "note": "Exact previously processed PoBR-format bytes migrated from the fixed adoption commit; original _meta/patch/vendor provenance stays byte-preserved. PoBR owns the schema and domain projection. No new native-fact or official-source certification.",
+      "observed_identity": {
+        "game_patch": null,
+        "realm": null
+      },
+      "sha256": "de57e010c8bf93f18bf557c650d6cdc06d98bc3fbde58049227b31feda9deea6",
+      "source": "snapshot"
+    },
+    "data/0.5.5.5/overlay/trade_crafting_sources.json": {
+      "bytes": 31192,
+      "kind": "retained-compatibility",
+      "member": "0.5.5.5/overlay/trade_crafting_sources.json",
+      "note": "Exact previously processed PoBR-format bytes migrated from the fixed adoption commit; original _meta/patch/vendor provenance stays byte-preserved. PoBR owns the schema and domain projection. No new native-fact or official-source certification.",
+      "observed_identity": {
+        "game_patch": null,
+        "realm": null
+      },
+      "sha256": "6153ccd3eee148312fac673c9669896c66c8ab1cf712167a5e836544821a4202",
+      "source": "snapshot"
+    },
+    "data/0.5.5.5/overlay/trade_stat_map.json": {
+      "bytes": 124884,
+      "kind": "retained-compatibility",
+      "member": "0.5.5.5/overlay/trade_stat_map.json",
+      "note": "Exact previously processed PoBR-format bytes migrated from the fixed adoption commit; original _meta/patch/vendor provenance stays byte-preserved. PoBR owns the schema and domain projection. No new native-fact or official-source certification.",
+      "observed_identity": {
+        "game_patch": null,
+        "realm": null
+      },
+      "sha256": "b4fcaca76ed5c653e06d3bb2d9e7f146fca4643417d508159de48d9c910ce839",
+      "source": "snapshot"
+    },
+    "data/0.5.5.5/overlay/trigger_configs.json": {
+      "bytes": 21125,
+      "kind": "retained-compatibility",
+      "member": "0.5.5.5/overlay/trigger_configs.json",
+      "note": "PoBR sync-pob-catalog gen-trigger-configs embedded projection of pinned PoB2 CalcTriggers.lua; original producer, absolute regen path and metadata retained. PoBR owns interpretation.",
+      "observed_identity": {
+        "game_patch": null,
+        "realm": null
+      },
+      "original_producer": {
+        "independently_verified": false,
+        "path": "data/0.5.5.5/overlay/trigger_configs.json",
+        "recorded_metadata": {
+          "extracted_files": [
+            "Modules/CalcTriggers.lua"
+          ],
+          "generator": "sync-pob-catalog gen-trigger-configs（数据内嵌于工具源码 + vendor key 对账）",
+          "regen_command": "cargo run -p sync-pob-catalog -- gen-trigger-configs --vendor-root vendor/PathOfBuilding-PoE2/src --out /Users/wuyong/orca/workspaces/pobr/autoloop/.cache/data-update-x4wghgre/data/0.5.5.4.2/overlay/trigger_configs.json",
+          "schema": "trigger_configs/v1",
+          "vendor": "PathOfBuilding-PoE2",
+          "vendor_commit": "bb52d6b368307457eb9c54bb13f1829993d390b1",
+          "vendor_commit_subject": "bb52d6b368307457eb9c54bb13f1829993d390b1",
+          "vendor_config_table_keys": 61,
+          "vendor_fingerprint": "1471L:80722B"
+        },
+        "snapshot_revision": "7793f93b0a0b9e5172a19811b4af856b5b7538f1",
+        "storage_repository": "ackness/pobr"
+      },
+      "sha256": "89634d02d0f25b5c2214e639c3217058e3ad8c0c4f973b242aa05194633a8646",
+      "source": "snapshot"
+    },
+    "data/0.5.5.5/overlay/uniques.json": {
+      "bytes": 241759,
+      "kind": "retained-compatibility",
+      "member": "0.5.5.5/overlay/uniques.json",
+      "note": "Exact previously processed PoBR-format bytes migrated from the fixed adoption commit; original _meta/patch/vendor provenance stays byte-preserved. PoBR owns the schema and domain projection. No new native-fact or official-source certification.",
+      "observed_identity": {
+        "game_patch": null,
+        "realm": null
+      },
+      "sha256": "06dbd5055882cf8d883c94dd56b989fc847d19e9f8da023494178deac7066600",
+      "source": "snapshot"
+    },
+    "data/overlay-common/boss_poise_thresholds.json": {
+      "bytes": 1475,
+      "kind": "retained-compatibility",
+      "member": "overlay-common/boss_poise_thresholds.json",
+      "note": "Exact previously processed PoBR-format bytes migrated from the fixed adoption commit; original _meta/patch/vendor provenance stays byte-preserved. PoBR owns the schema and domain projection. No new native-fact or official-source certification.",
+      "observed_identity": {
+        "game_patch": "0.5.5.4.2",
+        "realm": null
+      },
+      "retained_source_metadata": {
+        "column": "PoiseThreshold",
+        "export_sha256": "3132ea5d9950ded2869103b6bfae60d5d6d7cee762669b1abc5ec681c5ec2dde",
+        "generator": "manual",
+        "notes": "Once MonsterVarieties.PoiseThreshold is exported by the regular pipeline, the adapter should generate this file. Re-audit representative rows and the MAP boss mode on patch updates.",
+        "patch": "0.5.5.4.2",
+        "rows": [
+          {
+            "Id": "Metadata/Monsters/RustKing/TheRustKingBossMAP",
+            "_index": 275,
+            "raw_value": 313
+          },
+          {
+            "Id": "Metadata/Monsters/Balbala/BalbalaMAP",
+            "_index": 437,
+            "raw_value": 313
+          },
+          {
+            "Id": "Metadata/Monsters/SaltGolem/SaltGolemBossMAP",
+            "_index": 687,
+            "raw_value": 313
+          },
+          {
+            "Id": "Metadata/Monsters/Breach/BreachOverseerBoss/ItThatReturned",
+            "_index": 1946,
+            "raw_value": 1700
+          }
+        ],
+        "schema": "boss_poise_thresholds/v1",
+        "selection": "Boss: 313 is the unique mode (10 of 47 rows with MAP in Id and BossHealthBar=true). Pinnacle and Uber: Xesht, row 1946; no distinct Uber Xesht variety exists in the export.",
+        "source": "按游戏数据手工整理: official GGG CDN table export, not vendor enemy presets.",
+        "table": "MonsterVarieties",
+        "units": "Raw percent; divide by 100 for a multiplier or subtract 100 for MORE. Unique rarity is a separate modifier."
+      },
+      "scope": "historical GGG table transcription",
+      "sha256": "a2b7c35f8fd02c5e3c8997e0d0634faa6b17385b8c201620d941c5f7ecf27a10",
+      "source": "snapshot"
+    },
+    "data/overlay-common/buff_definitions.json": {
+      "bytes": 14694,
+      "kind": "retained-compatibility",
+      "member": "overlay-common/buff_definitions.json",
+      "note": "Exact previously processed PoBR-format bytes migrated from the fixed adoption commit; original _meta/patch/vendor provenance stays byte-preserved. PoBR owns the schema and domain projection. No new native-fact or official-source certification.",
+      "observed_identity": {
+        "game_patch": null,
+        "realm": null
+      },
+      "retained_source_metadata": {
+        "extracted_files": [
+          "Modules/CalcPerform.lua"
+        ],
+        "generator": "manual-curation (00-index 裁决 §4.2-4 批准的 overlay 通道例外)",
+        "regen_command": "人工归纳（doActorMisc :578-850 过程式 if-chain 无法 luajit 序列化）；vendor 升级后跑 `cargo run -p sync-pob-catalog -- check-buff-refs --vendor-root vendor/PathOfBuilding-PoE2/src --defs data/overlay-common/buff_definitions.json` 对账，人工复核后 --write 刷新行段 hash",
+        "schema": "buff_definitions/v1",
+        "vendor": "PathOfBuilding-PoE2",
+        "vendor_commit": "ce8bffaba31f8e68cfce70579e1c96465e7c133c",
+        "vendor_commit_subject": "ce8bffa Fix Liminal Coil counting Marks as Curses (#2365)"
+      },
+      "scope": "external retained compatibility",
+      "sha256": "0fd267716e0e4d1bee9dadf76c2a794b28f0941c1dd301b5c6b2ec3bf9009026",
+      "source": "snapshot"
+    },
+    "data/overlay-common/high_precision_mods.json": {
+      "bytes": 2849,
+      "kind": "retained-compatibility",
+      "member": "overlay-common/high_precision_mods.json",
+      "note": "Exact previously processed PoBR-format bytes migrated from the fixed adoption commit; original _meta/patch/vendor provenance stays byte-preserved. PoBR owns the schema and domain projection. No new native-fact or official-source certification.",
+      "observed_identity": {
+        "game_patch": null,
+        "realm": null
+      },
+      "retained_source_metadata": {
+        "audit": "版本 bump 对账（F4，drill 无自动重放通道）：人工转录域——对照 vendor src/Modules/Data.lua 的 defaultHighPrecision / highPrecisionMods（38 条）与 src/Classes/ModList.lua MoreInternal 默认取整逐条复核，复核后更新 vendor_commit 与 source 行号并在 commit message 注明逐条核对结论；待 ScaleAddMod / MORE 精度例外分支落地后改走自动对账命令",
+        "generator": "manual transcription (M0-W4d)",
+        "notes": "pobr 现状无 ScaleAddMod/MORE 精度例外消费方（audits/rearchitecture-2026-06-10/10-mod-system.md Gap 6），本表先落库零接线、零 parity 影响；more_default_round_decimals 的 pobr 准源为 pobr-core::mod_db::round_more 固定 2 位",
+        "schema": "high_precision_mods/v1",
+        "source": [
+          "src/Modules/Data.lua:413 (defaultHighPrecision)",
+          "src/Modules/Data.lua:415-530 (highPrecisionMods, 38 entries)",
+          "src/Classes/ModList.lua:144 (MoreInternal default round(modResult, 2))"
+        ],
+        "vendor": "PathOfBuilding-PoE2",
+        "vendor_commit": "2df5a7433dd2f1609e2fad8a6c3c917f923fe34f"
+      },
+      "scope": "external retained compatibility",
+      "sha256": "e7d310b8d7729acec6cefefc4309c3d29407a78f3ce1526754d40c03d3aa64bf",
+      "source": "snapshot"
+    },
+    "data/overlay-common/item_granted_skills.json": {
+      "bytes": 3240,
+      "kind": "retained-compatibility",
+      "member": "overlay-common/item_granted_skills.json",
+      "note": "Exact previously processed PoBR-format bytes migrated from the fixed adoption commit; original _meta/patch/vendor provenance stays byte-preserved. PoBR owns the schema and domain projection. No new native-fact or official-source certification.",
+      "observed_identity": {
+        "game_patch": null,
+        "realm": null
+      },
+      "retained_source_metadata": {
+        "audit": "On a data version change, compare with the bases whose ItemInherentSkills row has NoReservation (the pinned PoB2 exports the same flag as grantedSkillsHaveNoReservation). Recheck the four ModGrantedSkills joins and native reservations on a data version change; replace this curated subset when the adapter exports the table.",
+        "generator": "manual",
+        "notes": "The data adapter does not read ItemInherentSkills yet. Once it does, generate reservation_free_bases from that table. Generate variants separately when ModGrantedSkills is exported. The four variants retain their native skill data, including additive support reservation. Their ordinary exported effect IDs are compatibility aliases observed in frozen character item-source groups, not native FK equivalences. Item identity requires matching source metadata or an already attached native effect; a display name alone is insufficient.",
+        "schema": "item_granted_skills/v1",
+        "source": [
+          "Game table ItemInherentSkills: one row per base item with the skills it grants and a NoReservation flag. The bases below are the rows with the flag set.",
+          "The granted skill is an ordinary Spirit skill (30 Spirit from a Lament Amulet, 60 from a Portent Amulet, 100 from an Absent Amulet) whose reservation the item waives. Reported in play: https://www.pathofexile.com/forum/view-thread/3975864",
+          "Game patch 0.5.5.4.2 ModGrantedSkills rows 9/10/11 and 1 join Mods to SkillGems, then GemEffects to GrantedEffects. Native table SHA-256: b166e508602a08892da1bd89f79d6d8f44b47a3cf07ff77d25c283f6ced2ec55. Extracted from https://patch-poe2.poecdn.com/0.5.5.4.2/Bundles2/ using pathofexile-dat 15.2.0 and dat-schema commit 87624689f5168d8fdd4b1f5bdccffe19e76f5bf1."
+        ]
+      },
+      "scope": "historical GGG table transcription",
+      "sha256": "0cfd12f28ef7261c01bb270db033ad31ca959e618ac274355a657bd495d8b087",
+      "source": "snapshot"
+    },
+    "data/overlay-common/passive_jewel_slots.json": {
+      "bytes": 5786,
+      "kind": "retained-compatibility",
+      "member": "overlay-common/passive_jewel_slots.json",
+      "note": "Exact previously processed PoBR-format bytes migrated from the fixed adoption commit; original _meta/patch/vendor provenance stays byte-preserved. PoBR owns the schema and domain projection. No new native-fact or official-source certification.",
+      "observed_identity": {
+        "game_patch": "0.5.5.4.2",
+        "realm": null
+      },
+      "retained_source_metadata": {
+        "generator": "manual",
+        "notes": "A WeGame share names the socket that holds a jewel `PassiveJewel_<N>`. N is the row `_index` of PassiveJewelSlots; the row's `Slot` is a row of PassiveSkills, whose Id is the passive tree node id. Checked on a level 96 Deadeye share: its four allocated jewel sockets were rows 4, 5, 12 and 17. Some rows name passives that are not in the current tree (retired sockets). The adapter should generate this domain once the table joins the regular export.",
+        "patch": "0.5.5.4.2",
+        "schema": "passive_jewel_slots/v1",
+        "source": "按游戏数据手工整理: official GGG CDN table export (pathofexile-dat 15.2.0 with the pinned patch), not vendor data.",
+        "tables": {
+          "PassiveJewelSlots": {
+            "columns": [
+              "Slot",
+              "ClusterJewelSize",
+              "SinisterJewelSocket"
+            ],
+            "export_sha256": "a829855cc713f7645f2471c4114b915e485f2aeac14bd3940f322ddcdcdb745b"
+          },
+          "PassiveSkills": {
+            "columns": [
+              "Id",
+              "PassiveSkillGraphId",
+              "IsJewelSocket"
+            ],
+            "export_sha256": "3b87ad1c8fc900530ed7e44ad7139aac1b332bb2dc10e368a457788e4f8e4d81"
+          }
+        }
+      },
+      "scope": "historical GGG table transcription",
+      "sha256": "b196f9b3582a21fe1c26626d64a3449a1c83dab16044e970a0edd2b9215ca06b",
+      "source": "snapshot"
+    },
+    "data/overlay-common/totem_varieties.json": {
+      "bytes": 4583,
+      "kind": "retained-compatibility",
+      "member": "overlay-common/totem_varieties.json",
+      "note": "Exact previously processed PoBR-format bytes migrated from the fixed adoption commit; original _meta/patch/vendor provenance stays byte-preserved. PoBR owns the schema and domain projection. No new native-fact or official-source certification.",
+      "observed_identity": {
+        "game_patch": "0.5.5.4.2",
+        "realm": null
+      },
+      "retained_source_metadata": {
+        "generator": "manual",
+        "notes": "Once the adapter exports these columns, it should generate this file. Re-audit on patch updates.",
+        "patch": "0.5.5.4.2",
+        "schema": "totem_varieties/v1",
+        "selection": "One row per totem-summoning granted effect: ActiveSkills.SkillTotemId -> SkillTotemVariations row with TotemSkinId 0 -> MonsterVarieties. Skins (Vampiric, Verisium, ...) share the skin-0 LifeMultiplier in this export. SkillTotemId 27 is the default for non-totem skills and has no variation. summon_meta_totem_axes (SkillTotemId 20) has no variation row and no player granted effect.",
+        "source": "按游戏数据手工整理: official GGG CDN table export (pathofexile-dat 15.2.0, dat-schema v7), not vendor totemLifeMult.",
+        "tables": {
+          "ActiveSkills": {
+            "columns": [
+              "Id",
+              "SkillTotemId"
+            ],
+            "export_sha256": "310b4f8a6161266f373fed00b1d932917058824655e979d0366f227f820fed02"
+          },
+          "MinionGemLevelScaling": {
+            "columns": [
+              "GemLevel",
+              "MinionLevel"
+            ],
+            "export_sha256": "5ce2cae296ab703a2dc22efbb65186b4bb4a7a1e5f336741cfc80cfc0745f74b",
+            "note": "GemLevel 1..40 -> MinionLevel 2..80 (2 x gem level); equal to pobr-core calc::minion::MINION_LEVEL_TABLE."
+          },
+          "MonsterTypes": {
+            "columns": [
+              "Id",
+              "Armour",
+              "Evasion",
+              "EnergyShieldFromLife"
+            ],
+            "export_sha256": "33535e8abcb13deb9ac18ecd31184cb648c16bcd8ff9696c2ebeb2d32f3baddc",
+            "note": "MonsterVarieties.MonsterType -> MonsterTypes row: Totem, BallistaTotem, AncestorTotem, SpellTotem, GrenadeTotem have Armour 100; ShockwaveTotem and DarkEffigyTotem 0; every totem type has Evasion 0 and EnergyShieldFromLife 0."
+          },
+          "MonsterVarieties": {
+            "columns": [
+              "Id",
+              "MonsterType",
+              "LifeMultiplier"
+            ],
+            "export_sha256": "11922862d29ba76a86301cd39b88a4c1dc70aa30d3517210a1227f804a5fd53c"
+          },
+          "SkillTotemVariations": {
+            "columns": [
+              "SkillTotemsKey",
+              "TotemSkinId",
+              "MonsterVarietiesKey"
+            ],
+            "export_sha256": "c7ea75a7c7dde9b68f50d0e9aa125b4c8d2a6cadaf84af6ebfb7d0eff202658f"
+          }
+        },
+        "units": "life_multiplier is MonsterVarieties.LifeMultiplier in percent (100 = 1x). armour / evasion are MonsterTypes.Armour / Evasion, percent of the level's DefaultMonsterStats.Armour / Evasion; energy_shield_from_life is MonsterTypes.EnergyShieldFromLife, percent of maximum Life. Base resistances come from base/monster_resistances.json for monster_variety (all totem varieties are 0 in this patch)."
+      },
+      "scope": "historical GGG table transcription",
+      "sha256": "a9fce28d816e07432fd810d6c95a1567f5cb0a6007acd42e88089f728bfa0cca",
+      "source": "snapshot"
+    },
+    "data/overlay-common/vendor_name_aliases.json": {
+      "bytes": 14378,
+      "kind": "retained-compatibility",
+      "member": "overlay-common/vendor_name_aliases.json",
+      "note": "Exact previously processed PoBR-format bytes migrated from the fixed adoption commit; original _meta/patch/vendor provenance stays byte-preserved. PoBR owns the schema and domain projection. No new native-fact or official-source certification.",
+      "observed_identity": {
+        "game_patch": null,
+        "realm": null
+      },
+      "retained_source_metadata": {
+        "bootstrap_method": "对齐同一触发短语：legacy 与 engine 都把短语 P 解析出单一 ModName 时，engine 名(vendor)->legacy 名(PoBR) 即一条别名。多名(聚合)短语与 damage-flag dispatch 短语不入纯别名表，登记于 structural_deferrals。",
+        "consumed_by": "NONE（纯数据资产；A 路线=引擎产物运行期翻译表 / B 路线=extract-lua 抽取期归一。owner 定夺后 D-T8 接线）。",
+        "coverage_note": "覆盖全部 358 name-only DIFF 涉及的 distinct stat 名（dual-run 样例 8/8 命中）。real-rename=20, identity=56, 共 76 vendor 名。",
+        "dualrun_report": "audits/rearchitecture-2026-06-10/blueprints/m6-dualrun-report.md",
+        "generated_from": [
+          "crates/pobr-core/src/mod_parser/legacy.rs::parse_name (PoBR 短语->StatId)",
+          "data/4.5.0.3.4/overlay/mod_parser_rules.json::name_map (vendor 短语->vendor名)"
+        ],
+        "purpose": "vendor PoB2 ModName -> PoBR canonical StatId 别名表（M6.3 切换前置数据资产）。",
+        "report": "audits/rearchitecture-2026-06-10/blueprints/m6-alias-table.md",
+        "schema": "vendor_name_aliases/v1",
+        "vendor_commit": "2df5a7433dd2f1609e2fad8a6c3c917f923fe34f"
+      },
+      "scope": "external retained compatibility",
+      "sha256": "af40f1f97ff893b076225fbc5778884d83450f70aa7b99e3fda7461eeb047ba4",
+      "source": "snapshot"
+    }
+  },
+  "output_schema": "pobr-build-data-part/v1",
+  "path": "handoff/independent-0.5.5.5/game-build-part.zip",
+  "ref": "refs/heads/handoff/independent-game-20261101",
+  "repository": "ackness/repoe",
+  "schema": "repoe-data-publication-plan/v1",
+  "sources": {
+    "snapshot": {
+      "files": {
+        "0.5.5.5/base/base_items.json": {
+          "bytes": 1840876,
+          "sha256": "9ea58e913fe788d174ad2c2ca95baae1fc4982638363382dc771fc4aac5a1c70"
+        },
+        "0.5.5.5/base/base_player_mods.json": {
+          "bytes": 2035,
+          "sha256": "5f93bf335cd2dd71ae1ce8bf137a7a0dfe621ee6e3778d0fc6c9f83befc85687"
+        },
+        "0.5.5.5/base/character_constants.json": {
+          "bytes": 430,
+          "sha256": "66c4c54ff85f937d44580ee0bfad5488415f68eb2f6709679483a6c98cbf50af"
+        },
+        "0.5.5.5/base/cost_types.json": {
+          "bytes": 1125,
+          "sha256": "5dac3a7f08d63b8512f1d24870d50f876cf7907c6cc2a405473a4c65926fb88a"
+        },
+        "0.5.5.5/base/enemy_presets.json": {
+          "bytes": 7973,
+          "sha256": "d8504ef38860682d03872e9b006493cecb91f078650c3f7580d056d34d3cb861"
+        },
+        "0.5.5.5/base/game_constants.json": {
+          "bytes": 2610,
+          "sha256": "5a06b87ffec6776d4623b372ccd050f2a103c7720b2be5b88242630856cc9323"
+        },
+        "0.5.5.5/base/granted_effect_levels.json": {
+          "bytes": 2927324,
+          "sha256": "3a66d591def23772ff43b3b63ec96e9a12fc4f3c88be40f741681914926f51da"
+        },
+        "0.5.5.5/base/granted_effect_stat_sets.json": {
+          "bytes": 15306716,
+          "sha256": "f2a58ba510a388108c73dac55c10dc6743d35e7ee4d5ef7343bfbcd0e45de7c7"
+        },
+        "0.5.5.5/base/granted_effects.json": {
+          "bytes": 2419331,
+          "sha256": "1ec310c6878a644c4390592d31c4a294ef84bbfee3d7375a85b183ccb8d10994"
+        },
+        "0.5.5.5/base/jewel_radii.json": {
+          "bytes": 1507,
+          "sha256": "4ac9e16361d48897350464dd967a2d16ae690bddecd6a7498c827385a2a5b6c9"
+        },
+        "0.5.5.5/base/mods.json": {
+          "bytes": 8811358,
+          "sha256": "ef56f044022e1750c19777dccb9e9a6f32dda5fbdf393db9f062c9217f345c10"
+        },
+        "0.5.5.5/base/monster_resistances.json": {
+          "bytes": 437456,
+          "sha256": "3085f5b99c05518651efd2a6337d0492436d7bcc242e2a7715b11017286c1ed3"
+        },
+        "0.5.5.5/base/monster_scaling.json": {
+          "bytes": 25069,
+          "sha256": "c6240de2eddd88020db83e11397f8a274a0fc64ec8d0af8b0c6e5a399604f964"
+        },
+        "0.5.5.5/base/non_damaging_ailments.json": {
+          "bytes": 1385,
+          "sha256": "9dfe31a4a218088bcc32b30f5fb3deec142ad61cf9924430756e2ff2bec0be8b"
+        },
+        "0.5.5.5/base/passive_tree.json": {
+          "bytes": 1955198,
+          "sha256": "160092e9e2fb7d8bd1e4f3dfd967f4f2b3f6e3607514c963622405c950c8b554"
+        },
+        "0.5.5.5/base/passive_tree_meta.json": {
+          "bytes": 3362,
+          "sha256": "2632710bc6a671303b4c1dbe3abd1f28b215491fa2b501c9778193a5e5ba1731"
+        },
+        "0.5.5.5/base/passive_trees/0_1.json": {
+          "bytes": 552789,
+          "sha256": "861042ea66f2e9252c571192e2b4f7fcbb5e58049344a5cbd20195ca63b76dd7"
+        },
+        "0.5.5.5/base/passive_trees/0_2.json": {
+          "bytes": 607893,
+          "sha256": "bdf47e023ed4e7b4ebc284e5c426fc8497e2de1e7fc1c9b87ca88dcc0a0c8b43"
+        },
+        "0.5.5.5/base/passive_trees/0_3.json": {
+          "bytes": 745706,
+          "sha256": "da6ea9249d6a4d84756e3ca7a0abddbce9c87258323fa99c892dc4f0650e63a8"
+        },
+        "0.5.5.5/base/passive_trees/0_4.json": {
+          "bytes": 862059,
+          "sha256": "798630f4d3c4131a113e9611f509ceb85146a92cba36fea7d9b1780924d77f1a"
+        },
+        "0.5.5.5/base/skill_gems.json": {
+          "bytes": 631856,
+          "sha256": "2a65df5da5144d88046f3fb9eab302ebf93293bc0bb29c88d8930ca5eb8f31b7"
+        },
+        "0.5.5.5/base/stats.json": {
+          "bytes": 2911521,
+          "sha256": "c006461cf0997b96d24f4aa5112dd03979c3a377ff8a8d4c1d308adad00a8f8d"
+        },
+        "0.5.5.5/base/unarmed_data.json": {
+          "bytes": 2547,
+          "sha256": "d224263fde5b621da26573bb1d6316ebf6fd09e54d3e7bce302867da2bd406c9"
+        },
+        "0.5.5.5/base/weapon_types.json": {
+          "bytes": 1848,
+          "sha256": "5b15e7302f73422664fee33dde6d24e4868a731510991b7709c4b274a162f214"
+        },
+        "0.5.5.5/generated/special_derived.json": {
+          "bytes": 11909,
+          "sha256": "d18157d99c7620f096aa485d1f93d33166a578d45a9e4a064817d629e023a105"
+        },
+        "0.5.5.5/generated/special_vendor.json": {
+          "bytes": 1466053,
+          "sha256": "12d91522257bfb57b5cdfc63073bd3a5df8c7a87d2b1c13c3ba3f959c936d4a5"
+        },
+        "0.5.5.5/i18n/zh-CN/_meta.json": {
+          "bytes": 2312,
+          "sha256": "06b03f89d5641d818341d25fce77513216f17eb44e97f3a39dbb54b5f58c6c53"
+        },
+        "0.5.5.5/i18n/zh-CN/base_items.json": {
+          "bytes": 370795,
+          "sha256": "910c5ebb7af9efe976f01414dfae4bda22132c23c5138eb0cbadaeb5e86e4d53"
+        },
+        "0.5.5.5/i18n/zh-CN/classes.json": {
+          "bytes": 1128,
+          "sha256": "6944676a4fd017fde321ee2758992ee4b18a835ce59ed45e6c9708b01a275bed"
+        },
+        "0.5.5.5/i18n/zh-CN/display_texts.json": {
+          "bytes": 1649082,
+          "sha256": "381d827ab1345bf746ed0da349414b5806037043e0a60540fa10f94af868f45f"
+        },
+        "0.5.5.5/i18n/zh-CN/mods.json": {
+          "bytes": 93053,
+          "sha256": "8d62bf95d9a54650fff127815580e169f7e83983235a56dc3ed295c9d1a1a76d"
+        },
+        "0.5.5.5/i18n/zh-CN/passive_names.json": {
+          "bytes": 134582,
+          "sha256": "6becc784be1f24e4b3dbc4ed8a16335c2602b1c90b4e3f73a5c23e5879af26dd"
+        },
+        "0.5.5.5/i18n/zh-CN/rare_words.json": {
+          "bytes": 124951,
+          "sha256": "ab23836d0f2034914bf799777134cf51482708425c909f7bf713400c67105915"
+        },
+        "0.5.5.5/i18n/zh-CN/skills.json": {
+          "bytes": 33008,
+          "sha256": "16eb4a451e3472c0b06fd36f21c6f308b2ebca24287d5c240a1345491c91eb77"
+        },
+        "0.5.5.5/i18n/zh-CN/stat_lines.json": {
+          "bytes": 3875636,
+          "sha256": "1d51e0a2e58bb0fe46dfde331bd004140250eeed70d4e16f683b180c06eba301"
+        },
+        "0.5.5.5/i18n/zh-CN/words.json": {
+          "bytes": 132463,
+          "sha256": "7ba0c43e90c3909c725f8a563ab169ccfcbcf3b53c05a2748d17d7508cce58cc"
+        },
+        "0.5.5.5/i18n/zh-TW/base_items.json": {
+          "bytes": 375343,
+          "sha256": "67c3db66b47c39e4148eaa365eec8a0050b6eee2a84032fd579d70f5395025aa"
+        },
+        "0.5.5.5/i18n/zh-TW/mods.json": {
+          "bytes": 333567,
+          "sha256": "c0212690817a81753a26e078c59c58e71b51c51857084a964dc297ce4237b944"
+        },
+        "0.5.5.5/i18n/zh-TW/skills.json": {
+          "bytes": 34080,
+          "sha256": "af64e24e26657e9b5bfa11fb186e145c8ff5fbbabf7a80af6b47e681bd0d02bb"
+        },
+        "0.5.5.5/manifest.json": {
+          "bytes": 8234,
+          "sha256": "2a03ad79cc33b10e103895e2bae8b5984cadf341c0cc58425ac97dacb90348fd"
+        },
+        "0.5.5.5/overlay/base_item_overrides.json": {
+          "bytes": 118101,
+          "sha256": "72659116a12117ea8e6cb2d9c47d8b1736493a39256fca73cdebac16e0b42ad1"
+        },
+        "0.5.5.5/overlay/boss_poise_thresholds.json": {
+          "bytes": 831,
+          "sha256": "7d6ff365fd3369a7aaf9a34591a720da48f792caf63826d5002510ff14efaa6d"
+        },
+        "0.5.5.5/overlay/catalysts.json": {
+          "bytes": 2005,
+          "sha256": "b8f80cda954d1f92e13310dd56f48daffca0567f09d39a074b236bf2a45c85f1"
+        },
+        "0.5.5.5/overlay/config_options.json": {
+          "bytes": 414791,
+          "sha256": "5eec7db8f2dfe39caaa02e5d69ea03b9d5aede46b8640bc77e2731dfe152444b"
+        },
+        "0.5.5.5/overlay/curse_priority.json": {
+          "bytes": 1197,
+          "sha256": "0767ba472ecaa863557a0988556000b44183c45a82f7726fa898aae916df721a"
+        },
+        "0.5.5.5/overlay/gem_effects.json": {
+          "bytes": 233820,
+          "sha256": "63bb4d8d0fe0ecee85dff7a35b629901b4ebf5360a9917f1311b273959ecda1c"
+        },
+        "0.5.5.5/overlay/gem_quality_stats.json": {
+          "bytes": 161264,
+          "sha256": "875dd8e06c24e0ac7315b92c2167b932e3c24391c372e805f81b37afd4028c2c"
+        },
+        "0.5.5.5/overlay/granted_effect_minions.json": {
+          "bytes": 38380,
+          "sha256": "0d9701e2e00b274b6ef5e89c4e6d961ac978da2384724933347f4a9693622057"
+        },
+        "0.5.5.5/overlay/item_granted_skills.json": {
+          "bytes": 4217,
+          "sha256": "fc1f874a99372d86d6ec30fba0f42bd099d74643e3adb76265a3e0b4785815dd"
+        },
+        "0.5.5.5/overlay/minions.json": {
+          "bytes": 68915,
+          "sha256": "a60f4da389e0b844166ae793d14cdd6dcc688eb0ba5aa053594a777315342109"
+        },
+        "0.5.5.5/overlay/mirage_configs.json": {
+          "bytes": 3501,
+          "sha256": "57a0b855062e1ec1a62461c634900fcb0b97e8b634ad0db9e09cc88a70c104c9"
+        },
+        "0.5.5.5/overlay/mod_parser_rules.json": {
+          "bytes": 399196,
+          "sha256": "c719c7c3eeed65048067f264fd0a62f81cc20d89b917f05e2aa53753166242af"
+        },
+        "0.5.5.5/overlay/mod_scalability.json": {
+          "bytes": 2496835,
+          "sha256": "4713a22c2f32dc21fe0c017f6fed792cb799ac449171187fbb2d2b7acd814fc8"
+        },
+        "0.5.5.5/overlay/passive_jewel_slots.json": {
+          "bytes": 5012,
+          "sha256": "26bf7ad0d96fb2fe84392da141b2cf8c63d8313aeb620be165f33c65746439e2"
+        },
+        "0.5.5.5/overlay/passive_jewels.json": {
+          "bytes": 14663,
+          "sha256": "a93b2729bb015f8902a909367e62a1a2abc2787cde0f6d929191222283c33690"
+        },
+        "0.5.5.5/overlay/runes.json": {
+          "bytes": 314790,
+          "sha256": "9fb6561f34a795ed92ec9cce6e55f900de55ce3af250283f8a4f2085ece5e322"
+        },
+        "0.5.5.5/overlay/skill_overrides.json": {
+          "bytes": 401610,
+          "sha256": "c1d9dbb294a5aa33374c0672e2f1e415e9681ee272fc7fc4e99cbe295583779c"
+        },
+        "0.5.5.5/overlay/skill_stat_map.json": {
+          "bytes": 559713,
+          "sha256": "944e86eb729899a547daedc8eab6741d773eb40ec1f64a380a9acd2c20054661"
+        },
+        "0.5.5.5/overlay/special_mods.json": {
+          "bytes": 10725,
+          "sha256": "1d4ea323c6a980865119dad5e86c05d7097097a055bc026fa16eb52f483f097e"
+        },
+        "0.5.5.5/overlay/spectres.json": {
+          "bytes": 963042,
+          "sha256": "cfc3785415db69cbebcae6916a49107c289d17b68f38a26340322eb6e1aa5b00"
+        },
+        "0.5.5.5/overlay/stat_descriptions.json": {
+          "bytes": 12982918,
+          "sha256": "9b451579b0a545853020da5e8ed92a9e13de2032780ecd6a5377d6fa4c1daf66"
+        },
+        "0.5.5.5/overlay/stat_set_labels.json": {
+          "bytes": 207388,
+          "sha256": "825e594f43f07a4115ee29e57622670688e5d1c099f7e11a30ba66b3b80cca06"
+        },
+        "0.5.5.5/overlay/totem_varieties.json": {
+          "bytes": 19731,
+          "sha256": "24973936b7fd2bb035cd2a1175477acdf490e416764c6fb86ba80752335c3791"
+        },
+        "0.5.5.5/overlay/trade_catalog.json": {
+          "bytes": 3104568,
+          "sha256": "de57e010c8bf93f18bf557c650d6cdc06d98bc3fbde58049227b31feda9deea6"
+        },
+        "0.5.5.5/overlay/trade_crafting_sources.json": {
+          "bytes": 31192,
+          "sha256": "6153ccd3eee148312fac673c9669896c66c8ab1cf712167a5e836544821a4202"
+        },
+        "0.5.5.5/overlay/trade_stat_map.json": {
+          "bytes": 124884,
+          "sha256": "b4fcaca76ed5c653e06d3bb2d9e7f146fca4643417d508159de48d9c910ce839"
+        },
+        "0.5.5.5/overlay/trigger_configs.json": {
+          "bytes": 21125,
+          "sha256": "89634d02d0f25b5c2214e639c3217058e3ad8c0c4f973b242aa05194633a8646"
+        },
+        "0.5.5.5/overlay/uniques.json": {
+          "bytes": 241759,
+          "sha256": "06dbd5055882cf8d883c94dd56b989fc847d19e9f8da023494178deac7066600"
+        },
+        "overlay-common/archon_config_options.json": {
+          "bytes": 634,
+          "sha256": "bbea3295507df414cd6b523e4182a8f09c941965b3d8f31b8eed5424d781f425"
+        },
+        "overlay-common/beira_config_options.json": {
+          "bytes": 843,
+          "sha256": "867d5bb5c13dac8ed2faf7a739ce03bc18e47cee5bed17164cdfc04a3aa2add2"
+        },
+        "overlay-common/boss_poise_thresholds.json": {
+          "bytes": 1475,
+          "sha256": "a2b7c35f8fd02c5e3c8997e0d0634faa6b17385b8c201620d941c5f7ecf27a10"
+        },
+        "overlay-common/buff_definitions.json": {
+          "bytes": 14694,
+          "sha256": "0fd267716e0e4d1bee9dadf76c2a794b28f0941c1dd301b5c6b2ec3bf9009026"
+        },
+        "overlay-common/cadiro_config_options.json": {
+          "bytes": 1664,
+          "sha256": "da3ab5846ee1ab1ea8d1a25f6f3dd756ac6d741596fafa315fec16bc699de8d6"
+        },
+        "overlay-common/combo_config_options.json": {
+          "bytes": 875,
+          "sha256": "94d69cf06eb2f0bf2c57bfb0ccd665b1528f7d67e9dc590f1d10bd1a3448b0a1"
+        },
+        "overlay-common/consecrated_ground_config_options.json": {
+          "bytes": 1596,
+          "sha256": "463e7c0bf06a78b939cef9f1de912486051e73c0fc9fc65c62ccbca6ab971c65"
+        },
+        "overlay-common/enemy_type_and_consumption_config_options.json": {
+          "bytes": 4736,
+          "sha256": "19e32d452a2d8ba12cffc8421509154da506ce7a90766105523bc2078671e010"
+        },
+        "overlay-common/energy_config_options.json": {
+          "bytes": 4605,
+          "sha256": "ccb438995ce1c2b516970c24fe3af9ec6df6125be8cb313b12be822c3cb3aaa1"
+        },
+        "overlay-common/high_precision_mods.json": {
+          "bytes": 2849,
+          "sha256": "e7d310b8d7729acec6cefefc4309c3d29407a78f3ce1526754d40c03d3aa64bf"
+        },
+        "overlay-common/item_granted_skills.json": {
+          "bytes": 3240,
+          "sha256": "0cfd12f28ef7261c01bb270db033ad31ca959e618ac274355a657bd495d8b087"
+        },
+        "overlay-common/local_mods.json": {
+          "bytes": 1488,
+          "sha256": "0dc5c77d5cf94685ce930068d0da1dfa3b0f365a603dd275cbc45a5b22f198c4"
+        },
+        "overlay-common/passive_jewel_slots.json": {
+          "bytes": 5786,
+          "sha256": "b196f9b3582a21fe1c26626d64a3449a1c83dab16044e970a0edd2b9215ca06b"
+        },
+        "overlay-common/remnant_pickup_config_options.json": {
+          "bytes": 2192,
+          "sha256": "53b69e7fb3e606a61b2acb2c8b54c9bf9f92e630c9619e3e6cd5217b76b29be4"
+        },
+        "overlay-common/special_mods.json": {
+          "bytes": 307737,
+          "sha256": "192fe636ec9bac09eba6f6712144bcc00d05f8bdde03fb8cc4a3e2637532df6b"
+        },
+        "overlay-common/totem_varieties.json": {
+          "bytes": 4583,
+          "sha256": "a9fce28d816e07432fd810d6c95a1567f5cb0a6007acd42e88089f728bfa0cca"
+        },
+        "overlay-common/vendor_name_aliases.json": {
+          "bytes": 14378,
+          "sha256": "af40f1f97ff893b076225fbc5778884d83450f70aa7b99e3fda7461eeb047ba4"
+        },
+        "overlay-common/volatility_config_options.json": {
+          "bytes": 1562,
+          "sha256": "58a5b894e828847c0a3bc9fe22391cb2394c30b65b425dd472b4c72f9da82427"
+        }
+      },
+      "inventory_paths": [
+        "data/0.5.5.5",
+        "data/overlay-common"
+      ],
+      "path": "data",
+      "repository": "ackness/pobr",
+      "revision": "7793f93b0a0b9e5172a19811b4af856b5b7538f1",
+      "type": "git-tree"
+    }
+  },
+  "target": {
+    "game": "poe2",
+    "game_patch": "0.5.5.5",
+    "realm": "international"
+  }
+}
