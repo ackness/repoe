@@ -3,6 +3,9 @@
 Implementation: `python -B -m RePoE.client_sources`.
 See [ownership and compatibility](client-sources.md#ownership-and-compatibility)
 for the one-time source and historical protocol names.
+For a separate endpoint-advertised version observation, use
+[official PoE2 version discovery](client-version.md); it does not select or approve
+the fixed source used here.
 
 `client_sources.py` acquires **every resource in one explicitly selected source**
 from `sources.lock.json`. It produces a new raw root with direct game-relative
