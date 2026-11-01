@@ -60,9 +60,11 @@ class SelectedTablesTests(unittest.TestCase):
             ],
         )
 
-    def set_table(self, name, rows):
+    def set_table(self, name, rows, language="English"):
         raw = dat_bytes(self.spec, name, rows)
-        resource = f"Data/Balance/{name}.datc64"
+        prefix = "" if language == "English" else language + "/"
+        resource = f"Data/Balance/{prefix}{name}.datc64"
+        (self.raw / resource).parent.mkdir(parents=True, exist_ok=True)
         (self.raw / resource).write_bytes(raw)
         self.source["resources"][resource] = {"bytes": len(raw), "sha256": producer.envelope._sha(raw)}
         self.pin()
@@ -71,14 +73,53 @@ class SelectedTablesTests(unittest.TestCase):
         self.lock.write_bytes(facts._json({"schema_version": 1, "sources": {"selected": self.source}}))
         self.expected = producer.envelope._sha(self.lock.read_bytes())
 
-    def create(self, out="candidate"):
+    def create(self, out="candidate", language="English"):
         return producer.create_candidate(
             source_lock=self.lock,
             source="selected",
             raw=self.raw,
             expected_source_lock_sha256=self.expected,
             out=self.root / out,
+            language=language,
         )
+
+    def test_localized_source_preserves_exact_resource_identity_and_text(self):
+        self.source["resources"] = {}
+        self.source["language"] = "Traditional Chinese"
+        self.set_table("Ascendancy", [{"Id": "Witch1", "Name": "血法師"}], "Traditional Chinese")
+        manifest = self.create(language="Traditional Chinese")
+        self.assertEqual(manifest["format"], producer.LOCALIZED_FORMAT)
+        self.assertEqual(manifest["source_identity"]["language"], "Traditional Chinese")
+        table = json.loads((self.root / "candidate/tables.json").read_bytes())["Ascendancy"]
+        self.assertEqual(table["raw_resource"], "Data/Balance/Traditional Chinese/Ascendancy.datc64")
+        self.assertEqual(table["rows"][0]["values"]["Name"], "血法師")
+        self.assertEqual(self.create("replay", language="Traditional Chinese"), manifest)
+        self.set_table("Ascendancy", [{"Id": "Witch1", "Name": "新名"}], "Traditional Chinese")
+        self.create("changed", language="Traditional Chinese")
+        changed = json.loads((self.root / "changed/tables.json").read_bytes())["Ascendancy"]
+        self.assertEqual(changed["rows"][0]["values"]["Name"], "新名")
+
+    def test_locale_declaration_mismatch_and_english_fallback_reject(self):
+        with self.assertRaisesRegex(ValueError, "source language"):
+            self.create(language="Traditional Chinese")
+        self.source["language"] = "Traditional Chinese"
+        self.pin()
+        with self.assertRaisesRegex(ValueError, "source language"):
+            self.create()
+        with self.assertRaisesRegex(ValueError, "Unsafe"):
+            self.create(language="Traditional Chinese")
+        self.assertFalse((self.root / "candidate").exists())
+
+    def test_mixed_locale_collision_and_unsupported_locale_reject(self):
+        self.source["language"] = "Traditional Chinese"
+        self.set_table("ModEffectStats", [{"Stat": 1}], "Traditional Chinese")
+        with self.assertRaisesRegex(ValueError, "Unsafe"):
+            self.create(language="Traditional Chinese")
+        self.source["language"] = "../escape"
+        self.pin()
+        with self.assertRaisesRegex(ValueError, "source language"):
+            self.create(language="../escape")
+        self.assertFalse((self.root / "candidate").exists())
 
     def test_preserves_unknown_negative_duplicate_null_and_external_references(self):
         manifest = self.create()

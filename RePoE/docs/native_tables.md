@@ -37,5 +37,26 @@ from successful decoding alone.
 
 Repeat the same invocation with a fresh output for deterministic offline replay.
 Existing candidates and all original native fact profiles remain unchanged.
+
+## Localized physical tables
+
+Use `--language "Traditional Chinese"` (or `"Simplified Chinese"`) with an entry
+whose explicit `language` is identical and whose resources are exclusively
+`Data/Balance/<language>/*.datc64`. Missing resources fail; the reader never falls
+back to English. Mixing locale directories is rejected before decoding.
+
+Localized output uses **`repoe-localized-tables/v1`**, retaining the same physical
+documents with their actual locale-specific `raw_resource`, and an explicit
+`source_identity.language`. This distinct format prevents an English fact
+consumer from accidentally accepting a localized table bundle. The default
+English invocation continues to produce `repoe-native-tables/v1` with no new
+required source fields. Internal FKs refer only to this locale's selected tables;
+matching another locale by row number needs separate evidence, not an assumption.
+
+This export does not select translations or claim that every localized string
+differs from English. The translation repository owns stable-ID pairing, missing
+text and ambiguity policy. In particular, Traditional Chinese is not Simplified
+Chinese or evidence of a China-realm numeric version.
+
 Focused regression: `mise exec -- uv run --locked --offline python -B -m unittest
 discover -s tests -p test_native_tables.py -v`.
