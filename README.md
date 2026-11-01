@@ -16,13 +16,18 @@ including a full PyPoE Git revision. Run from this checkout after `mise trust` a
 `mise install --locked`:
 
 ```sh
+mise bootstrap --only packages
 mise run setup
 mise run check
 mise run schema:candidate -- --out .cache/schema/example
 ```
 
 `setup` uses `uv sync --locked` to create `.venv`; its first run needs dependency
-downloads. PyPoE is a noneditable Git dependency, not a sibling checkout. `check`
+downloads. The frozen Pillow dependency may build from source on a new Python;
+the bootstrap packages supply its required JPEG/zlib headers and Linux compiler.
+Keep any receipt-bound decoder environment unchanged; validate an upgrade in a
+separate directory with `UV_PROJECT_ENVIRONMENT=.cache/toolchain-python315 mise run setup`.
+PyPoE is a noneditable Git dependency, not a sibling checkout. `check`
 runs the offline lock check, fixed schema checksum, Ruff lint/format checks,
 regression tests and CLI smoke test. `mise run test` and `mise run lint` are also
 available separately. Generated `RePoE/model/` files are excluded from regular
