@@ -93,6 +93,10 @@ pinned `.it` closure with ordered raw fields and source spans. Its opt-in tag
 interpretation is identified as pinned community parser behavior, separately
 from official literal facts and direct DAT tags.
 
+[`Actor templates`](RePoE/docs/native_actor_templates.md) preserve selected
+`.ot`/`.otc` syntax, opaque event RHS and literal parent links. This separate
+offline candidate does not merge fields, evaluate effects or project mod lists.
+
 [`tables:candidate`](RePoE/docs/native_tables.md) exports an explicitly selected,
 pinned set of additional DAT tables with the same native reader. It preserves
 physical facts and unresolved foreign dependencies in a separately identified
