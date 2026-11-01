@@ -11,6 +11,7 @@ from RePoE import native_descriptions as envelope
 ROOT = Path(__file__).resolve().parents[1]
 FORMAT = "repoe-item-inheritance/v1"
 POLICY = "pypoe-66d1d744-base-tag-child-first-ordered-union/v1"
+PYPOE = "66d1d7442c5718260e1a8efd24989d22987e91af"
 MAX_FILES = 128
 MAX_FILE_BYTES = 1024 * 1024
 MAX_TOTAL_BYTES = 16 * 1024 * 1024
@@ -227,6 +228,8 @@ def _payloads(lock_bytes, selected, verified, source):
     if reached != files.keys():
         raise ValueError("Metadata inventory contains resources outside root closure")
     pin = envelope._decode((ROOT / "schema/pypoe-sources.json").read_bytes())
+    if pin["revision"] != PYPOE:
+        raise ValueError("Tag interpretation source revision differs from policy ID")
     policy = {
         "id": POLICY,
         "authority": "community-parser-interpretation",
@@ -286,10 +289,16 @@ def create_candidate(*, source_lock, source, raw, out, expected_source_lock_sha2
         raise FileExistsError("Refusing to replace inheritance candidate")
     if output.resolve() == cache or not output.resolve().is_relative_to(cache):
         raise ValueError("Inheritance output must be beneath this checkout's .cache/")
-    lock_bytes, selected, verified, raw_root = _inputs(source_lock, source, raw, expected_source_lock_sha256)
+    args = (source_lock, source, raw, expected_source_lock_sha256)
+    lock_bytes, selected, verified, raw_root = _inputs(*args)
     if output.resolve().is_relative_to(raw_root):
         raise ValueError("Output cannot enter raw input")
     manifest, payloads = _payloads(lock_bytes, selected, verified, source)
+    if _inputs(*args)[:3] != (lock_bytes, selected, verified):
+        raise ValueError("Inheritance raw inputs changed during parsing")
+    for name, digest in manifest["producer"].items():
+        if envelope._sha((ROOT / name).read_bytes()) != digest:
+            raise ValueError("Inheritance producer changed during parsing")
     envelope._publish(output, raw_root, payloads)
     return manifest
 
