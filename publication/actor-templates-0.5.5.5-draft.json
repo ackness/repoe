@@ -1,0 +1,62 @@
+{
+  "candidate": {
+    "manifest": {
+      "bytes": 2785,
+      "path": "facts/manifest.json",
+      "sha256": "4a208bef72a5b03a4e56551d6138898313c91c8388305c166a7e5489b31e0628"
+    },
+    "source_lock": {
+      "bytes": 1706,
+      "path": "facts/source-lock.json",
+      "sha256": "60f2be3627ff1be190367c2379d01162841a59c57fd1ca42df7caacc94136f22"
+    },
+    "templates": {
+      "bytes": 64357,
+      "path": "facts/templates.json",
+      "sha256": "da09bc6c53a743b51c011672156b7fcc2b6aaff251a6777ca5580c329eb572e7"
+    }
+  },
+  "limits": [
+    "Acquisition remains unreviewed-acquisition-draft; publication and offline consistency do not authenticate an official client or independently observe language, build or authoritative path spelling.",
+    "Three OTC candidates were not matched in the selected fixed index; diagnostic positive records are not a complete successful acquisition receipt.",
+    "Raw-to-facts replay is self-contained with the pinned source producer; full transport/index replay additionally requires the separately pinned prior index/range cache and decoder.",
+    "Only MonsterVarieties is preserved from the F77 table evidence; the rest of its declared inventory is outside this package.",
+    "No field merge, set_ operation, effect scope, mod_list ownership or PoBR runtime/CURRENT change."
+  ],
+  "package": {
+    "bytes": 425944,
+    "expanded_bytes": 8098823,
+    "manifest": {
+      "bytes": 9768,
+      "sha256": "71479cb3ddac65c92c6575019e70c54d56555b7960579dce9a125069114b4729"
+    },
+    "path": "handoff/actor-templates-draft-20261101/source-package.zip",
+    "ref": "refs/heads/handoff/actor-templates-draft-20261101",
+    "repository": "ackness/repoe",
+    "revision": "9f20e64ca06c5402f34f02a3d45eac8ec8d3e6db",
+    "sha256": "8d4b4df40e59d5a5464456ed3621d3bc8f3809c16d360e1444ec455f13a19627",
+    "target": {
+      "game": "poe2",
+      "game_patch": "0.5.5.5",
+      "realm": "international"
+    }
+  },
+  "package_schema": "repoe-actor-template-source-package/v1",
+  "producer_revision": "b41b3e84ecc0c747d4d38ca4826ed39b4036dee1",
+  "schema": "repoe-actor-template-source-publication/v1",
+  "source": "actor-templates-0.5.5.5-draft",
+  "status": "published-draft; not source-accepted or runtime-adopted",
+  "verification": {
+    "archive_members_byte_verified": 62,
+    "fresh_remote_git_fetch": true,
+    "observed_raw_bytes": 11172,
+    "observed_raw_files": 6,
+    "os_network_denied_raw_to_facts_replay": true,
+    "replayed_files": [
+      "manifest.json",
+      "templates.json",
+      "source-lock.json"
+    ],
+    "source_producer_git_blobs_verified": true
+  }
+}
