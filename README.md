@@ -34,7 +34,11 @@ Keep any receipt-bound decoder environment unchanged; validate an upgrade in a
 separate directory with `UV_PROJECT_ENVIRONMENT=.cache/toolchain-python315 mise run setup`.
 PyPoE is a noneditable Git dependency, not a sibling checkout. `check`
 runs the offline lock check, fixed schema checksum, Ruff lint/format checks,
-regression tests and CLI smoke test. `mise run test` and `mise run lint` are also
+regression tests and CLI smoke test. Pull requests and master pushes run that
+same check in a read-only GitHub Actions job after installing the locked tools,
+declared host packages and frozen dependencies. CI does not acquire a client,
+export production data, publish artifacts or change source acceptance. Passing
+these offline checks does not certify a real client or activate a PoBR package. `mise run test` and `mise run lint` are also
 available separately. Generated `RePoE/model/` files are excluded from regular
 lint/format; update them explicitly with `mise run models:generate -- [schema paths]`,
 which invokes the locked generator with Ruff formatting. The schema/model generator

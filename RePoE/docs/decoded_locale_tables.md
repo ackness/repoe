@@ -42,21 +42,22 @@ raw hashes and actual indexed path spelling before calling `decode_table`.
 namespace = {}
 exec(reviewed_source_string, namespace)
 transfer = namespace["MemoryTransfer"](
-    observed_client={"game": "poe2", "game_patch": None, "realm": None,
-                     "index_sha256": actual_index_sha256},
+    observed_client={"game": "poe2", "game_patch": None, "realm": None, "index_sha256": actual_index_sha256},
     decoder_source_sha256=reviewed_source_sha256,
     python_version=actual_python_version,
     evidence=[{"kind": "root-observed-client-acquisition", "sha256": receipt_sha256}],
 )
 # Repeat for each selected table; release the raw/decoded pair after add_pair.
-default = namespace["decode_table"](table_name, default_bytes,
-    expected_bytes=default_pin["bytes"], expected_sha256=default_pin["sha256"])
-localized = namespace["decode_table"](table_name, localized_bytes,
-    expected_bytes=localized_pin["bytes"], expected_sha256=localized_pin["sha256"])
-summary = transfer.add_pair(default, localized,
-    default_resource=actual_default_indexed_path,
-    localized_resource=actual_sc_indexed_path)
-receipt = transfer.receipt()       # metadata only; hash the exact encoded bytes
+default = namespace["decode_table"](
+    table_name, default_bytes, expected_bytes=default_pin["bytes"], expected_sha256=default_pin["sha256"]
+)
+localized = namespace["decode_table"](
+    table_name, localized_bytes, expected_bytes=localized_pin["bytes"], expected_sha256=localized_pin["sha256"]
+)
+summary = transfer.add_pair(
+    default, localized, default_resource=actual_default_indexed_path, localized_resource=actual_sc_indexed_path
+)
+receipt = transfer.receipt()  # metadata only; hash the exact encoded bytes
 part = transfer.part(table_name, 0)  # fetch only explicitly requested parts
 ```
 
