@@ -72,6 +72,11 @@ modifiers, native item/component/socketable joins, constants and actor facts.
 It remains partial, unfiltered source inventory; units, complete metadata and
 playable catalogue/actor semantics are not certified.
 
+[`tables:candidate`](RePoE/docs/native_tables.md) exports an explicitly selected,
+pinned set of additional DAT tables with the same native reader. It preserves
+physical facts and unresolved foreign dependencies in a separately identified
+package, without regenerating or relabeling an earlier fact profile.
+
 [`descriptions:candidate`](RePoE/docs/native_descriptions.md) exports a separate
 selected CSD domain from explicitly pinned raw resources. It keeps every ordered
 branch, language declaration, restriction, handler token, include and suppression
