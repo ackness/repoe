@@ -174,6 +174,30 @@ class ActorTemplateTests(unittest.TestCase):
         with self.assertRaisesRegex(ValueError, "symlink"):
             self.create("symlink")
 
+    def test_block_comments_reject_outside_strings_and_known_line_comments(self):
+        for body in [
+            "Stats\n{\nx = 1 /* misleading comment */\n}",
+            "Stats\n{\nx = /* unknown syntax */\n}",
+            "Events\n{\nx = { Call(); /* unsupported */ More(); }\n}",
+            "Events\n{\nx = {\n /* multiline\n comment */\n Call();\n}\n}",
+        ]:
+            with self.subTest(body=body):
+                self.put(CHILD, template("Metadata/Monsters/Monster", body))
+                with self.assertRaisesRegex(ValueError, "Unsupported C-style"):
+                    self.create()
+                self.assertFalse((self.root / "candidate").exists())
+        body = (
+            "Stats\n{\nx = \"/* quoted */\"\ny = '/* single quoted */'\n"
+            "z = 1 // /* known line comment */\n# /* known whole-line comment */\n}\n"
+            'Events\n{\nx = { Call("/* quoted event */"); // /* line comment */\n}\n}'
+        )
+        parsed = actor.parse_template(CHILD, template("Metadata/Monsters/Monster", body))
+        self.assertEqual(
+            [field["rhs_literal"] for field in parsed["fields"][:3]],
+            ['"/* quoted */"', "'/* single quoted */'", "1 // /* known line comment */"],
+        )
+        self.assertEqual(parsed["fields"][-1]["rhs_kind"], "opaque-braced")
+
     def test_input_changes_during_parse_reject_before_publication(self):
         original = actor.parse_template
 
