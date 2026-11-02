@@ -47,6 +47,11 @@ bare staging path and ref. `publication:git-handoff` neither pushes nor declares
 remote publication. A coordinator must publish the exact commit and verify a
 fresh remote fetch before changing a downstream publication lock.
 
+The separate [historical official tree input](official_tree_input.md) surface
+retains original pinned `data.json` bytes under `repoe-official-tree-input/v1`.
+It uses the same package/handoff pins and local bare staging helper. Its exact
+two-member ZIP is independent of both ordinary and game package plans below.
+
 ## Two independent package surfaces
 
 The ordinary package has root `manifest.json`, schema
