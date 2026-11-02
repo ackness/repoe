@@ -174,6 +174,27 @@ def selected(raw, member):
     return (json.dumps(result, ensure_ascii=False, indent=2) + "\n").encode()
 
 
+HANDOFF_REF = re.compile(r"refs/(heads|tags)/(handoff/[A-Za-z0-9._/-]+)")
+
+
+def artifact_tag(ref):
+    """Return the tag that keeps an artifact commit fetchable.
+
+    Consumers locate data only by full revision, path and pins. The ref merely
+    keeps that commit reachable. New plans name ``refs/tags/handoff/<name>``;
+    plans recorded before 2026-11-02 name ``refs/heads/handoff/<name>`` and are
+    hash-pinned, so they stay valid and stage as the same-named tag.
+    """
+    match = isinstance(ref, str) and HANDOFF_REF.fullmatch(ref)
+    require(
+        match
+        and ".." not in ref
+        and all(part and not part.startswith(".") and not part.endswith((".", ".lock")) for part in ref.split("/")),
+        "Invalid handoff ref",
+    )
+    return "refs/tags/" + match.group(2)
+
+
 def validate_plan(plan):
     require(plan.get("schema") == "repoe-data-publication-plan/v1", "Unsupported publication plan")
     target = plan["target"]
@@ -184,12 +205,7 @@ def validate_plan(plan):
     )
     require(plan.get("repository") == "ackness/repoe", "RePoE publication repository required")
     relative(plan["path"])
-    require(
-        re.fullmatch(r"refs/heads/handoff/[A-Za-z0-9._/-]+", plan["ref"])
-        and ".." not in plan["ref"]
-        and not plan["ref"].endswith("/"),
-        "Invalid handoff ref",
-    )
+    artifact_tag(plan["ref"])
     require(plan["sources"] and plan["members"], "Empty publication")
     for key, source in plan["sources"].items():
         require(re.fullmatch(r"[A-Za-z0-9_-]+", key), "Invalid source key")
@@ -337,7 +353,7 @@ def package(plan_path, plan_sha256, inputs, output):
 
 
 def git_handoff(package_dir):
-    """Stage an orphan artifact for ackness/repoe; never create a checkout or push."""
+    """Stage an orphan artifact commit under a handoff tag; never create a checkout or push."""
     package_dir = safe_path(package_dir)
     require(package_dir.is_relative_to(ROOT / ".cache"), "Repository cache required")
     spec = decode(regular(package_dir / "package.json").read_bytes())
@@ -362,15 +378,16 @@ def git_handoff(package_dir):
     def git(*args, data=None):
         return subprocess.check_output(["git", "--git-dir", str(bare), *args], input=data, env=env).decode().strip()
 
-    git("check-ref-format", spec["ref"])
+    ref = artifact_tag(spec["ref"])
+    git("check-ref-format", ref)
     blob = git("hash-object", "-w", "--stdin", data=raw)
     parts = list(relative(spec["path"]).parts)
     tree = git("mktree", data=f"100644 blob {blob}\t{parts.pop()}\n".encode())
     for part in reversed(parts):
         tree = git("mktree", data=f"040000 tree {tree}\t{part}\n".encode())
     revision = git("commit-tree", tree, data=b"Retain pinned independent RePoE data inputs\n")
-    git("update-ref", spec["ref"], revision)
-    result = {**spec, "revision": revision, "tree": tree, "blob": blob, "bare": str(bare)}
+    git("update-ref", ref, revision)
+    result = {**spec, "ref": ref, "revision": revision, "tree": tree, "blob": blob, "bare": str(bare)}
     (package_dir / "git-handoff.json").write_bytes(encoded(result))
     return result
 

@@ -10,8 +10,21 @@ The current descriptor is
 [`publication/releases/poe2-international/1.json`](../../publication/releases/poe2-international/1.json).
 The old `publication/0.5.5.5-handoffs.json` remains historical v1 evidence: its
 `e00695a9...` game and absent crafting are unsuitable as the current complete head.
-All original artifact refs must remain available for exact current and historical
-replay. Index registration does not rename, delete or republish them.
+Every original artifact commit must remain fetchable for exact current and
+historical replay. Each is kept by a `refs/tags/handoff/<name>` tag; the
+same-named branches were retired on 2026-11-02 without changing any revision
+(see [artifact identity and retention](data_publication.md#artifact-identity-and-retention)).
+Index registration does not rename, delete or republish them.
+
+## Current delivery
+
+PR14 is merged into `master` (`aa737740`) and sequence 1 is published. PoBR's
+`pipeline/latest/data-composition.json` pins this index revision and its original
+`154913f4...` descriptor commit, together with the translation owner's publication.
+The exact-head exporter CI and downstream PoBR Full validation have passed at
+their recorded revisions; index validation is not a rerun of those checks.
+A new upstream production/publication sequence has not been established by this
+bootstrap, and downstream unattended adoption has separate activation requirements.
 
 ## Scope and trust
 
@@ -68,9 +81,9 @@ caller-supplied SHA-256 values before extracting only the owner roles:
 
 | Evidence file | Bytes | Accepted SHA-256 |
 | --- | ---: | --- |
-| `pipeline/build-data.lock.json` | 5202 | `e8892d6d05a7d24d2eb4f67c975333bebc6ccc73559a82a4cb6ed741b1f96e07` |
-| `pipeline/ordinary-inputs.lock.json` | 11565 | `c025b56d7306794c19b2bbf4ffeeaebfc3b0551c83657beff15ba32eb8fc9c20` |
-| `pipeline/data-imports.lock.json` | 2948 | `2c6f854acce2f87a9ed467c9361fa4404c8b07c0f8083234fcf7e6af4b7b36ac` |
+| `pipeline/runtime/build-data.lock.json` | 5202 | `e8892d6d05a7d24d2eb4f67c975333bebc6ccc73559a82a4cb6ed741b1f96e07` |
+| `pipeline/runtime/ordinary/ordinary-inputs.lock.json` | 11565 | `c025b56d7306794c19b2bbf4ffeeaebfc3b0551c83657beff15ba32eb8fc9c20` |
+| `pipeline/imports/data-imports.lock.json` | 2948 | `2c6f854acce2f87a9ed467c9361fa4404c8b07c0f8083234fcf7e6af4b7b36ac` |
 
 Extraction is exact: build `packages.game`, `crafting`, `test_fixtures`; ordinary
 `packages.repoe`, `source_verifier`; display imports `packages.repoe`. Lock targets
@@ -105,11 +118,11 @@ explicitly (replace `POBR` with their read-only root):
 
 ```sh
 accepted=(
-  --build-lock POBR/pipeline/build-data.lock.json
+  --build-lock POBR/pipeline/runtime/build-data.lock.json
   --build-lock-sha256 e8892d6d05a7d24d2eb4f67c975333bebc6ccc73559a82a4cb6ed741b1f96e07
-  --ordinary-lock POBR/pipeline/ordinary-inputs.lock.json
+  --ordinary-lock POBR/pipeline/runtime/ordinary/ordinary-inputs.lock.json
   --ordinary-lock-sha256 c025b56d7306794c19b2bbf4ffeeaebfc3b0551c83657beff15ba32eb8fc9c20
-  --imports-lock POBR/pipeline/data-imports.lock.json
+  --imports-lock POBR/pipeline/imports/data-imports.lock.json
   --imports-lock-sha256 2c6f854acce2f87a9ed467c9361fa4404c8b07c0f8083234fcf7e6af4b7b36ac
 )
 python3 -B -m RePoE.publication_index bootstrap "${accepted[@]}" \
