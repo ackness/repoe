@@ -12,6 +12,9 @@ permissions:
 jobs:
   verify:
     runs-on: ubuntu-latest
+    env:
+      # Rust is only for tools/pobr-data-adapter, checked by the job below.
+      MISE_DISABLE_TOOLS: rust
     steps:
       - uses: actions/checkout@v7.0.1
       - uses: jdx/mise-action@6be3c7ed4c21d4f76b208d351d95aac273ebb76d # v5
@@ -23,3 +26,26 @@ jobs:
         run: mise run setup
       - name: Check schema, lock, code and offline tests
         run: mise run check
+
+  adapter:
+    name: pobr-data-adapter
+    runs-on: ubuntu-latest
+    env:
+      # rustup on the runner reads the root rust-toolchain.toml.
+      MISE_DISABLE_TOOLS: rust
+    steps:
+      - uses: actions/checkout@v7.0.1
+      - uses: jdx/mise-action@6be3c7ed4c21d4f76b208d351d95aac273ebb76d # v5
+        with:
+          version: '2026.10.23'
+      - name: Install the pinned Rust toolchain
+        run: rustup toolchain install
+      - uses: Swatinem/rust-cache@v2.9.3
+        with:
+          workspaces: tools/pobr-data-adapter
+          cache-bin: 'false'
+          save-if: ${{ github.event_name != 'pull_request' }}
+      - name: Format, lint and test the adapter
+        run: mise run adapter:check
+      - name: Keystone rules match the published game package
+        run: mise run adapter:keystones

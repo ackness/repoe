@@ -1,0 +1,38 @@
+[package]
+name = "pobr-data-adapter"
+version = "0.1.0"
+edition = "2024"
+publish = false
+description = "Adapts pinned RePoE facts and PoBR domain policies into PoBR's runtime JSON"
+
+# A standalone workspace: RePoE is otherwise a Python project.
+[workspace]
+
+# PoBR engine crates come from one immutable, non-release tag of ackness/pobr.
+# Cargo.lock pins the resolved commit; bump the tag deliberately when PoBR's
+# data types change, never move it.
+[dependencies]
+pobr-data = { git = "https://github.com/ackness/pobr", tag = "engine-crates/20261102" }
+pobr-core = { git = "https://github.com/ackness/pobr", tag = "engine-crates/20261102" }
+pobr-gamedata = { git = "https://github.com/ackness/pobr", tag = "engine-crates/20261102" }
+serde = { version = "1", features = ["derive"] }
+# Raw PSG coordinates must round-trip exactly; the default parser can shift one ULP.
+serde_json = { version = "1", features = ["float_roundtrip"] }
+sha2 = { version = "0.11", default-features = false }
+
+[target.'cfg(any(target_os = "linux", target_os = "macos"))'.dependencies]
+# Safe directory-relative syscalls keep native candidate writes on verified handles.
+rustix = { version = "1.1", features = ["fs"] }
+
+[dev-dependencies]
+pobr-item = { git = "https://github.com/ackness/pobr", tag = "engine-crates/20261102" }
+pobr-tree = { git = "https://github.com/ackness/pobr", tag = "engine-crates/20261102" }
+
+# Same settings as PoBR: line tables for panic locations, no incremental object
+# graphs, and optimized dependencies so JSON-heavy tests stay fast.
+[profile.dev]
+debug = "line-tables-only"
+incremental = false
+
+[profile.dev.package."*"]
+opt-level = 3

@@ -1,0 +1,7 @@
+# Compiler for tools/pobr-data-adapter, read by both rustup and mise.
+# Keep it equal to ackness/pobr's rust-toolchain.toml at the pinned
+# engine-crates tag so the adapter builds the PoBR crates with the same rustc.
+[toolchain]
+channel = "1.99.1"
+components = ["rustfmt", "clippy"]
+profile = "minimal"
