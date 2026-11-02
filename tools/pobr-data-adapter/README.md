@@ -34,10 +34,13 @@ prepared `passive_tree.json`), and the frozen schema-4 branch `--native-facts` /
 - passive tree: [ordinary-passive-tree.md](ordinary-passive-tree.md);
 - schema 4: [native-facts.md](native-facts.md), [native-runtime.md](native-runtime.md).
 
-`adapter:keystones` reads the game package named in
-[`tests/keystone-package.json`](tests/keystone-package.json) by commit, path,
-bytes and SHA-256. A new game package must pass it before it is published; then
-update the pin to that package.
+`adapter:keystones` checks the `game` input of the descriptor that
+[`publication/index.json`](../../publication/index.json) names as head, by
+commit, path, bytes and SHA-256, and requires its `handoff/<name>` tag on
+`origin` to peel to that commit. A pull request that advances the index to a
+new release therefore runs the check on the new package. To check a candidate
+before publishing it, pass
+`--pin <file>` with `{revision, path, bytes, sha256[, tag]}`.
 
 ## Reading the moved documents
 

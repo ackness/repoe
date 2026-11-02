@@ -58,7 +58,7 @@ run = [
 ]
 
 [tasks."adapter:keystones"]
-description = "Rebuild the published game package's keystone rules from its passive tree and compare bytes (pin: tools/pobr-data-adapter/tests/keystone-package.json)"
+description = "Rebuild the published game package's keystone rules from its passive tree and compare bytes (default: the game input of the publication index head)"
 run = "python3 -B tools/pobr-data-adapter/tests/check_package_keystones.py"
 
 [tasks.adapter]
