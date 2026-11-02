@@ -82,3 +82,7 @@ run = "python -B -m RePoE.client_index"
 [tasks."source:rebind"]
 description = "Create or verify a pinned offline draft source envelope"
 run = "python -B -m RePoE.source_rebinding"
+
+[tasks."client:version"]
+description = "Observe the official PoE2 TCP patch endpoint; optional fresh raw observation output"
+run = "python -B -m RePoE.client_version"

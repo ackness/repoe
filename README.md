@@ -14,13 +14,16 @@ RePoE Git artifacts. Language inputs stay in the translation repository; PoBR
 imports temporary build inputs and retains its own policies and interpretation.
 
 [`Client acquisition`](RePoE/docs/client-sources.md) is owned and implemented here:
-fixed-source replay/cache import, [unreviewed drafts](RePoE/docs/client-source-draft.md),
+[official PoE2 version observation](RePoE/docs/client-version.md), fixed-source
+replay/cache import, [unreviewed drafts](RePoE/docs/client-source-draft.md),
 [bounded index lookup and diagnostic inspection](RePoE/docs/client-index.md), and
 [offline source rebinding/verification](RePoE/docs/source-rebinding.md).
 Run `python -B -m RePoE.client_sources`, `RePoE.client_source_draft`,
-`RePoE.client_index` or `RePoE.source_rebinding` with `--help` from this checkout.
-The matching mise tasks are `client:source`, `client:draft`, `client:locate` and
-`source:rebind`; they use the selected Python directly without environment setup.
+`RePoE.client_index`, `RePoE.client_version` or `RePoE.source_rebinding` with `--help`
+from this checkout. The matching mise tasks are `client:source`, `client:draft`,
+`client:locate`, `client:version` and `source:rebind`; they use the selected Python
+directly without environment setup. PoE2 parser default discovery uses the official
+TCP endpoint; explicit `--file` bypasses discovery, and PoE1 behavior is unchanged.
 The SDK uses the standard library and explicit package imports; native decoding
 requires a separately selected, fingerprinted external environment. Historical
 `pobr-*` wire names stay compatible. Acquisition and inspection do not approve a

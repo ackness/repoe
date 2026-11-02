@@ -16,6 +16,7 @@ from PyPoE.poe.file.dat import RelationalReader
 from PyPoE.poe.file.file_system import FileSystem
 
 from RePoE import __DATA_PATH__, __POE2_DATA_PATH__
+from RePoE import client_version
 from RePoE.parser import Parser_Module
 from RePoE.parser.constants import (
     LEGACY_ITEMS,
@@ -100,7 +101,10 @@ def write_text(
 
 
 def get_cdn_url(n: int):
-    url = requests.get(f"https://ggpk.exposed/version?poe={n}").text.strip()
+    if n == 2:
+        url = client_version.query()["cdn"]
+    else:
+        url = requests.get(f"https://ggpk.exposed/version?poe={n}").text.strip()
     print("Got cdn url", url)
     return url
 
