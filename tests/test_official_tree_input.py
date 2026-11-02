@@ -53,7 +53,9 @@ class HistoricalInputTests(unittest.TestCase):
         return tree.acquire(self.plan_path, self.write_plan(), self.cache, **kwargs)
 
     def export(self, output=None, **kwargs):
-        return tree.export(self.plan_path, self.write_plan(), self.cache, output or self.out, PRODUCER_REVISION, **kwargs)
+        return tree.export(
+            self.plan_path, self.write_plan(), self.cache, output or self.out, PRODUCER_REVISION, **kwargs
+        )
 
     def response(self, raw=None, **changes):
         class Response(io.BytesIO):
