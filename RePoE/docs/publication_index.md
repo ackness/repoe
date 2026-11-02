@@ -10,8 +10,11 @@ The current descriptor is
 [`publication/releases/poe2-international/1.json`](../../publication/releases/poe2-international/1.json).
 The old `publication/0.5.5.5-handoffs.json` remains historical v1 evidence: its
 `e00695a9...` game and absent crafting are unsuitable as the current complete head.
-All original artifact refs must remain available for exact current and historical
-replay. Index registration does not rename, delete or republish them.
+Every original artifact commit must remain fetchable for exact current and
+historical replay. Each is kept by a `refs/tags/handoff/<name>` tag; the
+same-named branches were retired on 2026-11-02 without changing any revision
+(see [artifact identity and retention](data_publication.md#artifact-identity-and-retention)).
+Index registration does not rename, delete or republish them.
 
 ## Current delivery
 

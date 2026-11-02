@@ -106,14 +106,7 @@ def validate_plan(plan):
     )
     pub.relative(publication["path"])
     _require(publication["path"].endswith("/data.zip"), "ZIP artifact path required")
-    ref = publication["ref"]
-    _require(
-        isinstance(ref, str)
-        and re.fullmatch(r"refs/heads/handoff/[A-Za-z0-9._/-]+", ref)
-        and all(part and not part.startswith(".") and not part.endswith((".", ".lock")) for part in ref.split("/"))
-        and ".." not in ref,
-        "Invalid local handoff ref",
-    )
+    pub.artifact_tag(publication["ref"])
 
 
 def _plan(path, expected_sha256):
