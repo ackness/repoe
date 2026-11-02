@@ -11,7 +11,12 @@ repository are maintained separately.
 [`Independent data publication`](RePoE/docs/data_publication.md) packages pinned
 exports and clearly identified historical compatibility bytes into standalone
 RePoE Git artifacts. Language inputs stay in the translation repository; PoBR
-imports temporary build inputs and retains its own policies and interpretation.
+imports the published packages unchanged.
+
+[`tools/pobr-data-adapter`](tools/pobr-data-adapter/README.md) is the Rust tool
+that turns these facts into PoBR's runtime JSON, with its domain policies. It
+moved here from PoBR and depends on PoBR's data types through a fixed tag.
+`mise run adapter:check` and `mise run adapter:keystones` run in CI.
 
 [`Complete owner publication index`](RePoE/docs/publication_index.md) bootstraps
 the six current RePoE roles from exact accepted records. Its offline API registers
@@ -246,8 +251,9 @@ open an Issue or Pull Request for that. The source data files can be inspected w
 
 The shared target architecture and ownership rules live in
 [PoBR data architecture](https://github.com/ackness/pobr/blob/master/docs/data-architecture.md).
-This repository owns raw client decoding, faithful facts/relationships and provenance;
-PoBR owns normalization, applicability policy, Rust semantics and player workflows.
+This repository owns raw client decoding, faithful facts/relationships and provenance,
+and the domain conversion into PoBR's runtime JSON (`tools/pobr-data-adapter` and its
+`policies/`). PoBR owns Rust calculation semantics, parser rules and player workflows.
 The [translation repository](https://github.com/ackness/poe2-zh-cn-stats) owns language
 pairing and curation, not numerical stat identity. Repair exporter omissions here,
 then hand consumers the fixed producer revision, schema, artifact digest, patch/realm,

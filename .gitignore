@@ -105,3 +105,6 @@ ENV/
 .vscode/
 /.vs/ProjectSettings.json
 /.vs/slnx.sqlite
+
+# Rust build output of tools/pobr-data-adapter
+/tools/pobr-data-adapter/target/
