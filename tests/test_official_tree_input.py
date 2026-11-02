@@ -137,6 +137,8 @@ class HistoricalInputTests(unittest.TestCase):
             ("ref", "refs/heads/handoff/a..b"),
             ("ref", "refs/heads/handoff/a.lock"),
             ("ref", "refs/heads/handoff/.hidden"),
+            ("ref", "refs/tags/main"),
+            ("ref", "refs/tags/handoff/a..b"),
         ):
             self.plan = copy.deepcopy(original)
             self.plan["publication"][key] = value

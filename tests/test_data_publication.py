@@ -2,6 +2,7 @@
 
 import io
 from pathlib import Path
+import shutil
 import socket
 import stat
 import subprocess
@@ -239,6 +240,38 @@ class PublicationTests(unittest.TestCase):
             self.assertEqual(archive.read("facts.json"), self.data["facts.json"])
         with self.assertRaises(ValueError):
             pub.git_handoff(self.root / "output")
+
+    def test_handoff_stages_tag_never_branch(self):
+        for form in ("refs/heads/handoff/synthetic", "refs/tags/handoff/synthetic"):
+            self.plan["ref"] = form
+            name = "output-" + form.split("/")[1]
+            self.build(name)
+            result = pub.git_handoff(self.root / name)
+            self.assertEqual(result["ref"], "refs/tags/handoff/synthetic")
+            refs = subprocess.check_output(
+                ["git", "--git-dir", result["bare"], "for-each-ref", "--format=%(refname) %(objectname)"]
+            ).decode()
+            self.assertEqual(refs, f"refs/tags/handoff/synthetic {result['revision']}\n")
+            # Staging is a pure function of the package: a recorded legacy plan
+            # replays to its recorded revision, now kept by a tag.
+            again = self.root / (name + "-again")
+            shutil.copytree(self.root / name, again, ignore=shutil.ignore_patterns("handoff.git", "git-handoff.json"))
+            self.assertEqual(pub.git_handoff(again)["revision"], result["revision"])
+
+    def test_handoff_ref_outside_handoff_namespace_rejected(self):
+        for ref in (
+            "refs/heads/main",
+            "refs/tags/main",
+            "refs/tags/handoff/",
+            "refs/tags/handoff/a..b",
+            "refs/tags/handoff/a.lock",
+            "refs/tags/handoff/.hidden",
+            "refs/remotes/handoff/a",
+            None,
+        ):
+            self.plan["ref"] = ref
+            with self.subTest(ref=ref), self.assertRaisesRegex(ValueError, "Invalid handoff ref"):
+                pub.validate_plan(self.plan)
 
 
 if __name__ == "__main__":

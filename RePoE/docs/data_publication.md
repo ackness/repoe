@@ -73,6 +73,20 @@ bare staging path and ref. `publication:git-handoff` neither pushes nor declares
 remote publication. A coordinator must publish the exact commit and verify a
 fresh remote fetch before changing a downstream publication lock.
 
+### Artifact identity and retention
+
+An artifact is identified only by its full commit `revision`, `path` and pins;
+consumers fetch that revision and read that blob. No branch name selects data.
+The ref exists only so the commit stays fetchable, and it is a tag:
+`publication:git-handoff` always stages `refs/tags/handoff/<name>`. New plans
+name that tag. Plans recorded before 2026-11-02 name `refs/heads/handoff/<name>`;
+their bytes are SHA-pinned, so they stay unchanged and stage as the same-named
+tag with the same revision. The repository keeps one branch, `master`.
+
+Publish by pushing the tag, e.g. `git push origin <revision>:refs/tags/handoff/<name>`,
+then verify a fresh `git fetch --depth=1 origin <revision>`. Never delete or move a
+`handoff/*` tag that a recorded plan, index or downstream lock names.
+
 The separate [historical official tree input](official_tree_input.md) surface
 retains original pinned `data.json` bytes under `repoe-official-tree-input/v1`.
 It uses the same package/handoff pins and local bare staging helper. Its exact
