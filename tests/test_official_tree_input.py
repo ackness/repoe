@@ -342,9 +342,7 @@ class HistoricalInputTests(unittest.TestCase):
         self.body.unlink()
         bare = self.root / "consumer.git"
         subprocess.run(["git", "init", "--bare", "--quiet", str(bare)], check=True)
-        subprocess.run(
-            ["git", "--git-dir", str(bare), "fetch", "--quiet", handoff["bare"], handoff["ref"]], check=True
-        )
+        subprocess.run(["git", "--git-dir", str(bare), "fetch", "--quiet", handoff["bare"], handoff["ref"]], check=True)
         raw = subprocess.check_output(
             ["git", "--git-dir", str(bare), "cat-file", "blob", f"{handoff['revision']}:{handoff['path']}"]
         )
