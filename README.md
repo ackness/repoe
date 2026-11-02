@@ -13,6 +13,11 @@ exports and clearly identified historical compatibility bytes into standalone
 RePoE Git artifacts. Language inputs stay in the translation repository; PoBR
 imports temporary build inputs and retains its own policies and interpretation.
 
+[`Historical official tree inputs`](RePoE/docs/official_tree_input.md) retain
+explicitly pinned original Git tree bytes in a separate two-member input package.
+The standard-library API/CLI is offline by default and does not apply consumer
+corrections, infer patch applicability or alter the ordinary DAT/PSG tree path.
+
 [`Client acquisition`](RePoE/docs/client-sources.md) is owned and implemented here:
 [official PoE2 version observation](RePoE/docs/client-version.md), fixed-source
 replay/cache import, [unreviewed drafts](RePoE/docs/client-source-draft.md),

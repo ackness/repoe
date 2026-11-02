@@ -67,6 +67,10 @@ run = "python -B -m RePoE.data_publication package"
 description = "Stage a local orphan RePoE artifact without a checkout, remote or push"
 run = "python -B -m RePoE.data_publication git-handoff"
 
+[tasks."tree:input"]
+description = "Acquire/export explicit historical official Git tree bytes; offline unless --online"
+run = "python -B -S -m RePoE.official_tree_input"
+
 [tasks."client:source"]
 description = "Acquire one fixed source or import archived ranges with explicit inputs"
 run = "python -B -m RePoE.client_sources"
