@@ -13,7 +13,7 @@ import zipfile
 from RePoE import official_tree_input as tree
 
 
-BASE = "2c645ad54724e386b40137e92d49b89925bee57b"
+PRODUCER_REVISION = subprocess.check_output(["git", "-C", str(tree.ROOT), "rev-parse", "HEAD"], text=True).strip()
 
 
 class HistoricalInputTests(unittest.TestCase):
@@ -31,8 +31,9 @@ class HistoricalInputTests(unittest.TestCase):
         tree.sio.write_new(self.body, self.raw)
         self.plan_path = self.root / "plan.json"
         self.out = self.root / "output"
-        # Synthetic exports exercise fingerprints without claiming our uncommitted
-        # implementation exists in BASE. Real committed closure is tested in handoff.
+        # Synthetic exports exercise fingerprints without claiming uncommitted
+        # code exists in this revision. Use HEAD so shallow CI needs no old commit.
+        # The real committed producer closure is tested in the handoff.
         committed = patch.object(tree, "_committed", side_effect=lambda rev, name: (tree.ROOT / name).read_bytes())
         committed.start()
         self.addCleanup(committed.stop)
@@ -52,7 +53,7 @@ class HistoricalInputTests(unittest.TestCase):
         return tree.acquire(self.plan_path, self.write_plan(), self.cache, **kwargs)
 
     def export(self, output=None, **kwargs):
-        return tree.export(self.plan_path, self.write_plan(), self.cache, output or self.out, BASE, **kwargs)
+        return tree.export(self.plan_path, self.write_plan(), self.cache, output or self.out, PRODUCER_REVISION, **kwargs)
 
     def response(self, raw=None, **changes):
         class Response(io.BytesIO):
@@ -293,8 +294,8 @@ class HistoricalInputTests(unittest.TestCase):
             tree._producer("main")
         with patch.object(tree.subprocess, "check_output", return_value=b"tree\n"):
             with self.assertRaisesRegex(ValueError, "actual commit"):
-                tree._producer(BASE)
-        producer = tree._producer(BASE)
+                tree._producer(PRODUCER_REVISION)
+        producer = tree._producer(PRODUCER_REVISION)
         changed = copy.deepcopy(producer)
         changed["files"]["RePoE/official_tree_input.py"]["sha256"] = "0" * 64
         with patch.object(tree, "_producer", side_effect=[producer, changed]):
