@@ -13,6 +13,32 @@ publish remotely. Artifact Git staging creates an orphan bare repository in the
 ignored cache for eventual publication to **ackness/repoe**, not another data
 repository or checkout. Data archives are not committed to the source branch.
 
+## Current accepted composition
+
+The current discovery surface is the [six-role v2 publication index](publication_index.md),
+not the historical `0.5.5.5-handoffs.json` or a source branch timestamp. PR14 is
+merged and the current index is sequence 1. Its immutable descriptor preserves
+per-role revisions; PoBR freezes them in its own complete composition.
+
+The current `game` and separate required `crafting` inputs are published at
+`2c664da43c2cc850e98a4fdba0e875a0acd5c3b1`, under
+`handoff/native-crafting-20261101/`. The game part omits the processed crafting
+catalog; the neutral [seven-table crafting facts](native_crafting_facts.md) are
+projected by PoBR. Combined with the independently pinned language and PoBR rules,
+they restore snapshot `73b2d77e...` / runtime `dba0615e...`; full expectations are
+consumer-owned in PoBR's build lock, not inferred by this publisher.
+
+The current six roles additionally include ordinary input, localized display
+source, source-verifier code and historical API fixtures. Role completeness is
+only a declared dependency closure: original unknown/candidate/community metadata
+is preserved. Current and rollback artifacts have been published and consumed;
+registration itself still performs no upload, fresh fetch or consumer adoption.
+
+The plans and game-part counts below describe the **initial v1 storage migration**.
+They remain reproducible provenance, not the current game/crafting lock. In
+particular, the old missing-crafting statement must not be applied to the current
+seven-table package.
+
 ## Replay and handoff
 
 The versioned plans under `publication/` contain source revisions, paths, lengths,
@@ -47,12 +73,26 @@ bare staging path and ref. `publication:git-handoff` neither pushes nor declares
 remote publication. A coordinator must publish the exact commit and verify a
 fresh remote fetch before changing a downstream publication lock.
 
+### Artifact identity and retention
+
+An artifact is identified only by its full commit `revision`, `path` and pins;
+consumers fetch that revision and read that blob. No branch name selects data.
+The ref exists only so the commit stays fetchable, and it is a tag:
+`publication:git-handoff` always stages `refs/tags/handoff/<name>`. New plans
+name that tag. Plans recorded before 2026-11-02 name `refs/heads/handoff/<name>`;
+their bytes are SHA-pinned, so they stay unchanged and stage as the same-named
+tag with the same revision. The repository keeps one branch, `master`.
+
+Publish by pushing the tag, e.g. `git push origin <revision>:refs/tags/handoff/<name>`,
+then verify a fresh `git fetch --depth=1 origin <revision>`. Never delete or move a
+`handoff/*` tag that a recorded plan, index or downstream lock names.
+
 The separate [historical official tree input](official_tree_input.md) surface
 retains original pinned `data.json` bytes under `repoe-official-tree-input/v1`.
 It uses the same package/handoff pins and local bare staging helper. Its exact
 two-member ZIP is independent of both ordinary and game package plans below.
 
-## Two independent package surfaces
+## Historical v1 package surfaces
 
 The ordinary package has root `manifest.json`, schema
 `repoe-data-publication/v1`, exact `target` and
@@ -104,9 +144,10 @@ The shared split is explicit:
 The other eleven shared files (`special_mods`, `local_mods` and nine config
 files) remain PoBR interpretation/static configuration code to materialize in
 CI. This split does not certify official merge laws, source freshness, complete
-unique mod/roll/variant ownership, or the seven missing crafting tables. Trade
-catalogue/crafting compatibility retains its exact identity; missing inputs are
-not recollected or replaced with empty values.
+unique mod/roll/variant ownership. This historical package did not include the
+separate seven-table crafting facts required by the current composition above.
+Its retained crafting compatibility keeps its original identity; replay never
+recollects or replaces missing inputs with empty values.
 
 The separate [retained buff source reconciliation](buff_source_reconciliation.md)
 binds the unchanged definition to exact old/new community Git sources and full
@@ -119,8 +160,10 @@ recovery inventory and the coordinator's subsequent publication of separate
 game/language rollback artifacts. The coordinator also reported successful
 offline restoration of the previous runtime. Full acquisition pins belong to
 its rollback lock; short status prefixes in the inventory are not import pins.
-This does not add official-source certification. Remote current/rollback
-acceptance and removal of tracked copies remain the coordinator's responsibility.
+This does not add official-source certification. PoBR has since adopted the
+current fixed external composition and removed complete tracked snapshots;
+future source acceptance and local/runtime selection remain explicit consumer
+operations, separate from this publisher.
 
 ## Verification
 
