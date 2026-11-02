@@ -13,6 +13,11 @@ exports and clearly identified historical compatibility bytes into standalone
 RePoE Git artifacts. Language inputs stay in the translation repository; PoBR
 imports temporary build inputs and retains its own policies and interpretation.
 
+[`Complete owner publication index`](RePoE/docs/publication_index.md) bootstraps
+the six current RePoE roles from exact accepted records. Its offline API registers
+and validates immutable v2 declarations for downstream discovery. This local
+metadata step does not produce new data or perform remote publication.
+
 [`Historical official tree inputs`](RePoE/docs/official_tree_input.md) retain
 explicitly pinned original Git tree bytes in a separate two-member input package.
 The standard-library API/CLI is offline by default and does not apply consumer
