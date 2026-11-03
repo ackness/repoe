@@ -31,10 +31,9 @@ while retaining original hashes and provenance; it is separate from the complete
 policy move.
 
 The separate special-currency catalog projector, including currency prefixes and
-selection/aggregation policy, still runs in PoBR's `pipeline/imports/crafting_inputs.py`.
-It was not part of the 31 JSON policies. Moving this production here also needs a
-published fixed catalog and a coordinated consumer-contract change; see
-[PoBR's current exceptions](https://github.com/ackness/pobr/blob/master/docs/data-status.md#已知例外).
+selection/aggregation policy, now runs in RePoE (`mise run publication:crafting-catalog`,
+see [RePoE/docs/pobr_crafting_catalog.md](../../RePoE/docs/pobr_crafting_catalog.md));
+the game part carries the projected catalog.
 
 ## Commands
 

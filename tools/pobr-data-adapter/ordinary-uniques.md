@@ -91,23 +91,32 @@ domain archive make every compatibility byte traceable from a fixed published
 member. To carry the codec source inside the ordinary inputs package the same
 way the other codec domains carry theirs, the candidate plan
 [publication/0.5.5.5-ordinary-uniques.plan.json](../../publication/0.5.5.5-ordinary-uniques.plan.json)
-extends `0.5.5.5-ordinary.plan.json` with one git-tree source (`ackness/pobr`
-`7793f93b0a0b9e5172a19811b4af856b5b7538f1`, inventory
-`data/0.5.5.5/overlay/uniques.json`) and one `retained-compatibility` member
-`uniques/codec-source/uniques.json` pinned to the identical bytes.
+derives only from RePoE-published, tag-retained artifacts: the published
+ordinary package (`handoff/independent-ordinary-20261101` @
+`aed5f7348f41dcff6abd526d882c6a95d8acce0b`,
+`handoff/independent-0.5.5.5/ordinary-inputs.zip`), whose stored bytes already
+carry the field selections, and the published game part
+(`handoff/game-crafting-20261103` @ `c804bfc764da2cb9eebcb6d418744e09bf5c005d`,
+`handoff/game-crafting-20261103/game-build-part.zip`), which supplies the
+`uniques/codec-source/uniques.json` bytes. No `ackness/pobr` source is needed.
 
 ```sh
+git fetch --depth=1 origin aed5f7348f41dcff6abd526d882c6a95d8acce0b \
+  c804bfc764da2cb9eebcb6d418744e09bf5c005d
+git cat-file blob aed5f7348f41dcff6abd526d882c6a95d8acce0b:handoff/independent-0.5.5.5/ordinary-inputs.zip \
+  > .cache/publication/inputs/previous.zip
+git cat-file blob c804bfc764da2cb9eebcb6d418744e09bf5c005d:handoff/game-crafting-20261103/game-build-part.zip \
+  > .cache/publication/inputs/game.zip
 mise run publication:package -- \
-  --plan publication/0.5.5.5-ordinary-uniques.plan.json --plan-sha256 d8fff0fc85ee31153e2678dd102188b07d3110accc0eaaa8f90fb1fa7d8e1894 \
-  --input ordinary=/path/to/ordinary-producer-inputs.zip \
-  --input tree-policy=/path/to/local-pobr-git \
-  --input uniques=/path/to/local-pobr-git \
+  --plan publication/0.5.5.5-ordinary-uniques.plan.json --plan-sha256 1f2bf2f57b4a5d5a70e04efc0444f787bd8ebf2965e63625b7bdbb362b10c64b \
+  --input previous=.cache/publication/inputs/previous.zip \
+  --input game=.cache/publication/inputs/game.zip \
   --out .cache/publication/ordinary-uniques
 mise run publication:git-handoff -- --package .cache/publication/ordinary-uniques
 ```
 
-A verified local replay produced `ordinary-inputs.zip` (40013751 bytes, SHA-256
-`17669626313e43209a354991ca30053c4a32a8d83ea1b878ff42c982423f1d16`) and staged
+A verified local replay produced `ordinary-inputs.zip` (40020250 bytes, SHA-256
+`f0684bacbda093982a87a131bcec750ca36fd03e1c534f74a570a5b76ba2c4d8`) and staged
 the orphan handoff commit `9fc8bc1159e11877f16fc91b716fa0b778fabe15` under
 `refs/tags/handoff/ordinary-uniques-20261103`. Registration still needs the
 standard coordinator steps: push that tag, verify a fresh fetch, then draft and
