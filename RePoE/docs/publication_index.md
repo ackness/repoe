@@ -7,7 +7,7 @@ branch only locates this index; it does not imply that all data was generated at
 that source revision. Each role keeps its own existing artifact/code revision.
 
 The current descriptor is
-[`publication/releases/poe2-international/2.json`](../../publication/releases/poe2-international/2.json).
+[`publication/releases/poe2-international/3.json`](../../publication/releases/poe2-international/3.json).
 The old `publication/0.5.5.5-handoffs.json` remains historical v1 evidence: its
 `e00695a9...` game and absent crafting are unsuitable as the current complete head.
 Every original artifact commit must remain fetchable for exact current and
@@ -24,13 +24,14 @@ and digests at new commit IDs; the original sequence-1 declaration remains
 historical evidence. The history map resolves its old producer identities.
 Consumers must use the current index and the updated PoBR data lock.
 
-The original bootstrap published sequence 1. PoBR's
-`pipeline/data.lock.json` records this index revision and its original
-descriptor commit, together with the translation owner's publication.
-The exact-head exporter CI and downstream PoBR Full validation have passed at
-their recorded revisions; index validation is not a rerun of those checks.
-No later sequence has been registered yet; `draft` and `register` below are the
-path for one. Downstream unattended adoption has separate activation requirements.
+Sequence 3 is the first sequence registered with `draft`/`register`. It changes
+only the `game` role, to the part that carries the
+[PoBR special-currency catalog](pobr_crafting_catalog.md); the other five roles
+keep their sequence 2 inputs. The original bootstrap published sequence 1.
+PoBR's `pipeline/data.lock.json` records the index revision and descriptor commit
+it adopted, together with the translation owner's publication. Index validation
+is not a rerun of the exporter CI or of PoBR's Full validation. Downstream
+unattended adoption has separate activation requirements.
 
 ## Scope and trust
 

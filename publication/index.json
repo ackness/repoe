@@ -4,11 +4,11 @@
     "realm": "international"
   },
   "head": {
-    "bytes": 4969,
-    "path": "publication/releases/poe2-international/2.json",
-    "revision": "7f658f254791e42919a835aa6a29c5f1a2e78fb5",
-    "sha256": "48ac9314cb85de0d44fc9e50fc61856379cfc7de433437d13c6566abfc377556"
+    "bytes": 4967,
+    "path": "publication/releases/poe2-international/3.json",
+    "revision": "0c97143f06c34cc10b23f93e47a34276563fcf37",
+    "sha256": "ff785ca75bf521b1c0ec193f03a57fa97ecb001d5dcd3e4240658203646c4cee"
   },
   "schema": "owned-data-publication-index/v2",
-  "sequence": 2
+  "sequence": 3
 }
