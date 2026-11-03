@@ -1,11 +1,15 @@
-"""Register and validate small, completed RePoE publication declarations offline.
+"""Register and validate small, completed RePoE publication declarations.
 
-This module neither produces data nor verifies a new remote publication. Explicitly
-pinned coordinator-accepted locks are the bootstrap/completion trust boundary.
+This module never produces or uploads data. Sequence 1 was bootstrapped from
+explicitly pinned coordinator-accepted locks. A later sequence inherits every
+unchanged role from its predecessor and verifies each changed role against its
+exact local Git objects and the `handoff/*` tag on origin that keeps it alive.
 """
 
 import argparse
+from copy import deepcopy
 import hashlib
+import io
 import json
 import math
 import os
@@ -14,6 +18,7 @@ import re
 import stat
 import subprocess
 import tempfile
+import zipfile
 
 OWNER = "ackness/repoe"
 ROLES = frozenset({"game", "crafting", "ordinary", "display_source", "source_verifier", "test_fixtures"})
@@ -27,6 +32,8 @@ LIMIT = 256 * 1024
 SHA = re.compile(r"[0-9a-f]{64}")
 REV = re.compile(r"[0-9a-f]{40}")
 TOKEN = re.compile(r"[a-z0-9][a-z0-9_-]*")
+# Commits that are not artifacts (the source verifier) stay alive on this branch.
+DEFAULT_BRANCH = "refs/remotes/origin/master"
 
 
 def require(condition, message):
@@ -307,31 +314,96 @@ def bootstrap(accepted, destination):
     return value
 
 
+def git(repo, *args, check=True):
+    result = subprocess.run(
+        ["git", "--no-lazy-fetch", "--no-replace-objects", "-C", str(repo), *args], capture_output=True, check=False
+    )
+    if not check:
+        return result
+    require(result.returncode == 0, "Missing/invalid local Git metadata")
+    return result.stdout
+
+
+def tree_blob(repo, rev, path, expected):
+    """Read one regular blob of a local commit and check its byte pin; never fetch."""
+    require(git(repo, "cat-file", "-t", rev).strip() == b"commit", "Revision must be a local commit")
+    listing = git(repo, "ls-tree", "-z", rev, "--", path).split(b"\0")
+    require(len(listing) == 2 and listing[0], "Missing exact Git blob")
+    metadata, name = listing[0].split(b"\t", 1)
+    mode, kind, oid = metadata.split()
+    require(mode == b"100644" and kind == b"blob" and name.decode() == path, "Non-regular/symlink Git blob")
+    require(int(git(repo, "cat-file", "-s", oid.decode())) == expected["bytes"], "Git blob size mismatch")
+    raw = git(repo, "cat-file", "blob", oid.decode())
+    require(pin(raw) == {k: expected[k] for k in ("bytes", "sha256")}, "Git blob pin mismatch")
+    return raw
+
+
 def git_blob(repo, expected):
     """Read only the exact local small regular blob; missing objects never fetch."""
     descriptor_pin(expected)
-    repo = safe_path(repo)
+    return tree_blob(safe_path(repo), expected["revision"], expected["path"], expected)
 
-    def git(*args):
-        result = subprocess.run(
-            ["git", "--no-lazy-fetch", "--no-replace-objects", "-C", str(repo), *args], capture_output=True, check=False
-        )
-        require(result.returncode == 0, "Missing/invalid local Git metadata")
-        return result.stdout
 
-    require(git("cat-file", "-t", expected["revision"]).strip() == b"commit", "Revision must be a local commit")
-    listing = git("ls-tree", "-z", expected["revision"], "--", expected["path"]).split(b"\0")
-    require(len(listing) == 2 and listing[0], "Missing exact Git descriptor")
-    metadata, name = listing[0].split(b"\t", 1)
-    mode, kind, oid = metadata.split()
-    require(
-        mode == b"100644" and kind == b"blob" and name.decode() == expected["path"],
-        "Non-regular/symlink Git descriptor",
+def origin_handoff_tags(repo):
+    """Map each `handoff/*` tag on origin to the commit it peels to."""
+    result = subprocess.run(
+        ["git", "-C", str(repo), "ls-remote", "--tags", "origin", "refs/tags/handoff/*"],
+        capture_output=True,
+        check=False,
+        timeout=60,
+        env={**os.environ, "GIT_TERMINAL_PROMPT": "0"},
     )
-    require(int(git("cat-file", "-s", oid.decode())) == expected["bytes"], "Git descriptor size mismatch")
-    raw = git("cat-file", "blob", oid.decode())
-    require(pin(raw) == {k: expected[k] for k in ("bytes", "sha256")}, "Git descriptor pin mismatch")
-    return raw
+    require(result.returncode == 0, "Cannot list origin handoff tags")
+    tags = {}
+    for line in result.stdout.decode().splitlines():
+        commit, ref = line.split("\t")
+        revision(commit)
+        name = ref.removeprefix("refs/tags/")
+        if name.endswith("^{}"):
+            tags[name[:-3]] = commit
+        else:
+            tags.setdefault(name, commit)
+    return tags
+
+
+def verify_artifact(repo, role, value, tags, default_branch=DEFAULT_BRANCH):
+    """Check one newly declared role input against its local Git objects and retention ref."""
+    rev = value["revision"]
+    if role == "source_verifier":
+        on_branch = git(repo, "merge-base", "--is-ancestor", rev, default_branch, check=False).returncode == 0
+        require(on_branch, "Source verifier commit must be on the default branch")
+        for name, expected in value["files"].items():
+            tree_blob(repo, rev, name, expected)
+        return
+    # PoBR resolves each adopted revision to exactly one tag.
+    named = [tag for tag, commit in tags.items() if commit == rev]
+    require(len(named) == 1, f"The {role} revision needs exactly one handoff/* tag on origin")
+    raw = tree_blob(repo, rev, value["path"], value)
+    with zipfile.ZipFile(io.BytesIO(raw)) as archive:
+        entries = archive.infolist()
+        names = [entry.filename for entry in entries]
+        require(len(names) == len(set(names)) and "manifest.json" in names, "Duplicate/missing archive member")
+        require(sum(entry.file_size for entry in entries) == value["expanded_bytes"], "Expanded size mismatch")
+        manifest = archive.read("manifest.json")
+    require(pin(manifest) == value["manifest"], "Archive manifest pin mismatch")
+
+
+def changed_roles(previous, current):
+    return [
+        r
+        for r in sorted(ROLES)
+        if encoded(previous["components"][r]["input"]) != encoded(current["components"][r]["input"])
+    ]
+
+
+def verify_changed(repo, previous, current, tags=None, default_branch=DEFAULT_BRANCH):
+    """Verify only the roles this sequence changes; unchanged ones were verified before."""
+    changed = changed_roles(previous, current)
+    if tags is None and any(role != "source_verifier" for role in changed):
+        tags = origin_handoff_tags(repo)
+    for role in changed:
+        verify_artifact(repo, role, current["components"][role]["input"], tags, default_branch)
+    return changed
 
 
 def transition(previous, current):
@@ -382,17 +454,58 @@ def validate_index(value, repo, accepted=None):
     return current
 
 
-def register(repo, head, index_path, accepted, *, expected_index_sha256=None):
-    """Atomically register an already committed descriptor against accepted inputs.
+def draft(repo, index_path, inputs, destination, *, game_patch=None, tags=None, default_branch=DEFAULT_BRANCH):
+    """Write the next descriptor: the index head with the given role inputs replaced.
 
-    Existing indexes require compare-and-swap with the caller's frozen SHA-256.
-    The cooperative lock serializes writers; failures never write a success index.
+    Each given input is a complete role declaration. A changed role advances its
+    own sequence and is verified like `register` verifies it.
     """
-    validate_accepted(accepted)
+    index = decode(read_metadata(index_path))
+    current = validate_index(index, repo)
+    value = deepcopy(current)
+    value["sequence"] += 1
+    value["previous"] = index["head"]
+    if game_patch is not None:
+        value["target"] = {**value["target"], "game_patch": game_patch}
+    for role, declaration in inputs.items():
+        require(role in ROLES, f"Unknown role: {role}")
+        input_declaration(role, declaration)
+        if encoded(declaration) != encoded(current["components"][role]["input"]):
+            value["components"][role] = {"sequence": current["components"][role]["sequence"] + 1, "input": declaration}
+    validate_descriptor(value)
+    transition(current, value)
+    verify_changed(repo, current, value, tags, default_branch)
+    destination = safe_path(destination)
+    release_channel = f"{value['target']['game']}-{value['target']['realm']}"
+    require(
+        destination.name == f"{value['sequence']}.json" and destination.parent.name == release_channel,
+        "Descriptor must be written to releases/<game>-<realm>/<sequence>.json",
+    )
+    require(not destination.exists(), "Descriptor already exists")
+    atomic_write(destination, encoded(value), replace=False)
+    return value
+
+
+def register(
+    repo, head, index_path, accepted=None, *, expected_index_sha256=None, tags=None, default_branch=DEFAULT_BRANCH
+):
+    """Atomically register an already committed descriptor.
+
+    Sequence 1 requires the accepted bootstrap records. A later sequence without
+    them verifies each changed role's artifact (`verify_changed`). Existing
+    indexes require compare-and-swap with the caller's frozen SHA-256. The
+    cooperative lock serializes writers; failures never write a success index.
+    """
     descriptor_pin(head)
     index_path = safe_path(index_path)
     chain = read_chain(repo, head)
-    current = validate_descriptor(chain[0][1], accepted)
+    if accepted is None:
+        require(len(chain) > 1, "Sequence 1 requires an accepted record")
+        current = chain[0][1]
+        verify_changed(repo, chain[1][1], current, tags, default_branch)
+    else:
+        validate_accepted(accepted)
+        current = validate_descriptor(chain[0][1], accepted)
     candidate = {
         "schema": "owned-data-publication-index/v2",
         "channel": {k: current["target"][k] for k in ("game", "realm")},
@@ -429,13 +542,17 @@ def register(repo, head, index_path, accepted, *, expected_index_sha256=None):
 
 def main(argv=None):
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("operation", choices=("bootstrap", "validate", "register"))
+    parser.add_argument("operation", choices=("bootstrap", "validate", "draft", "register"))
+    # Only sequence 1 needs the three accepted PoBR bootstrap locks.
     for name in ("build", "ordinary", "imports"):
-        parser.add_argument(f"--{name}-lock", required=True, type=Path)
-        parser.add_argument(f"--{name}-lock-sha256", required=True)
+        parser.add_argument(f"--{name}-lock", type=Path)
+        parser.add_argument(f"--{name}-lock-sha256")
     parser.add_argument("--repo", type=Path, default=Path.cwd())
     parser.add_argument("--index", type=Path, default=Path("publication/index.json"))
     parser.add_argument("--out", type=Path)
+    parser.add_argument("--role", action="append", default=[], metavar="ROLE=FILE", help="Complete role input (draft)")
+    parser.add_argument("--game-patch", help="New target patch for the drafted sequence")
+    parser.add_argument("--default-branch", default=DEFAULT_BRANCH)
     parser.add_argument("--descriptor-revision")
     parser.add_argument("--descriptor-path")
     parser.add_argument("--descriptor-bytes", type=int)
@@ -443,28 +560,56 @@ def main(argv=None):
     parser.add_argument("--expected-index-sha256")
     args = parser.parse_args(argv)
     try:
-        hashes = {n: getattr(args, f"{n}_lock_sha256") for n in ("build", "ordinary", "imports")}
-        accepted = load_accepted_inputs(args.build_lock, args.ordinary_lock, args.imports_lock, sha256s=hashes)
+        names = ("build", "ordinary", "imports")
+        given = [getattr(args, f"{n}_lock") is not None or getattr(args, f"{n}_lock_sha256") is not None for n in names]
+        require(all(given) or not any(given), "Give all three accepted locks with their SHA-256, or none")
+        accepted = None
+        if all(given):
+            hashes = {n: getattr(args, f"{n}_lock_sha256") for n in names}
+            accepted = load_accepted_inputs(args.build_lock, args.ordinary_lock, args.imports_lock, sha256s=hashes)
         if args.operation == "bootstrap":
-            require(args.out is not None, "bootstrap requires --out")
+            require(args.out is not None and accepted is not None, "bootstrap requires --out and the accepted locks")
             result = bootstrap(accepted, args.out)
         elif args.operation == "validate":
             result = validate_index(decode(read_metadata(args.index)), args.repo, accepted)
+        elif args.operation == "draft":
+            require(args.out is not None and args.role, "draft requires --out and at least one --role")
+            inputs = {}
+            for item in args.role:
+                role, separator, path = item.partition("=")
+                require(separator and role not in inputs, f"Invalid or repeated --role: {item}")
+                inputs[role] = decode(read_metadata(Path(path)))
+            result = draft(
+                args.repo, args.index, inputs, args.out, game_patch=args.game_patch, default_branch=args.default_branch
+            )
         else:
             head = {k: getattr(args, f"descriptor_{k}") for k in ("revision", "path", "bytes", "sha256")}
-            result = register(args.repo, head, args.index, accepted, expected_index_sha256=args.expected_index_sha256)
+            result = register(
+                args.repo,
+                head,
+                args.index,
+                accepted,
+                expected_index_sha256=args.expected_index_sha256,
+                default_branch=args.default_branch,
+            )
+        verification = None
+        if args.operation == "draft" or (args.operation == "register" and accepted is None):
+            verification = "local-objects-and-origin-tags"
+        elif args.operation == "register":
+            verification = "accepted-records"
         print(
             json.dumps(
                 {
                     "status": f"local-{args.operation}-complete",
                     "sequence": result["sequence"],
+                    "artifact_verification": verification,
                     "fresh_remote_verification": False,
                     "data_production_performed": False,
                 },
                 sort_keys=True,
             )
         )
-    except (ValueError, OSError, KeyError, TypeError) as error:
+    except (ValueError, OSError, KeyError, TypeError, zipfile.BadZipFile, subprocess.TimeoutExpired) as error:
         parser.exit(1, f"publication-index: {error}\n")
 
 

@@ -23,8 +23,8 @@ PR14 is merged into `master` (`aa737740`) and sequence 1 is published. PoBR's
 `154913f4...` descriptor commit, together with the translation owner's publication.
 The exact-head exporter CI and downstream PoBR Full validation have passed at
 their recorded revisions; index validation is not a rerun of those checks.
-A new upstream production/publication sequence has not been established by this
-bootstrap, and downstream unattended adoption has separate activation requirements.
+No later sequence has been registered yet; `draft` and `register` below are the
+path for one. Downstream unattended adoption has separate activation requirements.
 
 ## Scope and trust
 
@@ -62,17 +62,31 @@ and historical limits remain inside the referenced artifacts. The descriptor
 contains no PoBR snapshot/runtime expectations, policy or translation selection;
 PoBR owns its composition and cross-owner binding checks.
 
-This delivery reuses the coordinator's already accepted/published records.
-`RePoE.publication_index` is a standard-library, offline **bootstrap/register/
-validate** API, not a collector, data producer, uploader or automatic publisher.
-Every CLI result explicitly reports `fresh_remote_verification: false` and
-`data_production_performed: false`. Bootstrap does not repeat archive downloads,
-exports or large closure validation. A future real owner production/publishing
-entry point must complete production, upload, fresh remote verification and
-acceptance before supplying its trusted completion records to registration.
-The bootstrap locks are evidence adapters, not runtime dependencies in the owner
-descriptor. Changes to their accepted identities require new acceptance evidence;
-computing a hash of arbitrary new metadata is not evidence of publication.
+Sequence 1 reused the coordinator's already accepted/published records.
+`RePoE.publication_index` is a standard-library **bootstrap/validate/draft/
+register** API, not a collector, data producer, uploader or automatic publisher.
+Every CLI result reports `fresh_remote_verification: false` and
+`data_production_performed: false`; `draft` and `register` also report how they
+verified artifacts. Bootstrap does not repeat archive downloads, exports or large
+closure validation. The bootstrap locks are evidence adapters for sequence 1
+only, not runtime dependencies in the owner descriptor.
+
+A later sequence does not use them. It inherits every unchanged role from its
+predecessor, which was verified when that sequence was registered, and checks
+each changed role against this repository's Git objects:
+
+- an artifact role's commit is local, its blob at `path` matches `bytes`/`sha256`,
+  the ZIP's `manifest.json` matches `manifest` and its members add up to
+  `expanded_bytes`;
+- exactly one `handoff/*` tag on `origin` peels to that commit, so PoBR can resolve
+  the tag and the commit stays fetchable;
+- the source verifier's commit is reachable from `origin/master` and each listed
+  file matches its pin.
+
+Fetch the published tag before drafting (`git fetch origin tag handoff/<name>`).
+A local commit equal to the one the origin tag names has the published content.
+An untagged or local-only artifact fails, so computing a hash of unpublished
+metadata is still not evidence of publication.
 
 ## Current accepted records
 
@@ -108,8 +122,17 @@ all exact predecessors back to sequence 1, and every transition. Supplying the
 accepted record also verifies current completion declarations. Structural
 validation alone does not attest a new remote publication.
 
-`register(repo, head, index_path, accepted, expected_index_sha256=None)` requires
-accepted completion records and an already committed local descriptor. It checks
+`draft(repo, index, inputs, out, game_patch=None)` writes the next descriptor:
+the index head with each given complete role input replaced, the changed roles'
+sequences advanced, `previous` set to the head, and each changed role verified
+as above. `out` must be `releases/<game>-<realm>/<sequence>.json`, and an existing
+file is never overwritten. An input file has the same form as the descriptor's
+`components.<role>.input`; `--game-patch` moves the target to a new patch of the
+same channel.
+
+`register(repo, head, index_path, accepted=None, expected_index_sha256=None)`
+requires an already committed local descriptor. Sequence 1 requires the accepted
+records; a later sequence without them verifies its changed roles. It checks
 the entire small predecessor chain before an atomic index replacement. An existing
 index requires the caller's frozen index SHA-256 and the next descriptor's exact
 `previous == old.head`. The cooperative exclusive lock prevents concurrent
@@ -117,7 +140,22 @@ registrations. An identical retry preserves existing index bytes. A failed check
 or replacement preserves the previous index, or leaves no index on first use.
 Registration never writes a descriptor or performs a Git commit/push.
 
-Example from the RePoE checkout, with the three accepted historical PoBR records
+Publishing sequence N+1 from the RePoE checkout, after the new artifact's tag is
+pushed and fetched:
+
+```sh
+python3 -B -m RePoE.publication_index draft \
+  --role game=.cache/publication/game-input.json \
+  --out publication/releases/poe2-international/2.json
+# Commit the descriptor first. Supply its actual immutable commit and byte pin:
+python3 -B -m RePoE.publication_index register \
+  --repo . --index publication/index.json \
+  --descriptor-revision FULL40 --descriptor-path publication/releases/poe2-international/2.json \
+  --descriptor-bytes INTEGER --descriptor-sha256 HEX64 --expected-index-sha256 HEX64
+python3 -B -m RePoE.publication_index validate --repo . --index publication/index.json
+```
+
+Sequence 1 was bootstrapped with the three accepted historical PoBR records
 supplied explicitly (replace `POBR` with the read-only tree at the fixed revision
 above, rather than a current PoBR checkout):
 
@@ -150,8 +188,9 @@ This local owner task does not publish either commit or activate a consumer.
 ## Strict ordering and bounded verification
 
 Within a game/realm channel, publication sequences advance by one with an exact
-predecessor. Each current target must match the explicit accepted records; a new
-patch is never inferred from source metadata. Changed role input declarations advance that role's sequence by one;
+predecessor. Sequence 1's target must match the explicit accepted records, and a
+later target changes only through an explicit `--game-patch`; a new patch is never
+inferred from source metadata. Changed role input declarations advance that role's sequence by one;
 unchanged declarations keep their old sequence. Same sequence/different content,
 role rollback, empty advances, missing predecessors and owner/target mismatches
 fail. Predecessors must belong to the same owner and game/realm channel. The API
@@ -162,7 +201,8 @@ relative paths and ordinary regular files are mandatory. Duplicate JSON keys,
 nonfinite numbers, symlinks (including path ancestors and Git tree entries),
 missing local objects and wrong hashes fail closed. Metadata is limited to
 256 KiB per file and 1024 chain entries. Git reads use `--no-lazy-fetch` and
-`--no-replace-objects`; data blobs are never fetched or replayed. Neither dates,
+`--no-replace-objects`; data blobs are never fetched. Only a changed role's
+artifact blob is read, from local objects. Neither dates,
 branch names nor artifact ancestry decide which publication is next.
 
 Focused synthetic regression:
@@ -172,7 +212,8 @@ python3 -B -m unittest discover -s tests -p test_publication_index.py -v
 ```
 
 Tests use only tiny bare Git object stores under `.cache/`, with no checkout,
-archive production, decoder, Rust/WASM, source acquisition or network request.
+decoder, Rust/WASM, source acquisition or network request. Artifact tests build
+small synthetic ZIPs and use a local bare repository as `origin`.
 Fixtures remain available there for inspection. Existing publisher plans,
 parsers and producer behavior are unchanged; their large closures and full
 regression suite are outside this metadata-only verification budget.
