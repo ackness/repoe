@@ -13,6 +13,29 @@ types come from the immutable, non-release tag `engine-crates/20261102` of
 PoBR changes a runtime type, create a new tag there and bump all five entries in
 `Cargo.toml` together; never move an existing tag.
 
+## Configuration ownership
+
+| Configuration | Owner |
+|---|---|
+| The 30 JSON domain policies in `policies/` | RePoE; all moved byte-for-byte with the adapter |
+| `Cargo.toml`, `Cargo.lock`, Rust toolchain, adapter tasks and CI | RePoE; the PoBR engine-crate tag is an explicit dependency |
+| Runtime data types, Rust calculation rules and the eleven owned shared rule/config files | PoBR |
+| Language pairing, reviewed supplements and display projections | The translation repository |
+| Consumer artifact pins, expected runtime/release identities and local adoption | PoBR's `pipeline/data.lock.json` and consumer tooling |
+
+PoBR's historical `pipeline/imports/sources.lock.json` still combines raw-source
+and acquisition evidence with downstream retained-input acceptance decisions.
+It is not an adapter policy or a runtime input of PoBR's import pipeline.
+Rehoming that ledger must separate producer evidence from consumer acceptance
+while retaining original hashes and provenance; it is separate from the completed
+policy move.
+
+The separate special-currency catalog projector, including currency prefixes and
+selection/aggregation policy, still runs in PoBR's `pipeline/imports/crafting_inputs.py`.
+It was not part of the 30 JSON policies. Moving this production here also needs a
+published fixed catalog and a coordinated consumer-contract change; see
+[PoBR's current exceptions](https://github.com/ackness/pobr/blob/master/docs/data-status.md#已知例外).
+
 ## Commands
 
 Run from the repository root. Rust is pinned once in `rust-toolchain.toml`;

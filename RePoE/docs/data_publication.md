@@ -1,8 +1,9 @@
 # Independent versioned data publication
 
 RePoE stores game exports and explicitly retained compatibility inputs. Language
-data belongs to `poe2-zh-cn-stats`. PoBR owns its domain schemas, interpretation,
-selection and calculation code; its CI imports these external data temporarily.
+data belongs to `poe2-zh-cn-stats`. RePoE also owns the domain adapter and policies
+that project facts into PoBR runtime JSON. PoBR owns the data types, Rust rules and
+calculation code; its CI imports these external data temporarily.
 Moving existing processed bytes here does not make them native RePoE facts.
 
 `RePoE.data_publication` is a standard-library-only offline publisher. It accepts
@@ -26,7 +27,7 @@ The current `game` and separate required `crafting` inputs are published at
 catalog; the neutral [seven-table crafting facts](native_crafting_facts.md) are
 projected by PoBR. Combined with the independently pinned language and PoBR rules,
 they restore snapshot `73b2d77e...` / runtime `dba0615e...`; full expectations are
-consumer-owned in PoBR's build lock, not inferred by this publisher.
+consumer-owned in PoBR's `pipeline/data.lock.json`, not inferred by this publisher.
 
 The current six roles additionally include ordinary input, localized display
 source, source-verifier code and historical API fixtures. Role completeness is
