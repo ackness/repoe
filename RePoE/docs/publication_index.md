@@ -19,7 +19,7 @@ Index registration does not rename, delete or republish them.
 ## Current delivery
 
 PR14 is merged into `master` (`aa737740`) and sequence 1 is published. PoBR's
-`pipeline/latest/data-composition.json` pins this index revision and its original
+`pipeline/data.lock.json` records this index revision and its original
 `154913f4...` descriptor commit, together with the translation owner's publication.
 The exact-head exporter CI and downstream PoBR Full validation have passed at
 their recorded revisions; index validation is not a rerun of those checks.
@@ -76,8 +76,12 @@ computing a hash of arbitrary new metadata is not evidence of publication.
 
 ## Current accepted records
 
-The bootstrap adapter authenticates three explicit local lock files against
-caller-supplied SHA-256 values before extracting only the owner roles:
+The bootstrap adapter authenticates three explicit historical lock files against
+caller-supplied SHA-256 values before extracting only the owner roles. These are
+sequence-1 acceptance evidence, not PoBR's current input declaration. They remain
+available in the [fixed PoBR tree](https://github.com/ackness/pobr/tree/0fb6f913cc3fac980f9d84e855b26103860d6b96/pipeline),
+at the paths below; export that revision when replaying bootstrap. Current PoBR
+uses only `pipeline/data.lock.json`, which this legacy bootstrap API does not read.
 
 | Evidence file | Bytes | Accepted SHA-256 |
 | --- | ---: | --- |
@@ -113,8 +117,9 @@ registrations. An identical retry preserves existing index bytes. A failed check
 or replacement preserves the previous index, or leaves no index on first use.
 Registration never writes a descriptor or performs a Git commit/push.
 
-Example from the RePoE checkout, with the three accepted PoBR records supplied
-explicitly (replace `POBR` with their read-only root):
+Example from the RePoE checkout, with the three accepted historical PoBR records
+supplied explicitly (replace `POBR` with the read-only tree at the fixed revision
+above, rather than a current PoBR checkout):
 
 ```sh
 accepted=(
