@@ -108,7 +108,7 @@ git cat-file blob aed5f7348f41dcff6abd526d882c6a95d8acce0b:handoff/independent-0
 git cat-file blob c804bfc764da2cb9eebcb6d418744e09bf5c005d:handoff/game-crafting-20261103/game-build-part.zip \
   > .cache/publication/inputs/game.zip
 mise run publication:package -- \
-  --plan publication/0.5.5.5-ordinary-uniques.plan.json --plan-sha256 1f2bf2f57b4a5d5a70e04efc0444f787bd8ebf2965e63625b7bdbb362b10c64b \
+  --plan publication/0.5.5.5-ordinary-uniques.plan.json --plan-sha256 10b4992e8bb2d908eaec48db052a08cd785c252a75de3c969aa0e455113a6de2 \
   --input previous=.cache/publication/inputs/previous.zip \
   --input game=.cache/publication/inputs/game.zip \
   --out .cache/publication/ordinary-uniques
@@ -116,11 +116,12 @@ mise run publication:git-handoff -- --package .cache/publication/ordinary-unique
 ```
 
 A verified local replay produced `ordinary-inputs.zip` (40020250 bytes, SHA-256
-`f0684bacbda093982a87a131bcec750ca36fd03e1c534f74a570a5b76ba2c4d8`) and staged
-the orphan handoff commit `9fc8bc1159e11877f16fc91b716fa0b778fabe15` under
-`refs/tags/handoff/ordinary-uniques-20261103`. Registration still needs the
-standard coordinator steps: push that tag, verify a fresh fetch, then draft and
-register a new `ordinary` role sequence per `publication_index.py`; this branch
+`a1290a172e280f08bd46722684e9ac7304634f906cfa400cfed34f9eebb84141`). The handoff
+commit `9fc8bc1159e11877f16fc91b716fa0b778fabe15` staged earlier from the
+superseded PoBR-sourced plan is obsolete and must not be pushed. Registration
+needs a fresh `publication:git-handoff` from this package, then push that tag,
+verify a fresh fetch, then draft and register a new `ordinary` role sequence
+per `publication_index.py`; this branch
 pushes no data tag and changes no index or runtime lock. The projected
 `overlay/unique_relations.json` is produced by the ordinary domain output, not
 by a game-part member: it is a candidate artifact for consumer adoption, not a
