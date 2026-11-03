@@ -22,6 +22,7 @@ mod stat_descriptions;
 mod stat_set_codec;
 mod totem_varieties;
 mod unarmed;
+mod uniques;
 
 #[cfg(all(test, any(target_os = "linux", target_os = "macos")))]
 mod tests;
@@ -87,6 +88,7 @@ enum Domain {
     BossPoise,
     ItemGrants,
     Unarmed,
+    Uniques,
 }
 
 impl Domain {
@@ -114,6 +116,7 @@ impl Domain {
             Self::BossPoise => &boss_poise::TABLES,
             Self::ItemGrants => &item_grants::TABLES,
             Self::Unarmed => &unarmed::TABLES,
+            Self::Uniques => &uniques::TABLES,
         }
     }
 
@@ -142,6 +145,7 @@ impl Domain {
             Self::BossPoise => "ordinary-boss-poise",
             Self::ItemGrants => "ordinary-item-grants",
             Self::Unarmed => "ordinary-unarmed-data",
+            Self::Uniques => "ordinary-uniques",
         }
     }
 
@@ -170,6 +174,7 @@ impl Domain {
             Self::BossPoise => "boss-poise",
             Self::ItemGrants => "item-grants",
             Self::Unarmed => "unarmed-data",
+            Self::Uniques => "uniques",
         }
     }
 }
@@ -235,6 +240,7 @@ pub(crate) fn parse_args(args: impl Iterator<Item = String>) -> Result<Args, Str
         Some("boss-poise") => Domain::BossPoise,
         Some("item-grants") => Domain::ItemGrants,
         Some("unarmed-data") => Domain::Unarmed,
+        Some("uniques") => Domain::Uniques,
         Some(value) => return Err(format!("unsupported ordinary domain: {value}")),
     };
     if domain != Domain::GemQuality
@@ -259,6 +265,7 @@ pub(crate) fn parse_args(args: impl Iterator<Item = String>) -> Result<Args, Str
             | Domain::RuntimeConstants
             | Domain::Socketables
             | Domain::StatDescriptions
+            | Domain::Uniques
     ) && [
         "--codec-source",
         "--codec-source-sha256",
@@ -269,7 +276,7 @@ pub(crate) fn parse_args(args: impl Iterator<Item = String>) -> Result<Args, Str
     .any(|flag| values.contains_key(*flag))
     {
         return Err(
-            "codec arguments require --ordinary-domain base-items, stat-set-codec, gem-effects, skill-stat-map, skill-overrides, minions, spectres, granted-effect-minions, passive-tree, runtime-constants, socketables, stat-descriptions, unarmed-data or item-grants".into(),
+            "codec arguments require --ordinary-domain base-items, stat-set-codec, gem-effects, skill-stat-map, skill-overrides, minions, spectres, granted-effect-minions, passive-tree, runtime-constants, socketables, stat-descriptions, unarmed-data, item-grants or uniques".into(),
         );
     }
     if !matches!(domain, Domain::SkillStatMap | Domain::SkillOverrides)
@@ -393,6 +400,7 @@ pub(crate) fn parse_args(args: impl Iterator<Item = String>) -> Result<Args, Str
                     | Domain::RuntimeConstants
                     | Domain::Socketables
                     | Domain::StatDescriptions
+                    | Domain::Uniques
             ) {
             Some(CodecArgs {
                 source: take("--codec-source")?.into(),
@@ -530,6 +538,30 @@ pub(crate) fn run(args: Args) -> Result<String, String> {
                     } else {
                         "All remaining fields, including unique effect variants/export aliases, retain their pinned legacy source. Existing DTO/ordinary consumer and source-draft/CURRENT boundaries remain unchanged."
                     },
+                ],
+            )
+        }
+        Domain::Uniques => {
+            let converted = uniques::convert(
+                &input,
+                args.codec
+                    .as_ref()
+                    .ok_or("missing unique relations source/policy")?,
+            )?;
+            for parent in &converted.protected_parents {
+                output.protect(parent)?;
+            }
+            overlay = BTreeMap::from([("unique_relations.json".into(), converted.bytes)]);
+            extra_sidecars = converted.sidecars;
+            (
+                BTreeMap::new(),
+                converted.receipt,
+                "unique_relations/v1 (new artifact; no engine DTO yet; schema in ordinary-uniques.md)",
+                vec![
+                    "Vendor catalog membership, mod text, roll ranges, variants, versions, groups, alt slots, selection and prose directives remain pinned retained-community input; the official client ships no unique->mods or unique->base table.",
+                    "Base names resolve to target BaseItemTypes/ItemClasses by exact Name equality only; unresolved or ambiguous names stay explicit diagnostics, never guessed rows.",
+                    "The byte-preserved raw blocks and original source/policy bytes are archived. Existing uniques.json, DTO, loaders and consumers are unchanged; a consumer reads this relation separately.",
+                    "Acquisition status/evidence is copied unchanged. Domain-only candidate, not adopted; no runtime manifest, download, CURRENT update or complete-package claim.",
                 ],
             )
         }
@@ -1198,6 +1230,10 @@ fn implementation_sha256() -> String {
         (
             "ordinary_facts/item_grants.rs",
             include_bytes!("ordinary_facts/item_grants.rs").as_slice(),
+        ),
+        (
+            "ordinary_facts/uniques.rs",
+            include_bytes!("ordinary_facts/uniques.rs").as_slice(),
         ),
         (
             "ordinary_facts/boss_poise.rs",

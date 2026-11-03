@@ -1,0 +1,40 @@
+{
+  "schema": "pobr-ordinary-uniques-policy/v1",
+  "version": "0.5.5.5",
+  "source_sha256": "06dbd5055882cf8d883c94dd56b989fc847d19e9f8da023494178deac7066600",
+  "source": {
+    "path": "0.5.5.5/overlay/uniques.json",
+    "member_of": "publication/0.5.5.5-game.plan.json",
+    "bytes": 241759
+  },
+  "vendor": {
+    "repository": "https://github.com/PathOfBuildingCommunity/PathOfBuilding-PoE2",
+    "revision": "bb52d6b368307457eb9c54bb13f1829993d390b1"
+  },
+  "source_metadata": {
+    "schema": "uniques/v1",
+    "generator": "sync-pob-catalog extract-lua"
+  },
+  "ownership": {
+    "target_facts": [
+      "uniques[].bases[].base_items[] — target BaseItemTypes physical row and stable Id, plus ItemClasses.Id through BaseItemTypes.ItemClass, joined by exact Name equality to the vendor base text. Name equality verifies the vendor text names a real target base; it is not an official unique->base link."
+    ],
+    "retained_vendor": [
+      "uniques[].name",
+      "uniques[].item_type",
+      "uniques[].bases[].name, source_line and annotations",
+      "uniques[].selection (variants, versions, alt_variant_slots, groups, selected)",
+      "uniques[].implicit_count and mods[].implicit",
+      "uniques[].mods[] text, rolls, variant/version/group/tags/flags/annotations and grants_skill convenience parse",
+      "uniques[].directives[]",
+      "uniques[].raw (byte-preserved vendor block)",
+      "_meta.legacy_metadata"
+    ],
+    "uncertified": [
+      "An official unique->base link: the PoE2 client has no unique item definition table; the vendor base name is community curation verified only by Name equality.",
+      "Unique->mods/roll/variant assignment: mod lists, roll ranges, variants and selection are server-side game data retained as pinned vendor text.",
+      "grants_skill links to ModGrantedSkills/SkillGems/GrantedEffects: the emitted grants_skill object is a structural text parse, not a verified game relation; the item-grants domain and a SkillGemsForUniqueStat supplement remain the path for verified skill grants."
+    ]
+  },
+  "statement": "Explicit fixed community unique catalog interpretation. The pinned source is the retained-compatibility member 0.5.5.5/overlay/uniques.json of the published game part, produced from PathOfBuilding-PoE2 vendor text by PoBR's sync-pob-catalog extractor. This domain projects that text into a structured unique->base->mods/roll/variant relation without re-certifying it: only the exact-Name base resolution reads target facts, and unresolved/ambiguous names are recorded diagnostics rather than failures or guesses."
+}

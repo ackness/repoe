@@ -14,6 +14,7 @@ Source acquisition and publication happen in this repository's exporters.
 | [gem-quality/](gem-quality/README.md) | Target quality facts and the preserved effect-wide interpretation |
 | `runtime-constants/`, `boss-poise/`, `unarmed/` | Explicit constants, representative presets and unarmed facts |
 | `socketables/`, `catalysts/`, `item-grants/` | Socketable, catalyst and item-granted skill decisions |
+| `uniques/` | Pinned retained unique catalog bound for the relation projection |
 
 These policies are inputs of `tools/pobr-data-adapter`, and its Rust tests read
 them. They moved here from PoBR `pipeline/policies/` with the adapter. Historical provenance

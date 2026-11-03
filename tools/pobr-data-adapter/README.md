@@ -17,7 +17,7 @@ PoBR changes a runtime type, create a new tag there and bump all five entries in
 
 | Configuration | Owner |
 |---|---|
-| The 30 JSON domain policies in `policies/` | RePoE; all moved byte-for-byte with the adapter |
+| The 31 JSON domain policies in `policies/` | RePoE; all moved byte-for-byte with the adapter |
 | `Cargo.toml`, `Cargo.lock`, Rust toolchain, adapter tasks and CI | RePoE; the PoBR engine-crate tag is an explicit dependency |
 | Runtime data types, Rust calculation rules and the eleven owned shared rule/config files | PoBR |
 | Language pairing, reviewed supplements and display projections | The translation repository |
@@ -32,7 +32,7 @@ policy move.
 
 The separate special-currency catalog projector, including currency prefixes and
 selection/aggregation policy, still runs in PoBR's `pipeline/imports/crafting_inputs.py`.
-It was not part of the 30 JSON policies. Moving this production here also needs a
+It was not part of the 31 JSON policies. Moving this production here also needs a
 published fixed catalog and a coordinated consumer-contract change; see
 [PoBR's current exceptions](https://github.com/ackness/pobr/blob/master/docs/data-status.md#已知例外).
 

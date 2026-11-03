@@ -47,6 +47,9 @@ and preserves the existing quality catalog/codec, described in
 [ordinary-catalysts.md](ordinary-catalysts.md).
 `--ordinary-domain unarmed-data` consumes target Characters and the existing verified
 player metadata archive, described in [ordinary-unarmed.md](ordinary-unarmed.md).
+`--ordinary-domain uniques` projects the pinned retained unique catalog into a
+structured unique->base->mods/roll/variant relation with target base
+verification, described in [ordinary-uniques.md](ordinary-uniques.md).
 Each call produces only its
 selected domain for later assembly into an ordinary runtime package. It does
 not produce a complete GameData/BuildData package or a restricted runtime profile.
@@ -71,12 +74,12 @@ it preserves the Stats/Mods JSON, marker and receipt content except for the
 compiled implementation revision. The sections below describe Stats/Mods;
 base-items, skills, gem-quality, stat-set-codec, gem-effects, monster-resistances,
 totem-varieties, monster-scaling, skill-stat-map, skill-overrides, minions, spectres and
-granted-effect-minions, passive-tree, runtime-constants, socketables, catalysts and unarmed-data use the same
+granted-effect-minions, passive-tree, runtime-constants, socketables, catalysts, unarmed-data and uniques use the same
 verification/output boundary with their own table subsets. Quality-only options
 require gem-quality; codec options are optional for base-items field ownership,
 and required for stat-set-codec, gem-effects,
 skill-stat-map, skill-overrides, minions, spectres, granted-effect-minions, passive-tree,
-runtime-constants, socketables, stat-descriptions or unarmed-data. Paired `--player-context` and
+runtime-constants, socketables, stat-descriptions, unarmed-data or uniques. Paired `--player-context` and
 `--player-manifest-sha256` are required only by unarmed-data. `--item-descriptions` is required by socketables and stat-descriptions, and rejected by other domains.
 Catalysts requires paired `--supplement` and `--catalog-policy` paths/SHA256 pins.
 Tree refresh v2 also accepts the paired supplement with its explicit policy; other
