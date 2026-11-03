@@ -116,14 +116,15 @@ mise run publication:package -- \
 mise run publication:git-handoff -- --package .cache/publication/ordinary-uniques
 ```
 
-A verified local replay produced `ordinary-inputs.zip` (40020250 bytes, SHA-256
-`a1290a172e280f08bd46722684e9ac7304634f906cfa400cfed34f9eebb84141`). The handoff
-commit `9fc8bc1159e11877f16fc91b716fa0b778fabe15` staged earlier from the
-superseded PoBR-sourced plan is obsolete and must not be pushed. Registration
-needs a fresh `publication:git-handoff` from this package, then push that tag,
-verify a fresh fetch, then draft and register a new `ordinary` role sequence
-per `publication_index.py`; this branch
-pushes no data tag and changes no index or runtime lock. The projected
+A verified replay produced `ordinary-inputs.zip` (40020250 bytes, SHA-256
+`a1290a172e280f08bd46722684e9ac7304634f906cfa400cfed34f9eebb84141`).
+The published handoff is `0f68afc31192bc23c734ec1439789244aedec25a`, retained by
+`handoff/ordinary-uniques-20261103`; a fresh remote fetch verified the archive,
+manifest and all member pins before sequence 4 registration. Sequence 4 advances
+only `ordinary`, preserving all other roles and the descriptor scope.
+The obsolete local handoff `9fc8bc1159e11877f16fc91b716fa0b778fabe15` came from
+the superseded PoBR-sourced plan and must not replace the published tag.
+The projected
 `overlay/unique_relations.json` is produced by the ordinary domain output, not
 by a game-part member: it is a candidate artifact for consumer adoption, not a
 published member.

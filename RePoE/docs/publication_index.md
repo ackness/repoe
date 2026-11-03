@@ -7,7 +7,7 @@ branch only locates this index; it does not imply that all data was generated at
 that source revision. Each role keeps its own existing artifact/code revision.
 
 The current descriptor is
-[`publication/releases/poe2-international/3.json`](../../publication/releases/poe2-international/3.json).
+[`publication/releases/poe2-international/4.json`](../../publication/releases/poe2-international/4.json).
 The old `publication/0.5.5.5-handoffs.json` remains historical v1 evidence: its
 `e00695a9...` game and absent crafting are unsuitable as the current complete head.
 Every original artifact commit must remain fetchable for exact current and
@@ -28,6 +28,15 @@ Sequence 3 is the first sequence registered with `draft`/`register`. It changes
 only the `game` role, to the part that carries the
 [PoBR special-currency catalog](pobr_crafting_catalog.md); the other five roles
 keep their sequence 2 inputs. The original bootstrap published sequence 1.
+
+Sequence 4 advances only `ordinary`, carrying the published ordinary package's
+30 selected members byte-identically and adding the unique codec source from
+the published game part. Its sources are retained RePoE artifacts; replay no
+longer needs the old PoBR migration commits. The other five roles and the
+descriptor scope are unchanged. `unique_relations.json` remains a domain
+candidate outside the published package. PoBR does not consume `ordinary`, so
+this publication advances owner metadata without changing its runtime data.
+
 PoBR's `pipeline/data.lock.json` records the index revision and descriptor commit
 it adopted, together with the translation owner's publication. Index validation
 is not a rerun of the exporter CI or of PoBR's Full validation. Downstream

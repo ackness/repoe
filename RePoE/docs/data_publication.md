@@ -18,7 +18,7 @@ repository or checkout. Data archives are not committed to the source branch.
 
 The current discovery surface is the [six-role v2 publication index](publication_index.md),
 not the historical `0.5.5.5-handoffs.json` or a source branch timestamp. The
-current index is sequence 3; sequence 2 was the [fork-history migration](history.md).
+current index is sequence 4; sequence 2 was the [fork-history migration](history.md).
 Its immutable descriptor preserves
 per-role revisions; PoBR freezes them in its own complete composition.
 
@@ -34,6 +34,15 @@ independently pinned language and PoBR rules, the parts restore snapshot
 `73b2d77e...` / runtime `dba0615e...`, the same identities as sequence 2; full
 expectations are consumer-owned in PoBR's `pipeline/data.lock.json`, not inferred
 by this publisher.
+
+Sequence 4 changes only the ordinary input to
+`handoff/ordinary-uniques-0.5.5.5/ordinary-inputs.zip` at
+`0f68afc31192bc23c734ec1439789244aedec25a`, retained by
+`handoff/ordinary-uniques-20261103`. It carries 30 existing selected members
+unchanged and adds the unique codec source from the published game part.
+The [ordinary uniques plan](../../publication/0.5.5.5-ordinary-uniques.plan.json)
+replays entirely from retained RePoE packages. It does not change the game
+part or publish the projected `unique_relations.json` domain candidate.
 
 The current six roles additionally include ordinary input, localized display
 source, source-verifier code and historical API fixtures. Role completeness is
