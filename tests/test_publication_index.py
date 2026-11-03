@@ -596,7 +596,12 @@ class PublicationIndexTests(unittest.TestCase):
         )
         self.assertEqual(after["sequence"], before["sequence"] + 1)
         previous = after["previous"]
-        self.assertEqual(pub.git_blob(ROOT, previous), pub.read_metadata(ROOT / previous["path"]))
+        # CI uses a shallow source checkout; historical Git reachability is
+        # verified by the publication guard, not by this metadata regression.
+        self.assertEqual(
+            pub.pin(pub.read_metadata(ROOT / previous["path"])),
+            {key: previous[key] for key in ("bytes", "sha256")},
+        )
         changed = set()
         for role, old in before["components"].items():
             actual = after["components"][role]
