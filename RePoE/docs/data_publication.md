@@ -18,22 +18,18 @@ repository or checkout. Data archives are not committed to the source branch.
 
 The current discovery surface is the [six-role v2 publication index](publication_index.md),
 not the historical `0.5.5.5-handoffs.json` or a source branch timestamp. The
-current index is sequence 4; sequence 2 was the [fork-history migration](history.md).
+current index is sequence 5; sequence 2 was the [fork-history migration](history.md).
 Its immutable descriptor preserves
 per-role revisions; PoBR freezes them in its own complete composition.
 
-Sequence 3 publishes the current `game` input,
+Sequence 3 published the crafting-enabled `game` input,
 `handoff/game-crafting-20261103/game-build-part.zip` at
 `c804bfc764da2cb9eebcb6d418744e09bf5c005d`. It is the sequence 2 game part
 (`handoff/native-crafting-20261101/`) plus `trade_crafting_sources.json`, which
 the [PoBR special-currency catalog](pobr_crafting_catalog.md) projects from the
 unchanged `crafting` input, the neutral
 [seven-table crafting facts](native_crafting_facts.md). PoBR imports that file as
-part of the game part and no longer reads the crafting facts. Combined with the
-independently pinned language and PoBR rules, the parts restore snapshot
-`73b2d77e...` / runtime `dba0615e...`, the same identities as sequence 2; full
-expectations are consumer-owned in PoBR's `pipeline/data.lock.json`, not inferred
-by this publisher.
+part of the game part and no longer reads the crafting facts.
 
 Sequence 4 changes only the ordinary input to
 `handoff/ordinary-uniques-0.5.5.5/ordinary-inputs.zip` at
@@ -43,6 +39,18 @@ unchanged and adds the unique codec source from the published game part.
 The [ordinary uniques plan](../../publication/0.5.5.5-ordinary-uniques.plan.json)
 replays entirely from retained RePoE packages. It does not change the game
 part or publish the projected `unique_relations.json` domain candidate.
+
+Sequence 5 changes only the game input to
+`handoff/historical-tree-attributes-20261103/game-build-part.zip` at
+`f909f917809699ac7a8e8f9c1eadfd45fd98297a`. The
+[historical selector projection](pobr_historical_trees.md) restores attribute
+choices in `0_1` through `0_4`, updating those four tree files and their snapshot
+pins while preserving every unrelated game member, including the crafting catalog.
+The tag was published and freshly fetched before registration; all package,
+manifest and member digests matched the reviewed candidate. Other role inputs
+and scope are unchanged. Snapshot, runtime and release expectations remain
+consumer-owned in PoBR's `pipeline/data.lock.json`; owner registration does not
+adopt or deploy the new data in PoBR.
 
 The current six roles additionally include ordinary input, localized display
 source, source-verifier code and historical API fixtures. Role completeness is

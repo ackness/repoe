@@ -7,7 +7,7 @@ branch only locates this index; it does not imply that all data was generated at
 that source revision. Each role keeps its own existing artifact/code revision.
 
 The current descriptor is
-[`publication/releases/poe2-international/4.json`](../../publication/releases/poe2-international/4.json).
+[`publication/releases/poe2-international/5.json`](../../publication/releases/poe2-international/5.json).
 The old `publication/0.5.5.5-handoffs.json` remains historical v1 evidence: its
 `e00695a9...` game and absent crafting are unsuitable as the current complete head.
 Every original artifact commit must remain fetchable for exact current and
@@ -36,6 +36,17 @@ longer needs the old PoBR migration commits. The other five roles and the
 descriptor scope are unchanged. `unique_relations.json` remains a domain
 candidate outside the published package. PoBR does not consume `ordinary`, so
 this publication advances owner metadata without changing its runtime data.
+
+Sequence 5 advances only `game` to
+`handoff/historical-tree-attributes-20261103` at
+`f909f917809699ac7a8e8f9c1eadfd45fd98297a`. It restores the attribute selectors
+in the four retained historical trees, preserving fixed-attribute nodes and
+all unrelated members. The other five roles and descriptor scope are unchanged.
+The immutable artifact was retrieved from a fresh remote object store and its
+package, manifest and member pins verified before registration. This changes
+runtime game bytes; PoBR must explicitly adopt the publication and recompute its
+composition identities. Historical compatibility limits remain declared in the
+[projection contract](pobr_historical_trees.md).
 
 PoBR's `pipeline/data.lock.json` records the index revision and descriptor commit
 it adopted, together with the translation owner's publication. Index validation
