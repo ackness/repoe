@@ -101,6 +101,7 @@ carry the field selections, and the published game part
 `uniques/codec-source/uniques.json` bytes. No `ackness/pobr` source is needed.
 
 ```sh
+mkdir -p .cache/publication/inputs
 git fetch --depth=1 origin aed5f7348f41dcff6abd526d882c6a95d8acce0b \
   c804bfc764da2cb9eebcb6d418744e09bf5c005d
 git cat-file blob aed5f7348f41dcff6abd526d882c6a95d8acce0b:handoff/independent-0.5.5.5/ordinary-inputs.zip \
