@@ -1,328 +1,132 @@
 # RePoE
 
-Repository of Path of Exile resources for tool developers.
+Game data for Path of Exile tool developers. This fork maintains the PoE2 client exporters and game-data packages used by [PoBR](https://github.com/ackness/pobr), while retaining the upstream PoE1 and PoE2 parsers.
 
-## PoBR-maintained fork
+RePoE reads client resources, preserves their identities and relationships, and turns selected facts into versioned JSON packages. Each package records its source bytes, producer and validation scope.
 
-This fork is maintained as the game-fact exporter for PoBR. The upstream parser
-remains the base; PoBR calculation rules and the independent Chinese translation
-repository are maintained separately.
+## Start here
 
-[`Independent data publication`](RePoE/docs/data_publication.md) packages pinned
-exports and clearly identified historical compatibility bytes into standalone
-RePoE Git artifacts. Language inputs stay in the translation repository; PoBR
-imports the published packages unchanged.
+| You want to… | Read |
+| --- | --- |
+| Consume a published game-data package | [Publication index](publication/index.json) and [consumer contract](RePoE/docs/publication_index.md) |
+| Set up the exporters or run a local export | [Development](#development) and [exporting data](#exporting-data) below |
+| Convert facts into PoBR runtime JSON | [Rust data adapter](tools/pobr-data-adapter/README.md) |
+| Inspect client resources and their provenance | [Client acquisition](RePoE/docs/client-sources.md) and [resource lookup](RePoE/docs/client-index.md) |
+| Find a domain's schema or validation limits | [Data contracts](#data-contracts) below |
 
-[`tools/pobr-data-adapter`](tools/pobr-data-adapter/README.md) is the Rust tool
-that turns these facts into PoBR's runtime JSON, with its domain policies. It
-moved here from PoBR and depends on PoBR's data types through a fixed tag.
-`mise run adapter:check` and `mise run adapter:keystones` run in CI.
+## Role in the PoBR ecosystem
 
-[`Complete owner publication index`](RePoE/docs/publication_index.md) bootstraps
-the six current RePoE roles from exact accepted records. Its offline API registers
-and validates immutable v2 declarations for downstream discovery. This local
-metadata step does not produce new data or perform remote publication.
+| Repository | Responsibility |
+| --- | --- |
+| **RePoE** | Client acquisition and decoding, raw facts and relationships, source evidence, and conversion into published game-data packages |
+| [poe2-zh-cn-stats](https://github.com/ackness/poe2-zh-cn-stats) | Language pairing, translation conflicts, reviewed supplements and runtime language files |
+| [PoBR](https://github.com/ackness/pobr) | Calculation rules, build import, player-facing workflows, and adoption of fixed data releases |
 
-### Verified delivery status (2026-11-03 UTC)
+Fix missing client facts here, language pairing in the translation repository, and calculation behavior in PoBR. The shared [data architecture](https://github.com/ackness/pobr/blob/master/docs/data-architecture.md) defines ownership; [data status](https://github.com/ackness/pobr/blob/master/docs/data-status.md) tracks current gaps.
 
-PR14's six-role publication index remains at sequence 1. PR17 and PR18 moved the
-PoBR domain adapter and policies here and corrected its published-input check;
-the [Verify exporters CI](https://github.com/ackness/repoe/actions/runs/41562702933)
-passed at their merged `6796b769`, including the Rust adapter checks.
-PoBR now records the consumed artifacts and owner declarations in its sole
-`pipeline/data.lock.json`. These code migrations did not advance the publication
-sequence or replace its artifacts. Role-specific revisions remain in the
-[current descriptor](publication/releases/poe2-international/1.json), separately
-from this source HEAD.
+## What is available
 
-Acquisition/version observation, fixed-source replay, partial native facts/CSD,
-inheritance and actor-template inventory, source verification, seven-table
-crafting facts and independent current/rollback artifacts are implemented.
-PoBR already consumes the corresponding fixed inputs through its ordinary
-schema-3 pipeline. This does not imply full client decoding or complete official
-semantics: actor template merging, charm packets, complete unique mod/roll/variant
-ownership and other retained fields still need evidence and consumer validation.
+| Layer | Contents | Consumer |
+| --- | --- | --- |
+| Client inputs | Explicit client resources, schema pins, acquisition receipts and resource digests | Exporters and source verification |
+| Native facts | DAT rows, passive graphs, gem and item identities, actor relationships, metadata and ordered CSD description branches | Domain adapters and the translation repository |
+| Game packages | PoBR runtime JSON, separately identified compatibility inputs and source receipts | PoBR's fixed-input pipeline |
+| Legacy exports | Stats, mods, base items, gems, classes, crafting and other upstream JSON formats | Existing PoE tooling |
 
-The index registers completed publications; it does not run the entire upstream
-acquisition/production/guard/upload/fresh-fetch sequence. A genuinely new complete
-publication and its downstream adoption remain a separate acceptance milestone.
-See the [shared current data status](https://github.com/ackness/pobr/blob/master/docs/data-status.md)
-for cross-repository gaps and priority. Offline CI is not a fresh-client export.
+Packages have different scopes. A successful facts export does not establish complete gameplay semantics. Localized text does not establish numerical equivalence between international and China realms. Some runtime fields still retain explicitly pinned PoB2 or community interpretations; the domain contracts record these limits.
 
-[`Historical official tree inputs`](RePoE/docs/official_tree_input.md) retain
-explicitly pinned original Git tree bytes in a separate two-member input package.
-The standard-library API/CLI is offline by default and does not apply consumer
-corrections, infer patch applicability or alter the ordinary DAT/PSG tree path.
+## Consume a publication
 
-[`Client acquisition`](RePoE/docs/client-sources.md) is owned and implemented here:
-[official PoE2 version observation](RePoE/docs/client-version.md), fixed-source
-replay/cache import, [unreviewed drafts](RePoE/docs/client-source-draft.md),
-[bounded index lookup and diagnostic inspection](RePoE/docs/client-index.md), and
-[offline source rebinding/verification](RePoE/docs/source-rebinding.md).
-Run `python -B -m RePoE.client_sources`, `RePoE.client_source_draft`,
-`RePoE.client_index`, `RePoE.client_version` or `RePoE.source_rebinding` with `--help`
-from this checkout. The matching mise tasks are `client:source`, `client:draft`,
-`client:locate`, `client:version` and `source:rebind`; they use the selected Python
-directly without environment setup. PoE2 parser default discovery uses the official
-TCP endpoint; explicit `--file` bypasses discovery, and PoE1 behavior is unchanged.
-The SDK uses the standard library and explicit package imports; native decoding
-requires a separately selected, fingerprinted external environment. Historical
-`pobr-*` wire names stay compatible. Acquisition and inspection do not approve a
-source or adopt active data; language production remains in the translation library.
+1. Read [`publication/index.json`](publication/index.json) at a fixed source commit.
+2. Fetch its descriptor using the declared full commit, path, byte length and SHA-256.
+3. Fetch the required component artifacts at their own fixed commits and verify their declared files and digests.
 
-Development uses mise + uv. `mise.toml` requests the latest stable Python and uv;
-the committed `mise.lock` selects exact versions. Refresh them explicitly with
-`mise lock --bump --platform linux-x64,macos-arm64 python uv`. Standard project
-metadata lives in `pyproject.toml`, and `uv.lock` fixes the resolved dependencies,
-including a full PyPoE Git revision. Run from this checkout after `mise trust` and
-`mise install --locked`:
+The index covers six roles: `game`, `crafting`, `ordinary`, `display_source`, `source_verifier` and `test_fixtures`. Individual roles may use different producer revisions. The source branch is a discovery entry point; its HEAD is not a data-package version.
+
+PoBR records adopted publications in `pipeline/data.lock.json`. Consumers of published JSON do not need Python, Rust, a client installation or a sibling checkout of this repository. Large artifacts live at `handoff/*` tags and may be absent from the default branch's working tree.
+
+See [publication ordering and validation](RePoE/docs/publication_index.md) and [packaging and artifact retention](RePoE/docs/data_publication.md). Index registration records completed deliveries; it does not collect a fresh client, produce data, upload artifacts or adopt them in PoBR.
+
+## Development
+
+Install [mise](https://mise.jdx.dev/) and run these commands from the repository root:
 
 ```sh
+mise trust
+mise install --locked
 mise bootstrap --only packages
 mise run setup
 mise run check
-mise run schema:candidate -- --out .cache/schema/example
 ```
 
-`setup` uses `uv sync --locked` to create `.venv`; its first run needs dependency
-downloads. The frozen Pillow dependency may build from source on a new Python;
-the bootstrap packages supply its required JPEG/zlib headers and Linux compiler.
-Keep any receipt-bound decoder environment unchanged; validate an upgrade in a
-separate directory with `UV_PROJECT_ENVIRONMENT=.cache/toolchain-python315 mise run setup`.
-PyPoE is a noneditable Git dependency, not a sibling checkout. `check`
-runs the offline lock check, fixed schema checksum, Ruff lint/format checks,
-regression tests and CLI smoke test. Pull requests and master pushes run that
-same check in a read-only GitHub Actions job after installing the locked tools,
-declared host packages and frozen dependencies. CI does not acquire a client,
-export production data, publish artifacts or change source acceptance. Passing
-these offline checks does not certify a real client or activate a PoBR package. `mise run test` and `mise run lint` are also
-available separately. Generated `RePoE/model/` files are excluded from regular
-lint/format; update them explicitly with `mise run models:generate -- [schema paths]`,
-which invokes the locked generator with Ruff formatting. The schema/model generator
-and PyPoE retain their own transitive dependencies; our workflow does not invoke
-Poetry, Flake8 or Black.
+`mise.lock` pins Python and uv; `uv.lock` pins Python dependencies, including PyPoE's full Git revision. `setup` creates `.venv` with `uv sync --locked`. First-time setup needs network access; Linux compiler/JPEG/zlib packages support the pinned Pillow release when a wheel is unavailable.
 
-The local PoE2 schema input and provenance are in [`schema/`](schema/README.md).
-`schema:candidate` creates a new, validated client-native candidate under `.cache/`,
-without modifying installed PyPoE files or downloading game resources. To explicitly
-try it against a selected client, use a separate output directory:
+`check` validates the dependency lock and schema checksum, runs Ruff and the offline regression suite, and checks the CLI. It does not download a client or publish data. Use `mise run test` or `mise run lint` for a narrower check.
+
+The Rust adapter is a separate Cargo workspace with its own lock and root `rust-toolchain.toml`:
 
 ```sh
-mise exec -- uv run --locked --offline repoe passives --poe2 \
-  --file /path/to/client --outdir .cache/exports/example \
-  --schema-candidate .cache/schema/example
+mise run adapter -- --help
+mise run adapter:check
+mise run adapter:keystones
 ```
 
-Candidate generation and verification require this source checkout, its locked
-environment and schema inputs; they are not a standalone wheel feature. Client
-decoding and each exporter module still need patch-specific validation. Existing
-modules may require further native field adaptation; generation success is not a
-full export or publication approval. The default CLI path retains the upstream
-specification for compatibility.
+The last command checks the published game package against its declared remote tag. CI runs both the Python checks and adapter checks. Generated `RePoE/model/` files are maintained explicitly with `mise run models:generate -- [schema paths]`.
 
-For a separate, offline eight-DAT + default-PSG facts candidate, use
-`mise run facts:candidate -- --source-lock <lock> --source <key> --raw <root> --out <new-dir>`.
-All inputs are explicit and raw bytes are verified in place. The versioned
-[`repoe-native-facts/v1` contract](RePoE/docs/native_facts.md) preserves every
-physical column plus passive/graph/class and quality relationships and diagnostics.
-This partial 0.5.5.5 candidate is not a production snapshot or runtime PoBR pack;
-it does not change the default exporter path or active data.
+## Exporting data
 
-The explicit `--profile core-skills-a0` option adds seven skill metadata/cost/level
-tables using the same producer and validator. Its
-[`repoe-native-facts/v2` contract](RePoE/docs/native_core_skills.md) retains all
-physical facts, ordered level context and acquisition status without inferring
-gameplay units or application rules. It remains a partial, non-production package.
-
-[`--profile gems-constraints-a1`](RePoE/docs/native_gems.md) expands the same native
-ingress to 39 DATs plus PSG. Its v3 facts retain item-based gem identity, nested
-effect order, raw requirements, support families and ordered constraint tokens.
-It does not select a playable subset or evaluate support/level/quality policy.
-
-The opt-in [`--profile items-actors-bc`](RePoE/docs/native_items_actors.md)
-extends the same native ingress to 77 DATs plus PSG. It preserves eight-slot
-modifiers, native item/component/socketable joins, constants and actor facts.
-It remains partial, unfiltered source inventory; units, complete metadata and
-playable catalogue/actor semantics are not certified.
-
-[`Item inheritance`](RePoE/docs/native_item_inheritance.md) exports a separate
-pinned `.it` closure with ordered raw fields and source spans. Its opt-in tag
-interpretation is identified as pinned community parser behavior, separately
-from official literal facts and direct DAT tags.
-
-[`Actor templates`](RePoE/docs/native_actor_templates.md) preserve selected
-`.ot`/`.otc` syntax, opaque event RHS and literal parent links. This separate
-offline candidate does not merge fields, evaluate effects or project mod lists.
-
-[`tables:candidate`](RePoE/docs/native_tables.md) exports an explicitly selected,
-pinned set of additional DAT tables with the same native reader. It preserves
-physical facts and unresolved foreign dependencies in a separately identified
-package, without regenerating or relabeling an earlier fact profile.
-An explicit `--language` exports localized DATs as `repoe-localized-tables/v1`,
-with exact locale paths and no English fallback; translation selection remains
-the translation repository's responsibility.
-
-The [description-relation observation](RePoE/docs/description_relations.md)
-preserves two exact table resources and one missing-resource diagnostic in an
-independent draft artifact. Empty/generic rows do not enable PoE2 formatters.
-
-[`Native crafting relationships`](RePoE/docs/native_crafting_facts.md) projects
-exactly seven pinned, already exported F77 tables into a separate neutral facts
-candidate. It preserves all physical EssenceMods relations, eight Mods stat slots,
-raw/hardmode endpoints and full input rows. Currency selection, outcome policy and
-runtime adoption remain consumer responsibilities; no new decoding is performed.
-
-[`descriptions:candidate`](RePoE/docs/native_descriptions.md) exports a separate
-selected CSD domain from explicitly pinned raw resources. It keeps every ordered
-branch, language declaration, restriction, handler token, include and suppression
-with UTF-16 byte spans. It does not use the legacy formatter, flatten overrides,
-select a translation or execute handlers. Join this domain to native numerical
-facts by game stat ID and exact game/patch/realm; international Simplified Chinese
-text does not establish CN-realm numerical equivalence.
-
-[`facts:player`](RePoE/docs/native_player_context.md) adds a separately pinned
-player-source context to the native v4 parent: complete starting-option and
-glossary tables plus ordered, lossless AO/OT metadata. Actor binding, stat merging
-and calculation formulas remain explicit PoBR responsibilities; this command
-does not allocate starting choices or promote a candidate to production.
-
-PoE2 `stat_translations` exports client descriptions by default, without querying
-the trade API. Optional trade text associations require an explicitly supplied,
-previously captured snapshot. It reads the existing
-[poe2-zh-cn-stats schema-1 snapshot format](https://github.com/ackness/poe2-zh-cn-stats/blob/main/src/sources.mjs)
-(`manifest.json` and `raw/trade-en.json.gz`), not translation worksheets. No sibling
-checkout, collector, API access or translation dependency is needed at runtime:
+For a legacy exporter, select a local client and a separate output directory:
 
 ```sh
-# Pure client descriptions:
+mise exec -- uv run --locked --offline repoe --help
 mise exec -- uv run --locked --offline repoe stat_translations --poe2 \
-  --file /path/to/local/client --outdir .cache/exports/client-only
-
-# Explicit English international text candidates; replace the digest with a
-# manifest.json SHA-256 from a trusted source lock:
-mise exec -- uv run --locked --offline repoe stat_translations --poe2 \
-  --file /path/to/local/client --outdir .cache/exports/trade-candidates \
-  --trade-snapshot /path/to/snapshot \
-  --trade-snapshot-sha256 'REPLACE_WITH_TRUSTED_MANIFEST_SHA256' --trade-realm international
+  --file /path/to/client --outdir .cache/exports/client-descriptions
 ```
 
-The expected manifest digest is optional; internal response checksums alone
-establish consistency, not authenticity. Snapshot validation precedes client
-loading, CDN discovery and output writes. Invalid or unsupported requested inputs
-fail without falling back to client-only export. English international input is
-the supported first slice; China, other languages and `--language all` with a
-trade snapshot are rejected. Client-only language exports retain their existing
-support. `stat_translations.provenance{,.min}.json` binds the consumed input bytes
-and produced output bytes. Text matches are candidates, not proof of game stat
-identity or calculation correctness. See the [description domain contract](RePoE/docs/stat_translations.md#poe2-offline-trade-candidates)
-for validation, scope, provenance and replay commands.
+PoE2 `stat_translations` reads client descriptions by default. Optional offline trade-text associations require an explicitly supplied snapshot; see the [description contract](RePoE/docs/stat_translations.md#poe2-offline-trade-candidates). `uv --offline` only controls dependency resolution: `--file` selects local client data, and other exporter modules may have their own network behavior.
 
-`uv --offline` controls package resolution only. Select a local client with
-`--file` to avoid client/CDN networking; other exporter modules may still have
-their own network behavior. This change does not certify real-client decoding,
-identify the client patch or refresh published/active data.
+Native exporters use explicit source locks and verified raw resources. For example:
 
-Passive export now reads every supplied stat slot, including zero and negative
-values, and rejects duplicate stat IDs or missing values instead of truncating
-or silently overwriting them. This is a general reader correction, not a table
-of hardcoded node values. It does not repair missing graph membership or geometry.
+```sh
+mise run facts:candidate -- --source-lock /path/to/source-lock.json \
+  --source SOURCE_KEY --raw /path/to/raw-resources --out .cache/facts/example
+```
 
-PoE2 augment export retains each regular and bonded stat's raw `value` and the
-category's stable `target_item_classes` IDs alongside the existing display fields.
-It rejects unequal stat/value arrays and duplicate base/category identities.
-See the [augment output contract](RePoE/docs/augments.md) for compatibility and
-offline fixture coverage; real-client and gameplay validation remain separate.
+The default native profile covers eight DAT tables and PSG. Opt-in `core-skills-a0`, `gems-constraints-a1` and `items-actors-bc` profiles expand the exported facts; their contracts specify the inputs, schema and limits. For other domains, use the matching [contract](#data-contracts) rather than treating a partial profile as a complete game snapshot.
 
-The original RePoE documentation follows.
+Client decoding uses a separately selected, fingerprinted environment. Keep receipt-bound environments unchanged; test toolchain upgrades in a separate environment. [`schema/`](schema/README.md) documents the fixed schema and candidate workflow.
 
-Forked from [brather1ng/RePoE](https://github.com/brather1ng/RePoE).
+## Repository layout
 
-Contains data about stats, mods, base items, gems and more. See the `data`
-folder for those files and the `docs` folder for their documentation.
+```text
+RePoE/parser/                 Upstream PoE1 and PoE2 exporters
+RePoE/native_*.py             Native facts, descriptions and metadata exporters
+RePoE/client_*.py             Client discovery, acquisition and resource lookup
+RePoE/source_rebinding.py     Offline source verification
+RePoE/docs/                   Domain formats and producer contracts
+schema/                       Pinned decoding schema and provenance
+tools/pobr-data-adapter/      Rust runtime-data adapter and domain policies
+publication/index.json        Current owner-publication discovery entry point
+publication/releases/         Ordered publication descriptors
+tests/                        Offline Python regressions
+.cache/                       Local candidates and intermediate exports
+RePoE/data/                   Default legacy export directory; ignored by Git
+```
 
-For the actual GGPK parsing, [PyPoE](https://github.com/Project-Path-of-Exile-Wiki/PyPoE) is used,
-with a specification generated from the [schema](https://github.com/poe-tool-dev/dat-schema)
-provided by poe-tool-dev.
+## Data contracts
 
-Developed to supply [PoESkillTree](https://github.com/PoESkillTree/PoESkillTree) with the
-game data information it requires. If you need other files converted, feel free to
-open an Issue or Pull Request for that. The source data files can be inspected with
-[poe-dat-viewer](https://snosme.github.io/poe-dat-viewer/).
+| Topic | Documentation |
+| --- | --- |
+| Client acquisition and patch observation | [Sources](RePoE/docs/client-sources.md), [version](RePoE/docs/client-version.md), [drafts](RePoE/docs/client-source-draft.md), [lookup](RePoE/docs/client-index.md), [verification](RePoE/docs/source-rebinding.md) |
+| Native skills and gems | [Base facts](RePoE/docs/native_facts.md), [core skills](RePoE/docs/native_core_skills.md), [gem constraints](RePoE/docs/native_gems.md) |
+| Items and actors | [Item/actor facts](RePoE/docs/native_items_actors.md), [item inheritance](RePoE/docs/native_item_inheritance.md), [actor templates](RePoE/docs/native_actor_templates.md), [player context](RePoE/docs/native_player_context.md) |
+| Descriptions and languages | [CSD branches](RePoE/docs/native_descriptions.md), [supplemental/localized tables](RePoE/docs/native_tables.md), [description relationships](RePoE/docs/description_relations.md) |
+| Crafting and trees | [Crafting facts](RePoE/docs/native_crafting_facts.md), [historical official trees](RePoE/docs/official_tree_input.md) |
+| PoBR runtime conversion | [Adapter modes](tools/pobr-data-adapter/README.md) and [domain policies](tools/pobr-data-adapter/policies/README.md) |
+| Legacy JSON formats | [Stats](RePoE/docs/stats.md), [mods](RePoE/docs/mods.md), [items](RePoE/docs/base_items.md), [gems](RePoE/docs/gems.md), [augments](RePoE/docs/augments.md), and [other domain files](RePoE/docs) |
 
-## Cross-repository contract
+## Upstream and credits
 
-The shared target architecture and ownership rules live in
-[PoBR data architecture](https://github.com/ackness/pobr/blob/master/docs/data-architecture.md).
-This repository owns raw client decoding, faithful facts/relationships and provenance,
-and the domain conversion into PoBR's runtime JSON (`tools/pobr-data-adapter` and its
-`policies/`). PoBR owns Rust calculation semantics, parser rules and player workflows.
-The [translation repository](https://github.com/ackness/poe2-zh-cn-stats) owns language
-pairing and curation, not numerical stat identity. Repair exporter omissions here,
-then hand consumers the fixed producer revision, schema, artifact digest, patch/realm,
-changed fields and actual validation limits. A merged exporter or verified byte replay
-does not approve a source or activate a PoBR runtime package.
+This fork derives from [repoe-fork/RePoE](https://github.com/repoe-fork/RePoE) and [brather1ng/RePoE](https://github.com/brather1ng/RePoE), originally developed for PoESkillTree. Client parsing uses [PyPoE](https://github.com/Project-Path-of-Exile-Wiki/PyPoE) and the [poe-tool-dev DAT schema](https://github.com/poe-tool-dev/dat-schema).
 
-## Files
-
-When running locally generated json data is exported to ./RePoE/data/. Each file has a
-formatted and a compact version. The formatted versions complement their descriptions
-in the [RePoE/docs](RePoE/docs) folder.
-
-For hosted data exports see the
-[gh-pages](https://repoe-fork.github.io/) index.
-
-Note that the file formats are not final, they may change at any time, e.g. when the format
-of files in the GGPK changes.
-
-The following data is currently available:
-
-- `stats.json`: Describes stat ids. Defines whether they are local and whether they
-  are aliased depending on main-hand or off-hand.
-- `mods.json`: Describes mod ids. Defines which items they can appear on and what
-  stats with what values they have.
-- `crafting_bench_options.json`: Describes master crafting options. Defines which
-  masters can craft them at which level on which items.
-- `npc_master.json`: Describes the master's signature mods and on which items they
-  can appear.
-- `gems.json`: Describes skill gems and skill gem effects only provided by mods.
-- `gem_tags.json`: Simple object that contains all gem tags with their internal id as
-  keys and their translation as value.
-- `base_items.json`: Describes base item types. Contains information applicable to
-  all item types, e.g. inventory size, item class and tags, as well as attribute
-  requirements and properties.
-- `tags.json`: Lists all possible item tags. These are the tags used in `base_items.json` and 
-  `mods.json`.
-- `item_classes.json`: Defines the item class ids and the tags added to items when they are
-  Shaper/Elder items.
-- `augments.json` (PoE2): Describes socketable augments with raw regular/bonded
-  stat values, stable target item class IDs and display text; see
-  [the output documentation](RePoE/docs/augments.md).
-- `essences.json`: Describes essences. Defines the mods they spawn on items of the different
-  item classes and general information like level and tier.
-- `default_monster_stats.json`: Describes the stat base values of monsters at specific levels.
-- `characters.json`: Describes the stat base values of the different player character classes.
-- `flavour.json`: Table containing the flavour text used throughout the game.
-- `fossils.json`: Describes fossils. Defines the mods they spawn, the tags they affect, and 
-  auxiliary effects of the fossils.
-- `mod_types.json`: Describes the types of mods with sell price information and the tags
-  relevant for fossil crafting.
-- `cluster_jewels.json`: Describes how cluster jewels can be generated and how they influence the passive tree. 
-- `cluster_jewel_notables.json`: Lists the notable and keystone passive skills that can appear on cluster jewels.
-- `cost_types.json`: Defines the resource cost types used in `gems.json`.
-- `active_skill_types.json`: List the active skill types used in `gems.json`.
-- `uniques.json`: Lists the names and art files of unique items - this is the only information
-included in the data files.
-- `mercenary_builds.json`: Describes mercenary builds with their skill pools, extra stats and weapon types. Infamous builds are their own entries, marked `is_infamous`.
-- `mercenary_classes.json`: Describes mercenary classes with their house, attribute and monster varieties.
-- `mercenary_skills.json`: Describes mercenary skills keyed by granted effect id, with their possible supports and per-level data.
-- `mercenary_supports.json`: Describes mercenary supports with their tier, family, stats and stat text.
-- `mercenary_flavour_text.json`: Lists mercenary flavour text with the tag weights that select it.
-
-## Credits
-
-- [Grinding Gear Games](http://www.grindinggear.com/) for [Path of Exile](https://www.pathofexile.com/).
-  The contents of all `data` files obviously belong to them.
-- [OmegaK2](https://github.com/OmegaK2/) for [PyPoE](https://github.com/OmegaK2/PyPoE).
-- [Project PoE Wiki](https://www.poewiki.net/) for updating PyPoE to handle the latest data format.
-- [Path of Exile Tool Devs](https://github.com/poe-tool-dev/) for maintaining a standardised
-  data schema.
+Code licensing is recorded in [LICENSE.md](LICENSE.md); schema attribution is in [schema/](schema/README.md). Path of Exile game data belongs to Grinding Gear Games. Published source and generated data retain their respective upstream rights.
