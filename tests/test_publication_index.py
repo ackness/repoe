@@ -1,6 +1,9 @@
-"""Small synthetic metadata regressions; no data archives, checkout or network."""
+"""Small synthetic metadata regressions; no real archives, checkout or network.
+
+The `origin` of artifact tests is a local bare repository."""
 
 from copy import deepcopy
+import io
 import json
 import os
 from pathlib import Path
@@ -9,6 +12,7 @@ import subprocess
 import tempfile
 import unittest
 from unittest.mock import patch
+import zipfile
 
 from RePoE import publication_index as pub
 
@@ -439,6 +443,136 @@ class PublicationIndexTests(unittest.TestCase):
         with self.assertRaisesRegex(ValueError, "exists"):
             pub.bootstrap(self.accepted, out)
         self.assertEqual(before, out.read_bytes())
+
+    def origin(self):
+        """A local bare `origin`, so tag listing runs without network."""
+        origin = self.root / "origin.git"
+        if not origin.exists():
+            self.git("init", "--bare", str(origin), outside=True)
+            self.git("remote", "add", "origin", str(origin))
+        return origin
+
+    def tree(self, files):
+        """Nested Git trees for {path: raw}; returns the root tree oid."""
+        nodes = {}
+        for path, raw in files.items():
+            *parents, name = path.split("/")
+            node = nodes
+            for part in parents:
+                node = node.setdefault(part, {})
+            node[name] = self.git("hash-object", "-w", "--stdin", data=raw)
+
+        def write(node):
+            entries = []
+            for name, child in sorted(node.items()):
+                if isinstance(child, dict):
+                    entries.append(f"040000 tree {write(child)}\t{name}\0")
+                else:
+                    entries.append(f"100644 blob {child}\t{name}\0")
+            return self.git("mktree", "-z", data="".join(entries).encode())
+
+        return write(nodes)
+
+    def artifact(self, name, *, tag=True, members=None):
+        """Commit a handoff ZIP and return its complete role declaration."""
+        # Compressible content keeps expanded_bytes above the archive size, as in real packages.
+        data = b"0" * 4096
+        manifest = pub.encoded({"schema": "synthetic/v1", "files": {"data.json": pub.pin(data)}})
+        members = members or {"manifest.json": manifest, "data.json": data}
+        stream = io.BytesIO()
+        with zipfile.ZipFile(stream, "w", zipfile.ZIP_DEFLATED) as archive:
+            for member, raw in members.items():
+                info = zipfile.ZipInfo(member, (2000, 1, 1, 0, 0, 0))
+                info.compress_type = zipfile.ZIP_DEFLATED
+                archive.writestr(info, raw)
+        raw = stream.getvalue()
+        path = f"handoff/{name}/data.zip"
+        rev = self.git("commit-tree", self.tree({path: raw}), "-m", f"Synthetic artifact {name}")
+        if tag:
+            self.origin()
+            self.git("push", "-q", "origin", f"{rev}:refs/tags/handoff/{name}")
+        return {
+            "repository": pub.OWNER,
+            "revision": rev,
+            "publication": "published",
+            "path": path,
+            **pub.pin(raw),
+            "manifest": pub.pin(members["manifest.json"]),
+            "expanded_bytes": sum(len(body) for body in members.values()),
+        }
+
+    def changed(self, first, role, declaration):
+        value = deepcopy(self.descriptor)
+        value["sequence"], value["previous"] = 2, first["head"]
+        value["components"][role] = {"sequence": 2, "input": declaration}
+        return value
+
+    def test_later_sequence_registers_from_verified_artifacts_without_accepted_records(self):
+        first = self.register()
+        digest = pub.pin(self.index.read_bytes())["sha256"]
+        declaration = self.artifact("game-next")
+        value = self.changed(first, "game", declaration)
+        index = pub.register(self.repo, self.commit(value), self.index, expected_index_sha256=digest)
+        self.assertEqual(index["sequence"], 2)
+        self.assertEqual(pub.validate_index(index, self.repo)["components"]["game"]["input"], declaration)
+
+    def test_artifact_verification_rejects_untagged_wrong_and_unreachable_inputs(self):
+        first = self.register()
+        before = self.index.read_bytes()
+        digest = pub.pin(before)["sha256"]
+        good = self.artifact("good")
+        twice = self.artifact("twice")
+        self.git("push", "-q", "origin", f"{twice['revision']}:refs/tags/handoff/twice-alias")
+        bad_size = dict(good, expanded_bytes=good["expanded_bytes"] + 1)
+        bad_manifest = dict(good, manifest=pub.pin(b"other manifest"))
+        bad_bytes = dict(good, sha256="0" * 64)
+        cases = [
+            ("game", self.artifact("untagged", tag=False), "exactly one handoff"),
+            ("game", twice, "exactly one handoff"),
+            ("game", dict(good, revision="f" * 40), "exactly one handoff"),
+            ("game", bad_size, "Expanded size"),
+            ("game", bad_manifest, "manifest pin"),
+            ("game", bad_bytes, "pin mismatch"),
+        ]
+        verifier = deepcopy(self.accepted["inputs"]["source_verifier"])
+        verifier["revision"] = self.git("commit-tree", self.tree({"RePoE/x.py": b"x"}), "-m", "Off branch")
+        verifier["files"] = {"RePoE/x.py": pub.pin(b"x")}
+        cases.append(("source_verifier", verifier, "default branch"))
+        for role, declaration, message in cases:
+            with self.subTest(message=message), self.assertRaisesRegex(ValueError, message):
+                head = self.commit(self.changed(first, role, declaration))
+                pub.register(self.repo, head, self.index, expected_index_sha256=digest)
+            self.assertEqual(before, self.index.read_bytes())
+        self.git("update-ref", pub.DEFAULT_BRANCH, verifier["revision"])
+        head = self.commit(self.changed(first, "source_verifier", verifier))
+        self.assertEqual(pub.register(self.repo, head, self.index, expected_index_sha256=digest)["sequence"], 2)
+
+    def test_draft_inherits_unchanged_roles_and_its_output_registers(self):
+        first = self.register()
+        digest = pub.pin(self.index.read_bytes())["sha256"]
+        declaration = self.artifact("draft-game")
+        unchanged = self.descriptor["components"]["ordinary"]["input"]
+        out = self.root / "publication/releases/poe2-international/2.json"
+        value = pub.draft(self.repo, self.index, {"game": declaration, "ordinary": unchanged}, out)
+        self.assertEqual(json.loads(out.read_bytes()), value)
+        self.assertEqual(value["previous"], first["head"])
+        self.assertEqual({r: c["sequence"] for r, c in value["components"].items() if c["sequence"] != 1}, {"game": 2})
+        index = pub.register(self.repo, self.commit(value), self.index, expected_index_sha256=digest)
+        self.assertEqual(index["sequence"], 2)
+        for inputs, destination, message in [
+            ({"unknown": declaration}, self.root / "publication/releases/poe2-international/3.json", "Unknown role"),
+            ({"game": declaration}, self.root / "publication/releases/poe2-international/9.json", "No new role"),
+            ({"game": self.artifact("third")}, self.root / "3.json", "releases/<game>-<realm>"),
+            ({"game": self.artifact("fourth", tag=False)}, out.with_name("3.json"), "exactly one handoff"),
+        ]:
+            with self.subTest(message=message), self.assertRaisesRegex(ValueError, message):
+                pub.draft(self.repo, self.index, inputs, destination)
+            self.assertFalse(destination.exists())
+
+    def test_sequence_one_still_requires_the_accepted_bootstrap_records(self):
+        with self.assertRaisesRegex(ValueError, "accepted record"):
+            pub.register(self.repo, self.commit(), self.index)
+        self.assertFalse(self.index.exists())
 
     def test_current_bootstrap_has_exact_current_role_revisions(self):
         path = ROOT / "publication/releases/poe2-international/1.json"

@@ -18,10 +18,11 @@ that turns these facts into PoBR's runtime JSON, with its domain policies. It
 moved here from PoBR and depends on PoBR's data types through a fixed tag.
 `mise run adapter:check` and `mise run adapter:keystones` run in CI.
 
-[`Complete owner publication index`](RePoE/docs/publication_index.md) bootstraps
-the six current RePoE roles from exact accepted records. Its offline API registers
-and validates immutable v2 declarations for downstream discovery. This local
-metadata step does not produce new data or perform remote publication.
+[`Complete owner publication index`](RePoE/docs/publication_index.md) bootstrapped
+the six current RePoE roles from exact accepted records. Its API drafts, registers
+and validates immutable v2 declarations for downstream discovery; a later sequence
+verifies each changed role's artifact against local Git objects and its
+`handoff/*` tag on origin. This metadata step does not produce new data or push.
 
 ### Verified delivery status (2026-11-03 UTC)
 
