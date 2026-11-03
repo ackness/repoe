@@ -18,17 +18,22 @@ repository or checkout. Data archives are not committed to the source branch.
 
 The current discovery surface is the [six-role v2 publication index](publication_index.md),
 not the historical `0.5.5.5-handoffs.json` or a source branch timestamp. The
-current index is sequence 2 after the [fork-history migration](history.md).
+current index is sequence 3; sequence 2 was the [fork-history migration](history.md).
 Its immutable descriptor preserves
 per-role revisions; PoBR freezes them in its own complete composition.
 
-The current `game` and separate required `crafting` inputs are published at
-the commit recorded by the current descriptor, under
-`handoff/native-crafting-20261101/`. The game part omits the processed crafting
-catalog; the neutral [seven-table crafting facts](native_crafting_facts.md) are
-projected by PoBR. Combined with the independently pinned language and PoBR rules,
-they restore snapshot `73b2d77e...` / runtime `dba0615e...`; full expectations are
-consumer-owned in PoBR's `pipeline/data.lock.json`, not inferred by this publisher.
+Sequence 3 publishes the current `game` input,
+`handoff/game-crafting-20261103/game-build-part.zip` at
+`c804bfc764da2cb9eebcb6d418744e09bf5c005d`. It is the sequence 2 game part
+(`handoff/native-crafting-20261101/`) plus `trade_crafting_sources.json`, which
+the [PoBR special-currency catalog](pobr_crafting_catalog.md) projects from the
+unchanged `crafting` input, the neutral
+[seven-table crafting facts](native_crafting_facts.md). PoBR imports that file as
+part of the game part and no longer reads the crafting facts. Combined with the
+independently pinned language and PoBR rules, the parts restore snapshot
+`73b2d77e...` / runtime `dba0615e...`, the same identities as sequence 2; full
+expectations are consumer-owned in PoBR's `pipeline/data.lock.json`, not inferred
+by this publisher.
 
 The current six roles additionally include ordinary input, localized display
 source, source-verifier code and historical API fixtures. Role completeness is

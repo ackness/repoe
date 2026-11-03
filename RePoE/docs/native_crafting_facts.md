@@ -121,9 +121,10 @@ completed candidate, and it cannot be overwritten by a retry.
 
 ## Consumer and historical boundary
 
-PoBR owns currency prefixes, essence/alloy labels, UI selection, aggregation,
-text rendering, numerical interpretation and any Mod/OutcomeMods fallback. This
-export does not certify official crafting eligibility, success probabilities,
+This export carries no currency prefixes, essence/alloy labels, aggregation or
+Mod/OutcomeMods choice. Those consumer policies live in the separate
+[PoBR catalog projection](pobr_crafting_catalog.md); PoBR keeps text rendering and
+numerical interpretation. This export does not certify official crafting eligibility, success probabilities,
 craft coexistence or runtime adoption. A self-consistent manifest does not
 accept a source or update global locks or CURRENT.
 

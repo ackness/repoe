@@ -123,7 +123,7 @@ RePoE/data/                   Default legacy export directory; ignored by Git
 | Native skills and gems | [Base facts](RePoE/docs/native_facts.md), [core skills](RePoE/docs/native_core_skills.md), [gem constraints](RePoE/docs/native_gems.md) |
 | Items and actors | [Item/actor facts](RePoE/docs/native_items_actors.md), [item inheritance](RePoE/docs/native_item_inheritance.md), [actor templates](RePoE/docs/native_actor_templates.md), [player context](RePoE/docs/native_player_context.md) |
 | Descriptions and languages | [CSD branches](RePoE/docs/native_descriptions.md), [supplemental/localized tables](RePoE/docs/native_tables.md), [description relationships](RePoE/docs/description_relations.md) |
-| Crafting and trees | [Crafting facts](RePoE/docs/native_crafting_facts.md), [historical official trees](RePoE/docs/official_tree_input.md) |
+| Crafting and trees | [Crafting facts](RePoE/docs/native_crafting_facts.md), [PoBR crafting catalog](RePoE/docs/pobr_crafting_catalog.md), [historical official trees](RePoE/docs/official_tree_input.md) |
 | PoBR runtime conversion | [Adapter modes](tools/pobr-data-adapter/README.md) and [domain policies](tools/pobr-data-adapter/policies/README.md) |
 | Legacy JSON formats | [Stats](RePoE/docs/stats.md), [mods](RePoE/docs/mods.md), [items](RePoE/docs/base_items.md), [gems](RePoE/docs/gems.md), [augments](RePoE/docs/augments.md), and [other domain files](RePoE/docs) |
 
