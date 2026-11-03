@@ -9,7 +9,7 @@ Source acquisition and publication happen in this repository's exporters.
 | `actors/` | Minion/spectre records, prepared compatibility and skill links |
 | `base-items/` | Inherited tags and retained base-item fields |
 | `stat-descriptions/` | Description rendering, relational lookups and diagnostics |
-| `passive-tree/`, `tree-corrections/` | Tree compatibility templates and the exact historical orphan quarantine |
+| `passive-tree/`, `tree-corrections/` | Tree compatibility templates, pinned historical attribute selector repair and the exact historical orphan quarantine |
 | `skill-codec/`, `skill-overrides/`, `skill-stat-map/` | Skill branches, stat sets and explicitly retained mappings |
 | [gem-quality/](gem-quality/README.md) | Target quality facts and the preserved effect-wide interpretation |
 | `runtime-constants/`, `boss-poise/`, `unarmed/` | Explicit constants, representative presets and unarmed facts |

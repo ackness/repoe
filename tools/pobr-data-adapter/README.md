@@ -17,7 +17,7 @@ PoBR changes a runtime type, create a new tag there and bump all five entries in
 
 | Configuration | Owner |
 |---|---|
-| The 31 JSON domain policies in `policies/` | RePoE; all moved byte-for-byte with the adapter |
+| JSON domain policies in `policies/` | RePoE; original policies moved byte-for-byte, later corrections are reviewed here |
 | `Cargo.toml`, `Cargo.lock`, Rust toolchain, adapter tasks and CI | RePoE; the PoBR engine-crate tag is an explicit dependency |
 | Runtime data types, Rust calculation rules and the eleven owned shared rule/config files | PoBR |
 | Language pairing, reviewed supplements and display projections | The translation repository |
@@ -34,6 +34,12 @@ The separate special-currency catalog projector, including currency prefixes and
 selection/aggregation policy, now runs in RePoE (`mise run publication:crafting-catalog`,
 see [RePoE/docs/pobr_crafting_catalog.md](../../RePoE/docs/pobr_crafting_catalog.md));
 the game part carries the projected catalog.
+
+The bounded [historical attribute selector projection](../../RePoE/docs/pobr_historical_trees.md)
+also runs in RePoE (`mise run publication:historical-trees`). It repairs the four
+byte-pinned retained `base/passive_trees/0_1..0_4.json` trees using a reviewed
+identity policy, without reviving the retired Lua extractor or reading a consumer
+snapshot/vendor. It produces a local game-part candidate, not an index update.
 
 ## Commands
 

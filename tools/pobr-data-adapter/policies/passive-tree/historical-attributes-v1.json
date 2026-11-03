@@ -1,0 +1,124 @@
+{
+  "schema": "pobr-historical-attribute-selectors/v1",
+  "target": {
+    "game": "poe2",
+    "game_patch": "0.5.5.5",
+    "realm": "international"
+  },
+  "game_input": {
+    "bytes": 4411146,
+    "expanded_bytes": 64550349,
+    "manifest": {
+      "bytes": 10606,
+      "sha256": "34c75f0646fc44b067aa26190995d9f5ab518b713b31465fafc16c16f89e5c07"
+    },
+    "path": "handoff/game-crafting-20261103/game-build-part.zip",
+    "publication": "published",
+    "repository": "ackness/repoe",
+    "revision": "c804bfc764da2cb9eebcb6d418744e09bf5c005d",
+    "sha256": "09824050a7a0552a2feea7ff4f29454fed7028b2a6ea8535792d7eff8c333639"
+  },
+  "versions": {
+    "0_1": {
+      "input": {
+        "bytes": 552789,
+        "sha256": "861042ea66f2e9252c571192e2b4f7fcbb5e58049344a5cbd20195ca63b76dd7"
+      },
+      "nodes": 3149,
+      "selectors": 288,
+      "selector_ids": {
+        "bytes": 1695,
+        "sha256": "19a5c9d1b679093a2df4d8544c0199ad979c18fce28a8a8f78c464f22f2e1353"
+      }
+    },
+    "0_2": {
+      "input": {
+        "bytes": 607893,
+        "sha256": "bdf47e023ed4e7b4ebc284e5c426fc8497e2de1e7fc1c9b87ca88dcc0a0c8b43"
+      },
+      "nodes": 3404,
+      "selectors": 300,
+      "selector_ids": {
+        "bytes": 1764,
+        "sha256": "6d0889159472bde593cdf53863c2efe01bdfb031a44579b805088ace7e408395"
+      }
+    },
+    "0_3": {
+      "input": {
+        "bytes": 745706,
+        "sha256": "da6ea9249d6a4d84756e3ca7a0abddbce9c87258323fa99c892dc4f0650e63a8"
+      },
+      "nodes": 4118,
+      "selectors": 293,
+      "selector_ids": {
+        "bytes": 1723,
+        "sha256": "44d39f651262d21813f4da8b4334fa80c7d070eaa1e784bac3ef79b376742a90"
+      }
+    },
+    "0_4": {
+      "input": {
+        "bytes": 862059,
+        "sha256": "798630f4d3c4131a113e9611f509ceb85146a92cba36fea7d9b1780924d77f1a"
+      },
+      "nodes": 4701,
+      "selectors": 293,
+      "selector_ids": {
+        "bytes": 1723,
+        "sha256": "44d39f651262d21813f4da8b4334fa80c7d070eaa1e784bac3ef79b376742a90"
+      }
+    }
+  },
+  "evidence": {
+    "scope": "Reviewed historical compatibility correction, not a new vendor producer or current-client certification. Only game_input is a runtime source. The following immutable references explain the original loss; replay never opens them.",
+    "selector_binding": "The sorted skill IDs of nodes named Attribute in each exact input equal the historical isAttribute=true identity set. Every such historical node has top-level stats=[+5 to any Attribute] and nested Strength/Dexterity/Intelligence options. selector_ids pins UTF-8 compact JSON of that sorted integer array plus LF.",
+    "defect": "tree_versions.rs:105 calls parse_string_array(node_block, stats={). tree_variants.rs:231-234 calls balanced_block; tree_coords.rs:195-197 uses the first substring match without checking nesting. It reads options[1].stats, not the later top-level stats. The source already had correct generic attribute text.",
+    "extractor": {
+      "repository": "ackness/pobr",
+      "revision": "7793f93b0a0b9e5172a19811b4af856b5b7538f1",
+      "files": {
+        "tools/pobr-data-adapter/src/tree_versions.rs": {
+          "bytes": 7700,
+          "sha256": "ab00a50a78a98484d323a30048e692a48d72e20f0d2437602cc67fd03e30a1a0"
+        },
+        "tools/pobr-data-adapter/src/tree_variants.rs": {
+          "bytes": 16490,
+          "sha256": "c2f407a85892350ceced290cffc93729002075e17ce49578bd8ae483d553d1bc"
+        },
+        "tools/pobr-data-adapter/src/tree_coords.rs": {
+          "bytes": 21125,
+          "sha256": "0a2fb8f4d79bfa7b0b90d85b97970c8d27992376ebff52a52161c75286b010a9"
+        }
+      }
+    },
+    "historical_cross_check": {
+      "repository": "PathOfBuildingCommunity/PathOfBuilding-PoE2",
+      "revision": "bb52d6b368307457eb9c54bb13f1829993d390b1",
+      "files": {
+        "src/TreeData/0_1/tree.lua": {
+          "bytes": 1478216,
+          "sha256": "7563402656e7b9b9bb1f2a05df55be6923fa0cbfd06bda3a8dc45f970e29805f"
+        },
+        "src/TreeData/0_2/tree.lua": {
+          "bytes": 1618999,
+          "sha256": "da0f08bc57c3c222508b928997ad1f070324246b59c37964b7a81f4d95f3a7bc"
+        },
+        "src/TreeData/0_3/tree.lua": {
+          "bytes": 1929126,
+          "sha256": "7b0a1b8cde5607d76daf3cec28092825b22715b2a631e120f0defb3bb54e40c7"
+        },
+        "src/TreeData/0_4/tree.lua": {
+          "bytes": 2488914,
+          "sha256": "69c1a14ef4e94477a81ad7aa565826c52a383911e82bead57d772c87776ceaa4"
+        }
+      }
+    },
+    "official_cross_check": {
+      "repository": "grindinggear/poe2-skilltree-export",
+      "revision": "bd87e6512c92b868542eddfb1ba4ea8b6dc2da36",
+      "path": "data.json",
+      "sha256": "b52be9c4f17e4114064255ef1b8c58292e9db0e395d95af235a8d3fef0d44642",
+      "scope": "Nodes 1200 (attributes70) and 11741 (intelligence74) have isGenericAttribute=true and +5 to any [Attributes|Attribute]. Corroboration only, not historical membership or patch substitution."
+    },
+    "retention": "publication/0.5.5.5-game.plan.json retained all four defective files byte-for-byte from the extractor-era snapshot. Later owner game packages preserved those same pins. Keep that original plan and accepted publication index unchanged."
+  }
+}
