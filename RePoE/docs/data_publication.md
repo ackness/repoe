@@ -108,6 +108,12 @@ retains original pinned `data.json` bytes under `repoe-official-tree-input/v1`.
 It uses the same package/handoff pins and local bare staging helper. Its exact
 two-member ZIP is independent of both ordinary and game package plans below.
 
+The [historical attribute selector projector](pobr_historical_trees.md) repairs
+the reviewed selector identities in the four retained historical trees from the
+exact owner game part. It emits the same local package/handoff contract, with
+original provenance and before/after tree pins, without Lua, consumer snapshot
+inputs, accepted-index changes or automatic publication.
+
 ## Historical v1 package surfaces
 
 The ordinary package has root `manifest.json`, schema
