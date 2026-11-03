@@ -82,16 +82,12 @@ All three schema-declared OTC candidates lack matches in the selected fixed inde
 These are bounded observed facts, not complete directory-name evidence, numerical
 effect certification, acquisition acceptance, or a mod-list migration.
 
-## Recovering the observed draft
+## Replaying the observed draft
 
-The immutable handoff is recorded in
-[`publication/actor-templates-0.5.5.5-draft.json`](../../publication/actor-templates-0.5.5.5-draft.json).
-It pins the RePoE repository, full artifact revision, archive path, byte length,
-SHA-256, expanded size and top-level manifest. The source branch contains only
-code and publication metadata; the complete data archive is on the separate
-RePoE artifact ref. Publication does not change its draft acquisition status.
-
-The archive has schema `repoe-actor-template-source-package/v1`. Authenticate its
+The draft publication record was retired: it was never adopted, and nothing
+consumes the archive. The historical record stays in Git history. The archive
+had schema `repoe-actor-template-source-package/v1`; the replay below describes
+what it contained and still applies to a saved copy. Authenticate its
 outer archive and exact `manifest.json.files` inventory before extracting it to
 a fresh temporary directory. `raw/` contains all six acquired resources;
 `facts/` contains the corrected producer's three output files. Original receipts,

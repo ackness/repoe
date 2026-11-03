@@ -33,12 +33,12 @@ to wildcard member 1; suffixes `_1` through `_9` are not fixed raw enum values.
 No complete support-name mapping or PoE2 formatter contract was established.
 All 13 scoped consumer gaps remain open; no runtime handler is enabled.
 
-## Recovery
+## Replaying the observation
 
-[`publication/description-relations-0.5.5.5-draft.json`](../../publication/description-relations-0.5.5.5-draft.json)
-pins the RePoE artifact repository, full revision, ZIP path, bytes/SHA-256,
-top-level manifest and expanded size. The source branch contains metadata and
-this contract; complete raw/fact data stays on the separate RePoE artifact ref.
+The draft publication record was retired: it was never adopted, and nothing
+consumes the archive. The historical record stays in Git history. A saved copy
+has schema `repoe-description-relation-observation-package/v1`; the replay
+below still applies to it.
 
 Authenticate the ZIP and exact `manifest.json.files` inventory before extracting
 to a fresh temporary directory. The archive schema is

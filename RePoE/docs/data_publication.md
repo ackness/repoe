@@ -162,15 +162,12 @@ procedural context pins. Its 15 relocated references authenticate, but changed
 upstream context keeps `guard_eligible=false`. This metadata is outside both
 runtime package plans and does not update source acceptance or runtime bytes.
 
-The metadata-only `publication/0.5.5.4.2-recovery.json` records the initial exact
-recovery inventory and the coordinator's subsequent publication of separate
-game/language rollback artifacts. The coordinator also reported successful
-offline restoration of the previous runtime. Full acquisition pins belong to
-its rollback lock; short status prefixes in the inventory are not import pins.
-This does not add official-source certification. PoBR has since adopted the
-current fixed external composition and removed complete tracked snapshots;
-future source acceptance and local/runtime selection remain explicit consumer
-operations, separate from this publisher.
+The 0.5.5.4.2 recovery record and its separate game/language rollback
+artifacts are retired: PoBR now keeps a single active version and no longer
+installs a second snapshot. The historical record stays in Git history. PoBR
+has since adopted the current fixed external composition and removed complete
+tracked snapshots; future source acceptance and local/runtime selection remain
+explicit consumer operations, separate from this publisher.
 
 ## Verification
 

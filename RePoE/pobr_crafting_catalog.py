@@ -378,7 +378,7 @@ def main(argv=None):
     build.add_argument("--repo", type=Path, default=ROOT)
     build.add_argument("--index", type=Path, default=ROOT / "publication/index.json")
     build.add_argument("--sequence", type=int, help="Source sequence (default: the index head)")
-    build.add_argument("--name", required=True, help="Handoff name, e.g. game-crafting-20261102")
+    build.add_argument("--name", required=True, help="Handoff name, e.g. game-crafting-20261103")
     build.add_argument("--out", type=Path, required=True)
     declare = sub.add_parser("game-input", help="Print the index game input of a staged handoff")
     declare.add_argument("--package", type=Path, required=True)
