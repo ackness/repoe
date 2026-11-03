@@ -23,13 +23,15 @@ the six current RePoE roles from exact accepted records. Its offline API registe
 and validates immutable v2 declarations for downstream discovery. This local
 metadata step does not produce new data or perform remote publication.
 
-### Verified delivery status (2026-11-02 UTC)
+### Verified delivery status (2026-11-03 UTC)
 
-Default `master` is `aa737740`; PR14's six-role publication index is merged at
-sequence 1. Its [Verify exporters CI](https://github.com/ackness/repoe/actions/runs/41391367870)
-passed. The index declarations match PoBR's current build/ordinary/display locks;
-a fresh local index validation also passed without generating data or fetching raw
-resources. Role-specific artifact revisions remain in the
+PR14's six-role publication index remains at sequence 1. PR17 and PR18 moved the
+PoBR domain adapter and policies here and corrected its published-input check;
+the [Verify exporters CI](https://github.com/ackness/repoe/actions/runs/41562702933)
+passed at their merged `6796b769`, including the Rust adapter checks.
+PoBR now records the consumed artifacts and owner declarations in its sole
+`pipeline/data.lock.json`. These code migrations did not advance the publication
+sequence or replace its artifacts. Role-specific revisions remain in the
 [current descriptor](publication/releases/poe2-international/1.json), separately
 from this source HEAD.
 
@@ -44,7 +46,7 @@ ownership and other retained fields still need evidence and consumer validation.
 The index registers completed publications; it does not run the entire upstream
 acquisition/production/guard/upload/fresh-fetch sequence. A genuinely new complete
 publication and its downstream adoption remain a separate acceptance milestone.
-See the [shared current architecture](https://github.com/ackness/pobr/blob/master/docs/data-architecture.md#5-当前已有数据与实际缺口)
+See the [shared current data status](https://github.com/ackness/pobr/blob/master/docs/data-status.md)
 for cross-repository gaps and priority. Offline CI is not a fresh-client export.
 
 [`Historical official tree inputs`](RePoE/docs/official_tree_input.md) retain
