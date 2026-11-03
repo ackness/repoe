@@ -28,9 +28,10 @@ The file also records the old and new annotated tag objects and their targets.
 Four artifact tags inherited the pre-fork history and were moved once as part
 of this explicit migration:
 
-- `handoff/mac-fk-targets-20261101`
+- `handoff/mac-fk-targets-20261101` (since retired; no live lock names it)
 - `handoff/native-crafting-20261101`
-- `handoff/rollback-0.5.5.4.2-20261101`
+- `handoff/rollback-0.5.5.4.2-20261101` (since retired with the 0.5.5.4.2
+  rollback)
 - `handoff/windows-sc-20261101`
 
 Their files, archive bytes, SHA-256 values and manifest contents are unchanged.

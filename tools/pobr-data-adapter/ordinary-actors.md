@@ -281,8 +281,8 @@ effects.
 
 ### Observed three-root OT draft
 
-RePoE's [pinned publication metadata](https://github.com/ackness/repoe/blob/a933f61d0096910e5e7808edce4aa0b1a980db64/publication/actor-templates-0.5.5.5-draft.json)
-now records six observed OT resources, 11,172 raw bytes, for three exact varieties.
+RePoE's [actor-template contract](https://github.com/ackness/repoe/blob/master/RePoE/docs/native_actor_templates.md)
+records six observed OT resources, 11,172 raw bytes, for three exact varieties.
 BearCompanion (row 1722) and LivingLightning (row 2309) extend
 PlayerFollowingMinionBase, then PlayerSummonedMinionBase and Monster;
 SummonedRagingSpirit (row 30) extends PlayerSummonedMinionBase and Monster.
