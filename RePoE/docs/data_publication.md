@@ -17,12 +17,13 @@ repository or checkout. Data archives are not committed to the source branch.
 ## Current accepted composition
 
 The current discovery surface is the [six-role v2 publication index](publication_index.md),
-not the historical `0.5.5.5-handoffs.json` or a source branch timestamp. PR14 is
-merged and the current index is sequence 1. Its immutable descriptor preserves
+not the historical `0.5.5.5-handoffs.json` or a source branch timestamp. The
+current index is sequence 2 after the [fork-history migration](history.md).
+Its immutable descriptor preserves
 per-role revisions; PoBR freezes them in its own complete composition.
 
 The current `game` and separate required `crafting` inputs are published at
-`2c664da43c2cc850e98a4fdba0e875a0acd5c3b1`, under
+the commit recorded by the current descriptor, under
 `handoff/native-crafting-20261101/`. The game part omits the processed crafting
 catalog; the neutral [seven-table crafting facts](native_crafting_facts.md) are
 projected by PoBR. Combined with the independently pinned language and PoBR rules,

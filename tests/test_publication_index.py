@@ -457,7 +457,9 @@ class PublicationIndexTests(unittest.TestCase):
     def test_history_migration_changes_locations_without_changing_artifact_pins(self):
         migration = json.loads((ROOT / "publication/history-rewrite-20261103.json").read_bytes())
         before = pub.decode(pub.read_metadata(ROOT / "publication/releases/poe2-international/1.json"))
-        after = pub.validate_descriptor(pub.decode(pub.read_metadata(ROOT / "publication/releases/poe2-international/2.json")))
+        after = pub.validate_descriptor(
+            pub.decode(pub.read_metadata(ROOT / "publication/releases/poe2-international/2.json"))
+        )
         self.assertEqual(after["sequence"], before["sequence"] + 1)
         previous = after["previous"]
         self.assertEqual(pub.git_blob(ROOT, previous), pub.read_metadata(ROOT / previous["path"]))
