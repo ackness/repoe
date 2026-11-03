@@ -7,7 +7,7 @@ branch only locates this index; it does not imply that all data was generated at
 that source revision. Each role keeps its own existing artifact/code revision.
 
 The current descriptor is
-[`publication/releases/poe2-international/1.json`](../../publication/releases/poe2-international/1.json).
+[`publication/releases/poe2-international/2.json`](../../publication/releases/poe2-international/2.json).
 The old `publication/0.5.5.5-handoffs.json` remains historical v1 evidence: its
 `e00695a9...` game and absent crafting are unsuitable as the current complete head.
 Every original artifact commit must remain fetchable for exact current and
@@ -18,9 +18,15 @@ Index registration does not rename, delete or republish them.
 
 ## Current delivery
 
-PR14 is merged into `master` (`aa737740`) and sequence 1 is published. PoBR's
+Sequence 2 migrates retrieval locations after the [fork-history cut](history.md).
+The game, crafting, display-source and verifier inputs retain their file bytes
+and digests at new commit IDs; the original sequence-1 declaration remains
+historical evidence. The history map resolves its old producer identities.
+Consumers must use the current index and the updated PoBR data lock.
+
+The original bootstrap published sequence 1. PoBR's
 `pipeline/data.lock.json` records this index revision and its original
-`154913f4...` descriptor commit, together with the translation owner's publication.
+descriptor commit, together with the translation owner's publication.
 The exact-head exporter CI and downstream PoBR Full validation have passed at
 their recorded revisions; index validation is not a rerun of those checks.
 A new upstream production/publication sequence has not been established by this

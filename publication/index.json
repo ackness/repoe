@@ -6,7 +6,7 @@
   "head": {
     "bytes": 4746,
     "path": "publication/releases/poe2-international/1.json",
-    "revision": "154913f41a9a57491d01098e988adaa17ca67140",
+    "revision": "be3cad95b20463b420e9bc6c4d294201e1385192",
     "sha256": "6fe94764dd39270d1f5b3139b4c8c5a0b798f140b3e95b4ecdc474fd4c7d3bdd"
   },
   "schema": "owned-data-publication-index/v2",

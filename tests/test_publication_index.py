@@ -454,6 +454,27 @@ class PublicationIndexTests(unittest.TestCase):
         }
         self.assertEqual({r: c["input"]["revision"] for r, c in value["components"].items()}, expected)
 
+    def test_history_migration_changes_locations_without_changing_artifact_pins(self):
+        migration = json.loads((ROOT / "publication/history-rewrite-20261103.json").read_bytes())
+        before = pub.decode(pub.read_metadata(ROOT / "publication/releases/poe2-international/1.json"))
+        after = pub.validate_descriptor(pub.decode(pub.read_metadata(ROOT / "publication/releases/poe2-international/2.json")))
+        self.assertEqual(after["sequence"], before["sequence"] + 1)
+        previous = after["previous"]
+        self.assertEqual(pub.git_blob(ROOT, previous), pub.read_metadata(ROOT / previous["path"]))
+        changed = set()
+        for role, old in before["components"].items():
+            actual = after["components"][role]
+            expected = deepcopy(old)
+            revision = old["input"]["revision"]
+            expected["input"]["revision"] = migration["commits"].get(revision, revision)
+            if expected["input"] != old["input"]:
+                expected["sequence"] += 1
+                changed.add(role)
+            self.assertEqual(actual, expected)
+        self.assertEqual(changed, {"game", "crafting", "display_source", "source_verifier"})
+        self.assertEqual(after["scope"], before["scope"])
+        self.assertEqual(after["target"], before["target"])
+
 
 if __name__ == "__main__":
     unittest.main()

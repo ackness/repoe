@@ -127,6 +127,8 @@ RePoE/data/                   Default legacy export directory; ignored by Git
 
 ## Upstream and credits
 
+The repository starts at the retained upstream fork snapshot. See [history and clone size](RePoE/docs/history.md) for the one-time history cut, commit mapping and existing-checkout migration.
+
 This fork derives from [repoe-fork/RePoE](https://github.com/repoe-fork/RePoE) and [brather1ng/RePoE](https://github.com/brather1ng/RePoE), originally developed for PoESkillTree. Client parsing uses [PyPoE](https://github.com/Project-Path-of-Exile-Wiki/PyPoE) and the [poe-tool-dev DAT schema](https://github.com/poe-tool-dev/dat-schema).
 
 Code licensing is recorded in [LICENSE.md](LICENSE.md); schema attribution is in [schema/](schema/README.md). Path of Exile game data belongs to Grinding Gear Games. Published source and generated data retain their respective upstream rights.
