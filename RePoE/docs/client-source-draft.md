@@ -122,3 +122,10 @@ For an already acquired facts package with separately accepted replacement
 evidence, [draft rebinding and portable ordinary input](source-rebinding.md)
 produces a fresh scope/evidence proposal without collecting again or admitting
 the source. Historical manifests and receipts remain immutable.
+
+The reviewed raw-material ledger lives at
+[`sources/sources.lock.json`](../../sources/sources.lock.json): the admitted
+`sources` entries these commands consume and the bounded
+`acquisition_acceptances` decisions that admitted exact observed bytes. See
+[its README](../../sources/README.md) for the recorded decisions and the
+ownership boundary with PoBR's retained-input acceptances.
