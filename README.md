@@ -47,6 +47,8 @@ PoBR records adopted publications in `pipeline/data.lock.json`. Consumers of pub
 
 See [publication ordering and validation](RePoE/docs/publication_index.md) and [packaging and artifact retention](RePoE/docs/data_publication.md). Index registration records completed deliveries; it does not collect a fresh client, produce data, upload artifacts or adopt them in PoBR.
 
+For later publication sequences, the registration API checks each changed artifact against local Git objects and its `handoff/*` tag on origin. It can draft the next descriptor while retaining unchanged roles; see the publication contract for those commands.
+
 ## Development
 
 Install [mise](https://mise.jdx.dev/) and run these commands from the repository root:
