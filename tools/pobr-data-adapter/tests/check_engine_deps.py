@@ -19,8 +19,14 @@ import tomllib
 from pathlib import Path
 
 ADAPTER = Path(__file__).resolve().parents[1]
-POBR_SOURCE = "git+https://github.com/ackness/pobr"
+SELF = "pobr-data-adapter"
 ALLOWED = {"pobr-data"}
+
+
+def is_pobr_crate(name: str) -> bool:
+    # Match by name, not source URL, so a [patch] or path override of an engine
+    # crate cannot slip past the check.
+    return name.startswith("pobr-") and name != SELF
 
 
 def fail(message: str) -> SystemExit:
@@ -28,7 +34,7 @@ def fail(message: str) -> SystemExit:
 
 
 def normal_pobr_crates() -> set[str]:
-    out = subprocess.run(
+    result = subprocess.run(
         [
             "cargo",
             "tree",
@@ -45,23 +51,26 @@ def normal_pobr_crates() -> set[str]:
             "{p}",
         ],
         cwd=ADAPTER,
-        check=True,
         capture_output=True,
         text=True,
-    ).stdout
+    )
+    if result.returncode != 0:
+        raise fail(f"cargo tree failed ({result.returncode}):\n{result.stderr.strip()}")
+    out = result.stdout
     lines = [line for line in out.splitlines() if line.strip()]
-    if not lines or not lines[0].startswith("pobr-data-adapter "):
+    if not lines or not lines[0].startswith(f"{SELF} "):
         raise fail(f"unexpected cargo tree output: {out[:200]!r}")
-    return {line.split()[0] for line in lines if "github.com/ackness/pobr" in line}
+    return {name for name in (line.split()[0] for line in lines[1:]) if is_pobr_crate(name)}
 
 
-def locked_pobr_sources() -> dict[str, str]:
+def locked_pobr_packages() -> list[tuple[str, str]]:
+    """Every PoBR package in Cargo.lock as (name, source), duplicates kept."""
     lock = tomllib.loads((ADAPTER / "Cargo.lock").read_text(encoding="utf-8"))
-    return {
-        package["name"]: package["source"]
+    return sorted(
+        (package["name"], package.get("source", "<path>"))
         for package in lock.get("package", [])
-        if package.get("source", "").startswith(POBR_SOURCE)
-    }
+        if is_pobr_crate(package["name"])
+    )
 
 
 def main() -> None:
@@ -73,12 +82,14 @@ def main() -> None:
             "the normal dependency tree must contain exactly pobr-data among PoBR crates"
             f" (extra: {extra}, missing: {missing}); move engine crates to [dev-dependencies]"
         )
-    sources = locked_pobr_sources()
-    if len(set(sources.values())) != 1:
-        listing = "\n".join(f"  {name}: {source}" for name, source in sorted(sources.items()))
-        raise fail(f"PoBR crates in Cargo.lock must share one tag and commit:\n{listing}")
-    (source,) = set(sources.values())
-    print(f"engine-deps: normal PoBR dependency is pobr-data only; {len(sources)} PoBR crates at {source}")
+    packages = locked_pobr_packages()
+    names = [name for name, _ in packages]
+    sources = {source for _, source in packages}
+    if len(sources) != 1 or len(names) != len(set(names)):
+        listing = "\n".join(f"  {name}: {source}" for name, source in packages)
+        raise fail(f"PoBR crates in Cargo.lock must share one tag and commit, one copy each:\n{listing}")
+    (source,) = sources
+    print(f"engine-deps: normal PoBR dependency is pobr-data only; {len(packages)} PoBR crates at {source}")
 
 
 if __name__ == "__main__":
