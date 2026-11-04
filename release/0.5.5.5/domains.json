@@ -1,0 +1,347 @@
+{
+  "schema": "repoe-release-domains/v1",
+  "target": {
+    "game": "poe2",
+    "game_patch": "0.5.5.5",
+    "realm": "international"
+  },
+  "manifest": {
+    "mode": "retain-if-identical"
+  },
+  "jobs": [
+    {
+      "id": "stat-descriptions",
+      "kind": "adapter",
+      "domain": "stat-descriptions",
+      "facts": "rebound",
+      "options": {
+        "--codec-source": "ordinary:stat-descriptions/codec-source/stat_descriptions.json",
+        "--codec-policy": "policy:stat-descriptions/0.5.5.5-plain-display-policy.json",
+        "--item-descriptions": "ordinary:stat-descriptions/item-descriptions/descriptions.json",
+        "--supplement": "ordinary:stat-descriptions/supplement"
+      },
+      "outputs": {
+        "overlay/stat_descriptions.json": "data/0.5.5.5/overlay/stat_descriptions.json"
+      }
+    },
+    {
+      "id": "passive-tree",
+      "kind": "adapter",
+      "domain": "passive-tree",
+      "facts": "rebound",
+      "options": {
+        "--codec-source": "ordinary:passive-tree/codec-source/passive_tree.json",
+        "--codec-policy": {
+          "policy": "policy:passive-tree/0.5.5.5-tree-policy.template.json",
+          "bindings": "ordinary:retained-policy-bindings/passive-tree-v4.json",
+          "rebind": [
+            "base_policy",
+            "target",
+            "facts_manifest_sha256"
+          ],
+          "expect": {
+            "bytes": 1624833,
+            "sha256": "260ba2dc372d2cf941ef98ae712813fed784ad8eafe129a793f9b6f18cecb40a"
+          }
+        },
+        "--tree-reference": "ordinary:passive-tree/tree-reference/official-tree-bd87e651.json",
+        "--tree-descriptions": "ordinary:passive-tree/tree-descriptions/descriptions.json",
+        "--supplement": "ordinary:passive-tree/supplement"
+      },
+      "outputs": {
+        "base/passive_tree.json": "data/0.5.5.5/base/passive_tree.json",
+        "base/passive_tree_meta.json": "data/0.5.5.5/base/passive_tree_meta.json"
+      }
+    },
+    {
+      "id": "base-items",
+      "kind": "adapter",
+      "domain": "base-items",
+      "facts": "rebound",
+      "options": {
+        "--codec-source": "ordinary:base-items/codec-source/base_item_overrides.json",
+        "--codec-policy": "policy:base-items/0.5.5.5-inherited-tags-policy.json",
+        "--supplement": "ordinary:base-items/supplement"
+      },
+      "outputs": {
+        "base/base_items.json": "data/0.5.5.5/base/base_items.json",
+        "overlay/base_item_overrides.json": "data/0.5.5.5/overlay/base_item_overrides.json"
+      }
+    },
+    {
+      "id": "minions",
+      "kind": "adapter",
+      "domain": "minions",
+      "facts": "rebound",
+      "options": {
+        "--codec-source": "ordinary:minions/codec-source/minions.json",
+        "--codec-policy": {
+          "policy": "policy:actors/0.5.5.5-minions-prepared-policy.json",
+          "rebind": [
+            "target",
+            "facts_manifest_sha256"
+          ],
+          "expect": {
+            "bytes": 5736,
+            "sha256": "89cb0101e04786f7376c3a5b2690521eb8aeb0f2618c2a04ab5513ed42562462"
+          }
+        },
+        "--supplement": "ordinary:minions/supplement"
+      },
+      "outputs": {
+        "overlay/minions.json": "data/0.5.5.5/overlay/minions.json"
+      }
+    },
+    {
+      "id": "spectres",
+      "kind": "adapter",
+      "domain": "spectres",
+      "facts": "rebound",
+      "options": {
+        "--codec-source": "ordinary:spectres/codec-source/spectres.json",
+        "--codec-policy": {
+          "policy": "policy:actors/0.5.5.5-spectres-prepared-policy.json",
+          "rebind": [
+            "target",
+            "facts_manifest_sha256"
+          ],
+          "expect": {
+            "bytes": 5719,
+            "sha256": "7df6de2b1879f02262e880141c6f3a47a172ae28d0278e597f162377ee41d097"
+          }
+        },
+        "--supplement": "ordinary:spectres/supplement"
+      },
+      "outputs": {
+        "overlay/spectres.json": "data/0.5.5.5/overlay/spectres.json"
+      }
+    },
+    {
+      "id": "skill-overrides",
+      "kind": "adapter",
+      "domain": "skill-overrides",
+      "facts": "rebound",
+      "options": {
+        "--codec-source": "ordinary:skill-overrides/codec-source/skill_overrides.json",
+        "--codec-policy": {
+          "policy": "policy:skill-overrides/0.5.5.5-implicit-ownership-policy.json",
+          "rebind": [
+            "target",
+            "facts_manifest_sha256"
+          ],
+          "expect": {
+            "bytes": 7797,
+            "sha256": "5d25a3c015623008936bc403c6b950d5bc302846c566f38af10f6cd469d693dc"
+          }
+        },
+        "--branch-codec": "ordinary:skill-overrides/branch-codec/stat_set_labels.json"
+      },
+      "outputs": {
+        "overlay/skill_overrides.json": "data/0.5.5.5/overlay/skill_overrides.json"
+      }
+    },
+    {
+      "id": "monster-scaling",
+      "kind": "adapter",
+      "domain": "monster-scaling",
+      "facts": "original",
+      "outputs": {
+        "base/monster_scaling.json": "data/0.5.5.5/base/monster_scaling.json"
+      }
+    },
+    {
+      "id": "stats-mods",
+      "kind": "adapter",
+      "domain": "stats-mods",
+      "facts": "original",
+      "outputs": {
+        "base/stats.json": "data/0.5.5.5/base/stats.json",
+        "base/mods.json": "data/0.5.5.5/base/mods.json"
+      }
+    },
+    {
+      "id": "skills",
+      "kind": "adapter",
+      "domain": "skills",
+      "facts": "original",
+      "outputs": {
+        "base/cost_types.json": "data/0.5.5.5/base/cost_types.json",
+        "base/granted_effect_levels.json": "data/0.5.5.5/base/granted_effect_levels.json",
+        "base/granted_effect_stat_sets.json": "data/0.5.5.5/base/granted_effect_stat_sets.json",
+        "base/granted_effects.json": "data/0.5.5.5/base/granted_effects.json",
+        "base/skill_gems.json": "data/0.5.5.5/base/skill_gems.json"
+      }
+    },
+    {
+      "id": "monster-resistances",
+      "kind": "adapter",
+      "domain": "monster-resistances",
+      "facts": "original",
+      "outputs": {
+        "base/monster_resistances.json": "data/0.5.5.5/base/monster_resistances.json"
+      }
+    },
+    {
+      "id": "totem-varieties",
+      "kind": "adapter",
+      "domain": "totem-varieties",
+      "facts": "original",
+      "outputs": {
+        "overlay/totem_varieties.json": "data/0.5.5.5/overlay/totem_varieties.json"
+      }
+    },
+    {
+      "id": "gem-effects",
+      "kind": "adapter",
+      "domain": "gem-effects",
+      "facts": "original",
+      "options": {
+        "--codec-source": "legacy:data/0.5.5.4.2/overlay/gem_effects.json",
+        "--codec-policy": "policy:skill-codec/0.5.5.5-gem-effects-policy.json"
+      },
+      "outputs": {
+        "overlay/gem_effects.json": "data/0.5.5.5/overlay/gem_effects.json"
+      }
+    },
+    {
+      "id": "stat-set-codec",
+      "kind": "adapter",
+      "domain": "stat-set-codec",
+      "facts": "original",
+      "passthrough": "Emits the PoB2-derived 0.5.5.4.2 codec source verbatim after verifying it against the target facts; content is still legacy (it also equals ordinary:skill-overrides/branch-codec/stat_set_labels.json).",
+      "options": {
+        "--codec-source": "legacy:data/0.5.5.4.2/overlay/stat_set_labels.json",
+        "--codec-policy": "policy:skill-codec/0.5.5.5-legacy-stat-set-policy.json"
+      },
+      "outputs": {
+        "overlay/stat_set_labels.json": "data/0.5.5.5/overlay/stat_set_labels.json"
+      }
+    },
+    {
+      "id": "skill-stat-map",
+      "kind": "adapter",
+      "domain": "skill-stat-map",
+      "facts": "original",
+      "passthrough": "Emits the PoB2-derived 0.5.5.4.2 interpretation map verbatim after verifying its branch-codec identity; content is still legacy.",
+      "options": {
+        "--codec-source": "legacy:data/0.5.5.4.2/overlay/skill_stat_map.json",
+        "--codec-policy": "policy:skill-stat-map/0.5.5.5-legacy-policy.json",
+        "--branch-codec": "legacy:data/0.5.5.4.2/overlay/stat_set_labels.json"
+      },
+      "outputs": {
+        "overlay/skill_stat_map.json": "data/0.5.5.5/overlay/skill_stat_map.json"
+      }
+    },
+    {
+      "id": "granted-effect-minions",
+      "kind": "adapter",
+      "domain": "granted-effect-minions",
+      "facts": "original",
+      "passthrough": "Emits the PoB2-derived 0.5.5.4.2 minion links payload unchanged after verifying the target granted effects; only _meta is re-stamped.",
+      "options": {
+        "--codec-source": "legacy:data/0.5.5.4.2/overlay/granted_effect_minions.json",
+        "--codec-policy": "policy:actors/0.5.5.5-minion-links-policy.json"
+      },
+      "outputs": {
+        "overlay/granted_effect_minions.json": "data/0.5.5.5/overlay/granted_effect_minions.json"
+      }
+    },
+    {
+      "id": "gem-quality",
+      "kind": "adapter",
+      "domain": "gem-quality",
+      "facts": "original",
+      "options": {
+        "--quality-policy": "policy:gem-quality/0.5.5.5-publication-policy.json"
+      },
+      "outputs": {
+        "overlay/gem_quality_stats.json": "data/0.5.5.5/overlay/gem_quality_stats.json"
+      }
+    },
+    {
+      "id": "boss-poise",
+      "kind": "adapter",
+      "domain": "boss-poise",
+      "facts": "original",
+      "options": {
+        "--catalog-policy": "policy:boss-poise/0.5.5.5-preset-policy.json"
+      },
+      "outputs": {
+        "overlay/boss_poise_thresholds.json": "data/0.5.5.5/overlay/boss_poise_thresholds.json"
+      }
+    },
+    {
+      "id": "runtime-constants",
+      "kind": "adapter",
+      "domain": "runtime-constants",
+      "facts": "original",
+      "options": {
+        "--codec-source": "legacy:data/0.5.5.4.2/manifest.json",
+        "--codec-policy": "policy:runtime-constants/0.5.5.5-with-ailments-policy.json"
+      },
+      "outputs": {
+        "base/character_constants.json": "data/0.5.5.5/base/character_constants.json",
+        "base/game_constants.json": "data/0.5.5.5/base/game_constants.json",
+        "base/jewel_radii.json": "data/0.5.5.5/base/jewel_radii.json",
+        "base/non_damaging_ailments.json": "data/0.5.5.5/base/non_damaging_ailments.json"
+      }
+    },
+    {
+      "id": "socketables",
+      "kind": "adapter",
+      "domain": "socketables",
+      "facts": "original",
+      "options": {
+        "--codec-source": "legacy:data/0.5.5.4.2/overlay/runes.json",
+        "--codec-policy": "policy:socketables/0.5.5.5-policy.json",
+        "--item-descriptions": "ordinary:passive-tree/tree-descriptions/descriptions.json"
+      },
+      "outputs": {
+        "overlay/runes.json": "data/0.5.5.5/overlay/runes.json"
+      }
+    },
+    {
+      "id": "special-derived",
+      "kind": "special-derived",
+      "tree": "job:passive-tree:base/passive_tree.json",
+      "outputs": {
+        "generated/special_derived.json": "data/0.5.5.5/generated/special_derived.json"
+      }
+    },
+    {
+      "id": "historical-trees",
+      "kind": "historical-trees",
+      "policy": "policy:passive-tree/historical-attributes-v1.json",
+      "trees": {
+        "0_1": "legacy:data/0.5.5.4.2/base/passive_trees/0_1.json",
+        "0_2": "legacy:data/0.5.5.4.2/base/passive_trees/0_2.json",
+        "0_3": "legacy:data/0.5.5.4.2/base/passive_trees/0_3.json",
+        "0_4": "legacy:data/0.5.5.4.2/base/passive_trees/0_4.json"
+      },
+      "outputs": {
+        "base/passive_trees/0_1.json": "data/0.5.5.5/base/passive_trees/0_1.json",
+        "base/passive_trees/0_2.json": "data/0.5.5.5/base/passive_trees/0_2.json",
+        "base/passive_trees/0_3.json": "data/0.5.5.5/base/passive_trees/0_3.json",
+        "base/passive_trees/0_4.json": "data/0.5.5.5/base/passive_trees/0_4.json"
+      }
+    },
+    {
+      "id": "crafting-catalog",
+      "kind": "crafting-catalog",
+      "package": "crafting",
+      "outputs": {
+        "overlay/trade_crafting_sources.json": "data/0.5.5.5/overlay/trade_crafting_sources.json"
+      }
+    },
+    {
+      "id": "snapshot-manifest",
+      "kind": "snapshot-manifest",
+      "passthrough": "Only the file pins of members are regenerated; schema_version, languages, domains and the i18n/ pins are the template's (the reference package's own snapshot manifest).",
+      "template": "previous:data/0.5.5.5/manifest.json",
+      "external": [
+        "i18n/"
+      ],
+      "member": "data/0.5.5.5/manifest.json"
+    }
+  ]
+}

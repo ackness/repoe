@@ -49,3 +49,4 @@ jobs:
         run: mise run adapter:check
       - name: Keystone rules match the published game package
         run: mise run adapter:keystones
+
