@@ -70,6 +70,12 @@ new release therefore runs the check on the new package. To check a candidate
 before publishing it, pass
 `--pin <file>` with `{revision, path, bytes, sha256[, tag]}`.
 
+## Assembling a package
+
+Each domain run produces one domain candidate. `mise run release:build` runs every
+declared domain against pinned inputs and assembles the complete game part; see
+[RELEASING.md](../../RELEASING.md).
+
 ## Reading the moved documents
 
 The mode documents were written in PoBR and keep their wording. In this
