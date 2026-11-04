@@ -8,7 +8,7 @@ published packages through its `pipeline/data.lock.json`.
 
 It is a standalone Cargo workspace inside this Python repository. PoBR's data
 types come from the immutable, non-release tag `engine-crates/20261102` of
-`ackness/pobr` (`pobr-data`, `pobr-core`, `pobr-gamedata`; `pobr-item` and
+`ackness/pobr` (`pobr-data`, `pobr-core`; `pobr-gamedata`, `pobr-item` and
 `pobr-tree` for tests). `Cargo.lock` pins the resolved commit `174ca6fb`. When
 PoBR changes a runtime type, create a new tag there and bump all five entries in
 `Cargo.toml` together; never move an existing tag.

@@ -14,7 +14,6 @@ description = "Adapts pinned RePoE facts and PoBR domain policies into PoBR's ru
 [dependencies]
 pobr-data = { git = "https://github.com/ackness/pobr", tag = "engine-crates/20261102" }
 pobr-core = { git = "https://github.com/ackness/pobr", tag = "engine-crates/20261102" }
-pobr-gamedata = { git = "https://github.com/ackness/pobr", tag = "engine-crates/20261102" }
 serde = { version = "1", features = ["derive"] }
 # Raw PSG coordinates must round-trip exactly; the default parser can shift one ULP.
 serde_json = { version = "1", features = ["float_roundtrip"] }
@@ -25,6 +24,7 @@ sha2 = { version = "0.11", default-features = false }
 rustix = { version = "1.1", features = ["fs"] }
 
 [dev-dependencies]
+pobr-gamedata = { git = "https://github.com/ackness/pobr", tag = "engine-crates/20261102" }
 pobr-item = { git = "https://github.com/ackness/pobr", tag = "engine-crates/20261102" }
 pobr-tree = { git = "https://github.com/ackness/pobr", tag = "engine-crates/20261102" }
 
