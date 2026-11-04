@@ -208,7 +208,7 @@
       "kind": "adapter",
       "domain": "stat-set-codec",
       "facts": "original",
-      "note": "Verbatim pass-through of the PoB2-derived 0.5.5.4.2 codec source, verified against target facts; content is still legacy.",
+      "passthrough": "Emits the PoB2-derived 0.5.5.4.2 codec source verbatim after verifying it against the target facts; content is still legacy (it also equals ordinary:skill-overrides/branch-codec/stat_set_labels.json).",
       "options": {
         "--codec-source": "legacy:data/0.5.5.4.2/overlay/stat_set_labels.json",
         "--codec-policy": "policy:skill-codec/0.5.5.5-legacy-stat-set-policy.json"
@@ -222,7 +222,7 @@
       "kind": "adapter",
       "domain": "skill-stat-map",
       "facts": "original",
-      "note": "Verbatim pass-through of the PoB2-derived 0.5.5.4.2 interpretation map with verified branch-codec identity; content is still legacy.",
+      "passthrough": "Emits the PoB2-derived 0.5.5.4.2 interpretation map verbatim after verifying its branch-codec identity; content is still legacy.",
       "options": {
         "--codec-source": "legacy:data/0.5.5.4.2/overlay/skill_stat_map.json",
         "--codec-policy": "policy:skill-stat-map/0.5.5.5-legacy-policy.json",
@@ -237,6 +237,7 @@
       "kind": "adapter",
       "domain": "granted-effect-minions",
       "facts": "original",
+      "passthrough": "Emits the PoB2-derived 0.5.5.4.2 minion links payload unchanged after verifying the target granted effects; only _meta is re-stamped.",
       "options": {
         "--codec-source": "legacy:data/0.5.5.4.2/overlay/granted_effect_minions.json",
         "--codec-policy": "policy:actors/0.5.5.5-minion-links-policy.json"
@@ -335,6 +336,7 @@
     {
       "id": "snapshot-manifest",
       "kind": "snapshot-manifest",
+      "passthrough": "Only the file pins of members are regenerated; schema_version, languages, domains and the i18n/ pins are the template's (the reference package's own snapshot manifest).",
       "template": "previous:data/0.5.5.5/manifest.json",
       "external": [
         "i18n/"

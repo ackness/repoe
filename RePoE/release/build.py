@@ -7,9 +7,11 @@ Python projections declared in ``release/<patch>/domains.json``. Every other
 member is copied from a package named in ``frozen-inputs.json``. The result is
 ``game-build-part.zip`` plus ``receipt.json`` under ``.cache/release/``.
 
-Each member is classified against the reference package of the lock:
-``generated-identical``, ``generated-different``, ``generated-new`` or
-``frozen``. See RELEASING.md.
+Each member has a provenance: ``generated`` (a producer derived it),
+``passthrough`` (a producer emitted the payload of one of its own inputs, or
+the snapshot manifest carried template fields over) or ``frozen`` (copied).
+Generated and passthrough members are further compared with the reference
+package of the lock (``-identical``, ``-different``, ``-new``). See RELEASING.md.
 """
 
 import argparse
@@ -58,6 +60,8 @@ PAIRED = {
 }
 DIRECTORY_OPTIONS = {"--supplement", "--player-context"}
 BUSINESS = ("base/", "overlay/", "generated/")
+PROVENANCE = ("generated", "passthrough", "frozen")
+CLASSES = tuple(f"{p}-{c}" for p in PROVENANCE[:2] for c in ("identical", "different", "new")) + ("frozen", "missing")
 KINDS = {"adapter", "special-derived", "historical-trees", "crafting-catalog", "snapshot-manifest"}
 CODE = (
     "RePoE/release/build.py",
@@ -132,6 +136,11 @@ def load_config(config):
         require(job.get("kind") in KINDS, f"Unknown job kind: {job.get('kind')}")
         require(isinstance(job.get("id"), str) and job["id"] not in seen, f"Invalid/duplicate job id: {job.get('id')}")
         seen.add(job["id"])
+        if "passthrough" in job:
+            require(
+                isinstance(job["passthrough"], str) and job["passthrough"].strip(),
+                f"{job['id']}: passthrough must state why the job carries input content over",
+            )
         if job["kind"] == "adapter":
             require(job["facts"] in FACTS_IDENTITIES, f"{job['id']}: facts must be one of {FACTS_IDENTITIES}")
             require(set(job.get("options", {})) <= set(PAIRED), f"{job['id']}: unsupported adapter option")
@@ -265,6 +274,7 @@ class Context:
         self.outputs = {}  # job id -> {relative output: Path}
         self.members = {}  # package member -> (bytes, job id)
         self.inputs = {}  # input reference -> pin
+        self.job_inputs = {}  # job id -> {input reference: Path} (files only)
 
     def resolve(self, ref, job, directory=False):
         """Return the local path of a declared input reference and record its pin."""
@@ -286,6 +296,8 @@ class Context:
                 path = package.directory(rest) if directory else package.path(rest)
             key = ref
         self.inputs[key] = file_pin(path / "manifest.json") if directory else file_pin(path)
+        if not directory:
+            self.job_inputs.setdefault(job["id"], {})[key] = path
         return path
 
 
@@ -433,12 +445,59 @@ RUNNERS = {
 }
 
 
+def json_payload(raw):
+    """The decoded document without its ``_meta`` stamp, or None when it is not a JSON object."""
+    try:
+        value = json.loads(raw)
+    except (UnicodeDecodeError, ValueError):
+        return None
+    return {k: v for k, v in value.items() if k != "_meta"} if isinstance(value, dict) else None
+
+
+def carried_inputs(ctx, job, outputs):
+    """Outputs whose bytes, or whose payload apart from ``_meta``, equal one of the job's own inputs.
+
+    Such an output is not derived by the job; it is the input carried over (a
+    pass-through), and the job must declare it (``passthrough``).
+    """
+    inputs = ctx.job_inputs.get(job["id"], {})
+    raws = {key: path.read_bytes() for key, path in inputs.items()}
+    payloads = {}
+    carried = {}
+    for member, raw in outputs.items():
+        for key, source in raws.items():
+            if raw == source:
+                carried[member] = {"input": key, "carried": "verbatim"}
+                break
+        else:
+            payload = json_payload(raw)
+            if payload is None:
+                continue
+            for key, source in raws.items():
+                if key not in payloads:
+                    payloads[key] = json_payload(source)
+                if payloads[key] == payload:
+                    carried[member] = {"input": key, "carried": "payload-except-_meta"}
+                    break
+    return carried
+
+
+def check_passthrough(job, carried):
+    declared = "passthrough" in job
+    require(
+        not carried or declared,
+        f"{job['id']}: outputs carry input content over without a passthrough declaration: {sorted(carried)}",
+    )
+    require(not declared or carried, f"{job['id']}: declared passthrough, but no output carries an input over")
+
+
 def snapshot_manifest(ctx, job, members):
     """Re-pin the version snapshot manifest over the assembled members.
 
     Entries naming package members get the assembled bytes' SHA-256. Entries
     for files another owner ships (locale) keep the template's pins; they are
-    reported as retained external pins.
+    reported as retained external pins. Every other top-level field is the
+    template's, so the member is a pass-through of the template.
     """
     template = decode(ctx.resolve(job["template"], job).read_bytes())
     prefix = f"data/{ctx.target['game_patch']}/"
@@ -454,7 +513,17 @@ def snapshot_manifest(ctx, job, members):
     missing = own - set(template["files"])
     require(not missing, f"{job['id']}: members missing from the snapshot template: {sorted(missing)}")
     template["files"] = files
-    return runtime_encoded(template), {"retained_external_pins": retained}
+    fields = sorted(set(template) - {"files", "poe_version"})
+    carried = {}
+    if fields or retained:
+        carried[job["member"]] = {
+            "input": job["template"],
+            "carried": "template",
+            "fields": fields,
+            "retained_pins": len(retained),
+            "regenerated_pins": len(files) - len(retained),
+        }
+    return runtime_encoded(template), {"retained_external_pins": retained}, carried
 
 
 # --- assembly ------------------------------------------------------------------------------------
@@ -483,17 +552,19 @@ def producer_identity(repo, adapter, config, config_pins):
     }
 
 
-def classify(members, reference):
+def classify(members, reference, passthrough=()):
+    """Class of every member: provenance (generated/passthrough/frozen) and comparison with the reference."""
     result, counts = {}, {}
     for member, (raw, origin) in sorted(members.items()):
         value = pin(raw)
         expected = reference.get(member)
+        provenance = "passthrough" if member in passthrough else "generated"
         if origin == "frozen":
             kind = "frozen"
         elif expected is None:
-            kind = "generated-new"
+            kind = f"{provenance}-new"
         else:
-            kind = "generated-identical" if expected == value else "generated-different"
+            kind = f"{provenance}-identical" if expected == value else f"{provenance}-different"
         entry = {"class": kind, **value, "producer": origin}
         if expected is not None and expected != value:
             entry["reference"] = expected
@@ -503,6 +574,15 @@ def classify(members, reference):
         result[member] = {"class": "missing", "reference": reference[member]}
         counts["missing"] = counts.get("missing", 0) + 1
     return result, counts
+
+
+def provenance_counts(counts):
+    totals = {}
+    for kind, count in counts.items():
+        if kind != "missing":
+            group = kind.split("-", 1)[0]
+            totals[group] = totals.get(group, 0) + count
+    return {group: totals[group] for group in PROVENANCE if group in totals}
 
 
 def fresh_manifest(target, files, receipt_pin, producer):
@@ -551,7 +631,7 @@ def build(
     facts = prepare_facts(packages[lock["facts"]["package"]], lock["facts"], cache / "inputs")
     ctx = Context(target, packages, facts, work, adapter, policies)
     prefix = f"data/{target['game_patch']}/"
-    jobs, snapshot_job = {}, None
+    jobs, snapshot_job, passthrough = {}, None, {}
     for job in domains["jobs"]:
         if job["kind"] == "snapshot-manifest":
             snapshot_job = job
@@ -563,10 +643,14 @@ def build(
         for output, member in job["outputs"].items():
             require(member not in ctx.members, f"{member} produced twice")
             ctx.members[member] = (outputs[output].read_bytes(), job["id"])
+        carried = carried_inputs(ctx, job, {m: ctx.members[m][0] for m in job["outputs"].values()})
+        check_passthrough(job, carried)
+        passthrough.update(carried)
         jobs[job["id"]] = {
             "kind": job["kind"],
             **evidence,
             "outputs": {m: pin(ctx.members[m][0]) for m in job["outputs"].values()},
+            **({"passthrough": carried} if carried else {}),
         }
 
     source = packages[frozen["source"]]
@@ -580,13 +664,20 @@ def build(
     if snapshot_job:
         member = snapshot_job["member"]
         require(member == prefix + "manifest.json" and member not in ctx.members, "Invalid snapshot member")
-        raw, evidence = snapshot_manifest(ctx, snapshot_job, ctx.members)
+        raw, evidence, carried = snapshot_manifest(ctx, snapshot_job, ctx.members)
+        check_passthrough(snapshot_job, carried)
+        passthrough.update(carried)
         ctx.members[member] = (raw, snapshot_job["id"])
-        jobs[snapshot_job["id"]] = {"kind": "snapshot-manifest", **evidence, "outputs": {member: pin(raw)}}
+        jobs[snapshot_job["id"]] = {
+            "kind": "snapshot-manifest",
+            **evidence,
+            "outputs": {member: pin(raw)},
+            **({"passthrough": carried} if carried else {}),
+        }
 
     reference = packages[lock["reference"]]
     reference_manifest = decode(reference.read("manifest.json"))
-    classes, counts = classify(ctx.members, reference_manifest["files"])
+    classes, counts = classify(ctx.members, reference_manifest["files"], passthrough)
     files = {member: pin(raw) for member, (raw, _) in sorted(ctx.members.items())}
     producer = producer_identity(repo, adapter, config, config_pins)
     mode = manifest_mode or domains["manifest"]["mode"]
@@ -611,6 +702,7 @@ def build(
         },
         "members": classes,
         "summary": counts,
+        "provenance": provenance_counts(counts),
         "reference": {"package": lock["reference"], "members_identical": identical},
     }
     receipt_without_package = encoded(receipt)
@@ -644,11 +736,13 @@ def build(
 
 def report(receipt):
     lines = []
-    for kind in ("generated-identical", "generated-different", "generated-new", "frozen", "missing"):
+    for kind in CLASSES:
         names = [m for m, e in receipt["members"].items() if e["class"] == kind]
         if names:
             lines.append(f"{kind}: {len(names)}")
             lines += [f"  {m}  ({receipt['members'][m].get('producer', '-')})" for m in names]
+    counts = receipt["provenance"]
+    lines.append("members: " + ", ".join(f"{counts[group]} {group}" for group in PROVENANCE if group in counts))
     package = receipt["package"]
     lines.append(f"manifest.json: {receipt['manifest']['class']}")
     lines.append(f"game-build-part.zip: {package['bytes']} bytes sha256 {package['sha256']}")
