@@ -196,7 +196,7 @@
     "data/overlay-common/buff_definitions.json": {
       "bytes": 14694,
       "sha256": "0fd267716e0e4d1bee9dadf76c2a794b28f0941c1dd301b5c6b2ec3bf9009026",
-      "category": "shared-overlay",
+      "category": "pob2-derived",
       "origin": "manual-curation (00-index 裁决 §4.2-4 批准的 overlay 通道例外); vendor PathOfBuilding-PoE2 ce8bffaba31f8e68cfce70579e1c96465e7c133c",
       "unchanged_since_0.5.5.4.2": true,
       "reason": "Manual curation of PoB2 CalcPerform buff logic. PoB2-derived compatibility bytes; no RePoE producer exists.",
@@ -205,7 +205,7 @@
     "data/overlay-common/high_precision_mods.json": {
       "bytes": 2849,
       "sha256": "e7d310b8d7729acec6cefefc4309c3d29407a78f3ce1526754d40c03d3aa64bf",
-      "category": "shared-overlay",
+      "category": "pob2-derived",
       "origin": "manual transcription (M0-W4d); vendor PathOfBuilding-PoE2 2df5a7433dd2f1609e2fad8a6c3c917f923fe34f",
       "unchanged_since_0.5.5.4.2": true,
       "reason": "Manual transcription of PoB2 Data.lua highPrecisionMods. PoB2-derived compatibility bytes; no RePoE producer exists.",
@@ -242,7 +242,7 @@
       "bytes": 14378,
       "sha256": "af40f1f97ff893b076225fbc5778884d83450f70aa7b99e3fda7461eeb047ba4",
       "category": "shared-overlay",
-      "origin": "",
+      "origin": "PoBR-authored alias bootstrap from crates/pobr-core/src/mod_parser/legacy.rs::parse_name and data/4.5.0.3.4/overlay/mod_parser_rules.json::name_map; vendor PathOfBuilding-PoE2 2df5a7433dd2f1609e2fad8a6c3c917f923fe34f",
       "unchanged_since_0.5.5.4.2": true,
       "reason": "PoBR-authored PoB2 ModName -> StatId alias table; its _meta says consumed_by NONE.",
       "exit": "Remove from the package after confirming PoBR has no reader."

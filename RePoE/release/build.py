@@ -175,6 +175,8 @@ def load_config(config):
             {"bytes", "sha256", "category", "origin", "reason", "exit"} <= set(entry),
             f"{member}: incomplete frozen declaration",
         )
+        require(entry["category"] in frozen.get("categories", {}), f"{member}: undeclared category {entry['category']}")
+        require(all(entry[key].strip() for key in ("origin", "reason", "exit")), f"{member}: empty origin/reason/exit")
     require(domains["manifest"]["mode"] in ("retain-if-identical", "fresh"), "Unknown manifest mode")
     return config, lock, domains, frozen, pins
 
@@ -667,7 +669,7 @@ def provenance_counts(counts):
     return {group: totals[group] for group in PROVENANCE if group in totals}
 
 
-def fresh_manifest(target, files, receipt_pin, producer):
+def fresh_manifest(target, files, receipt_pin, producer, frozen_path):
     return {
         "schema": PART_SCHEMA,
         "kind": "game",
@@ -676,7 +678,7 @@ def fresh_manifest(target, files, receipt_pin, producer):
         "release_build": {"receipt": receipt_pin, "producer": {k: producer[k] for k in ("repository", "commit")}},
         "limits": [
             "Generated members come from the declared release producers; frozen members are copied from "
-            "release/frozen-inputs.json with their recorded origin and exit condition.",
+            f"{frozen_path} with their recorded origin and exit condition.",
             "No source acceptance, gameplay certification, remote publication or consumer adoption is claimed.",
         ],
         "files": files,
@@ -796,7 +798,7 @@ def build(
     if mode == "retain-if-identical" and identical:
         manifest_raw, manifest_class = reference.read("manifest.json"), "retained-reference-manifest"
     else:
-        manifest = fresh_manifest(target, files, receipt_pin, producer)
+        manifest = fresh_manifest(target, files, receipt_pin, producer, display(config / "frozen-inputs.json"))
         manifest_raw, manifest_class = encoded(manifest), "fresh-manifest"
     all_members = {member: raw for member, (raw, _) in ctx.members.items()}
     all_members["manifest.json"] = manifest_raw

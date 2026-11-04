@@ -209,6 +209,7 @@ class ReleaseBuildTest(unittest.TestCase):
             "schema": "repoe-release-frozen-inputs/v1",
             "target": TARGET,
             "source": "previous",
+            "categories": {"shared-overlay": "test"},
             "members": frozen_members,
         }
         for name, value in (("inputs.lock.json", lock), ("domains.json", domains), ("frozen-inputs.json", frozen)):
@@ -337,6 +338,23 @@ class ReleaseBuildTest(unittest.TestCase):
         config = self.fixture(frozen_pin={"bytes": 1, "sha256": "0" * 64})
         with self.assertRaisesRegex(ValueError, "Frozen bytes changed"):
             self.run_build(config)
+
+    def test_frozen_declarations_need_a_known_category_and_origin(self):
+        config = self.fixture()
+        declared = (config / "frozen-inputs.json").read_text()
+        for field, value, message in (("category", "pob2", "undeclared category"), ("origin", " ", "empty origin")):
+            with self.subTest(field=field):
+                frozen = json.loads(declared)
+                frozen["members"]["data/9.9/overlay/frozen.json"][field] = value
+                (config / "frozen-inputs.json").write_text(json.dumps(frozen))
+                with self.assertRaisesRegex(ValueError, message):
+                    build.load_config(config)
+
+    def test_fresh_manifest_names_the_frozen_declaration(self):
+        out, _, _ = self.run_build(self.fixture(), manifest_mode="fresh")
+        with zipfile.ZipFile(out / "game-build-part.zip") as archive:
+            limits = json.loads(archive.read("manifest.json"))["limits"]
+        self.assertIn(f"{self.root / 'config' / 'frozen-inputs.json'} with their recorded origin", limits[0])
 
     def test_member_cannot_be_generated_and_frozen(self):
         with self.assertRaisesRegex(ValueError, "both generated and frozen"):

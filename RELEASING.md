@@ -75,7 +75,8 @@ Everything the build reads is declared in `release/<patch>/`:
   (`i18n/`) pins. A job whose output carries input content over declares
   `"passthrough": "<why>"` (see member classes).
 - `frozen-inputs.json`: every member that is not generated yet, with its
-  SHA-256, category, origin, why it is frozen and what would let it go. Its
+  SHA-256, category (one of its declared `categories`), origin, why it is
+  frozen and what would let it go; none of these may be empty. Its
   bytes are copied from the `source` package. The number of entries is the
   progress measure; shrink it, never grow it silently.
 
