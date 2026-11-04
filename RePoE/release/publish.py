@@ -214,28 +214,86 @@ def list_remote_tags(repo, remote=REMOTE):
     return remote_tags(result.stdout.decode())
 
 
-def plan_sequence(repo, patch, commit, tags):
-    """``(sequence, problems)`` for HEAD given the remote tags (None: unknown)."""
+def plan(repo, patch, commit, tags):
+    """Decide what publishing HEAD means, before anything is built or staged.
+
+    Returns ``{"action", "sequence", "problems"}``. ``action`` is ``new`` (tag
+    ``game/<patch>-<n>`` with the next ``n``), ``resume-push`` (an unpushed
+    local tag already names HEAD), ``remote-tag`` (the remote already has a
+    tag on HEAD: create its Release if missing, else check it) or None when
+    the remote's tags are unknown. HEAD never gets a second sequence number.
+    """
     if tags is None:
-        return None, [f"the remote's {TAG_PREFIX}{patch}-* tags could not be listed, so <n> is unknown"]
-    published = sequences(tags, patch)
-    problems = [
-        f"HEAD is already published as {published[n]}" for n in sorted(published) if tags[published[n]] == commit
-    ]
+        problem = f"the remote's {TAG_PREFIX}{patch}-* tags could not be listed, so <n> is unknown"
+        return {"action": None, "sequence": None, "problems": [problem]}
+    remote = sequences(tags, patch)
+    at_head = sorted(n for n, tag in remote.items() if tags[tag] == commit)
+    if at_head:
+        problems = [f"HEAD carries several tags: {[remote[n] for n in at_head]}"] if len(at_head) > 1 else []
+        return {"action": "remote-tag", "sequence": at_head[-1], "problems": problems}
+    listed = git(repo, "tag", "--points-at", commit, "--list", f"{TAG_PREFIX}{patch}-*").stdout.decode().split()
+    local = sorted(sequences(listed, patch))
+    if local:
+        problems = [f"HEAD carries several local tags: {[tag_name(patch, n) for n in local]}"] if len(local) > 1 else []
+        problems += [f"{tag_name(patch, n)} names another commit on the remote" for n in local if n in remote]
+        return {"action": "resume-push", "sequence": local[-1], "problems": problems}
     sequence = next_sequence(tags, patch)
+    problems = []
     if git(repo, "rev-parse", "--quiet", "--verify", f"refs/tags/{tag_name(patch, sequence)}").returncode == 0:
         problems.append(f"a local tag {tag_name(patch, sequence)} exists that the remote does not have; delete it")
-    return sequence, problems
+    return {"action": "new", "sequence": sequence, "problems": problems}
+
+
+# --- GitHub --------------------------------------------------------------------------------------
+
+
+def default_runner(repo):
+    """Run a command in the repository; ``capture`` returns its output instead of showing it."""
+
+    def run(command, capture=False):
+        return subprocess.run(command, cwd=repo, capture_output=capture, check=False)
+
+    return run
+
+
+def gh_problem(run):
+    """Why ``gh`` cannot publish (missing or not authenticated), or None."""
+    try:
+        result = run(["gh", "auth", "status"], capture=True)
+    except OSError as error:
+        return f"gh is not available: {error}"
+    return None if result.returncode == 0 else f"gh is not authenticated: {result.stderr.decode().strip()}"
+
+
+def release_exists(run, tag, repository=REPOSITORY):
+    result = run(["gh", "release", "view", tag, "--repo", repository, "--json", "tagName"], capture=True)
+    if result.returncode == 0:
+        return True
+    require(b"not found" in result.stderr.lower(), f"gh release view {tag} failed: {result.stderr.decode().strip()}")
+    return False
+
+
+def published_assets(run, tag, directory, repository=REPOSITORY):
+    """Download a Release's assets into ``directory``; ``{name: pin}``."""
+    shutil.rmtree(directory, ignore_errors=True)
+    directory.mkdir(parents=True)
+    result = run(["gh", "release", "download", tag, "--repo", repository, "--dir", str(directory)], capture=True)
+    require(result.returncode == 0, f"gh release download {tag} failed: {result.stderr.decode().strip()}")
+    return {path.name: build.file_pin(path) for path in sorted(directory.iterdir())}
 
 
 # --- command -------------------------------------------------------------------------------------
 
 
-def built(args, config):
+def load_target(config):
+    return build.load_config(config)[1]["target"]
+
+
+def built(args, config, cache=build.CACHE):
     """The release:build output for HEAD: rebuilt, or with ``--reuse`` the existing one if it matches HEAD."""
     config, lock, *_, config_pins = build.load_config(config)
     target = lock["target"]
-    out = build.CACHE / f"{target['game']}-{target['realm']}-{target['game_patch']}"
+    out = Path(cache) / f"{target['game']}-{target['realm']}-{target['game_patch']}"
     if args.reuse:
         receipt = decode((out / "receipt.json").read_bytes())
         current = build.producer_identity(args.repo, Path(args.adapter).absolute(), config, config_pins)
@@ -243,12 +301,16 @@ def built(args, config):
         log(f"reusing {build.display(out)}")
         return out
     log("running release:build")
-    out, receipt, outcome = build.build(config, out, args.adapter, build.CACHE, args.fetch, repo=args.repo)
+    out, receipt, outcome = build.build(config, out, args.adapter, cache, args.fetch, repo=args.repo)
     print(build.report(receipt, outcome), file=sys.stderr)
     return out
 
 
-def main(argv=None):
+def bullets(items):
+    return "".join(f"  - {item}\n" for item in items)
+
+
+def main(argv=None, runner=None):
     parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     parser.add_argument("--config", type=Path, help="release declaration release/<patch> (default: highest patch)")
     mode = parser.add_mutually_exclusive_group()
@@ -264,53 +326,80 @@ def main(argv=None):
     parser.add_argument("--adapter", type=Path, default=build.ADAPTER, help=argparse.SUPPRESS)
     parser.add_argument("--repo", type=Path, default=build.ROOT, help=argparse.SUPPRESS)
     args = parser.parse_args(argv)
+    run = runner or default_runner(args.repo)
     try:
+        # Before the build: the checkout, the remote's tags and (to publish) gh.
         commit, problems, warnings = preflight(args.repo)
-        if args.yes and (problems or warnings):
-            parser.exit(
-                1, "release:publish: refusing to publish:\n" + "".join(f"  - {p}\n" for p in problems + warnings)
-            )
         config = args.config or build.default_config()
-        out = built(args, config)
-        staged = stage(out, STAGE / out.name)
+        target = load_target(config)
+        patch = target["game_patch"]
+        decision = plan(args.repo, patch, commit, list_remote_tags(args.repo))
+        problems += decision["problems"]
+        if args.yes and (problem := gh_problem(run)):
+            problems.append(problem)
+        if args.yes and (problems or warnings):
+            parser.exit(1, "release:publish: refusing to publish:\n" + bullets(problems + warnings))
+        # The build and what it says about HEAD.
+        staged = stage(built(args, config), STAGE / f"{target['game']}-{target['realm']}-{patch}")
         receipt, package = staged["receipt"], staged["package"]
         if receipt["producer"]["commit"] != commit or receipt["producer"]["dirty"]:
             problems.append("the package was not built from a clean HEAD")
         if not package["package"]["identical_to_reference"] and not args.allow_different:
             problems.append("the package differs from the reference package (pass --allow-different if intended)")
-        patch = receipt["target"]["game_patch"]
-        sequence, sequence_problems = plan_sequence(args.repo, patch, commit, list_remote_tags(args.repo))
-        problems += sequence_problems
+        sequence, action = decision["sequence"], decision["action"]
+        tag = tag_name(patch, sequence if sequence is not None else "<n>")
+        directory = staged["directory"]
+        (directory / "release-notes.md").write_text(release_body(staged, tag, sequence or "<n>"))
+        (directory / "tag-message.txt").write_text(tag_message(staged, tag))
+        steps = commands(staged, tag, commit)
+        if action == "resume-push":
+            steps = steps[1:]
+        elif action == "remote-tag":
+            if release_exists(run, tag):
+                published = published_assets(run, tag, directory / "published")
+                expected = staged["assets"]
+                require(
+                    published == expected,
+                    f"{tag} is already released with other assets: {sorted(published)} differ from the staged "
+                    f"{sorted(expected)} (or their SHA-256)",
+                )
+                print(f"already published: {tag} names HEAD and its Release assets equal the staged ones")
+                return
+            steps = steps[2:]
     except (ValueError, KeyError, TypeError, OSError, zipfile.BadZipFile) as error:
         parser.exit(1, f"release:publish: {error}\n")
 
-    tag = tag_name(patch, sequence if sequence is not None else "<n>")
-    directory = staged["directory"]
-    (directory / "release-notes.md").write_text(release_body(staged, tag, sequence if sequence else "<n>"))
-    (directory / "tag-message.txt").write_text(tag_message(staged, tag))
-    steps = commands(staged, tag, commit)
     print(f"staged: {build.display(directory)}")
     for name, value in staged["assets"].items():
         print(f"  {name}  {value['bytes']} bytes  sha256 {value['sha256']}")
-    print(
-        "SHA256SUMS:\n" + "".join(f"  {line}\n" for line in (directory / "assets/SHA256SUMS").read_text().splitlines())
-    )
-    print(f"tag: {tag} -> {commit}")
+    sums = (directory / "assets/SHA256SUMS").read_text().splitlines()
+    print("SHA256SUMS:\n" + "".join(f"  {line}\n" for line in sums))
+    resumed = {"resume-push": " (tagged locally; resuming from the push)", "remote-tag": " (pushed; resuming)"}
+    print(f"tag: {tag} -> {commit}{resumed.get(action, '')}")
     print(f"release body: {build.display(directory / 'release-notes.md')}")
     print("commands:\n" + "".join(f"  {shlex.join(step)}\n" for step in steps))
     for warning in warnings:
         print(f"warning: {warning}")
     if problems:
-        print("publish refused:\n" + "".join(f"  - {p}\n" for p in problems))
+        print("publish refused:\n" + bullets(problems))
         raise SystemExit(1)
     if not args.yes:
         print("dry run: nothing was tagged, pushed or released; rerun with --yes to publish")
         return
     for index, step in enumerate(steps):
         log(shlex.join(step))
-        if subprocess.run(step, cwd=args.repo, check=False).returncode:
-            remaining = "".join(f"  {shlex.join(s)}\n" for s in steps[index + 1 :])
-            parser.exit(1, f"release:publish: step failed: {shlex.join(step)}\nremaining:\n{remaining}")
+        try:
+            failed = run(step).returncode != 0
+        except OSError as error:
+            failed = f"{error}"
+        if failed:
+            remaining = "".join(f"  {shlex.join(s)}\n" for s in steps[index:])
+            parser.exit(
+                1,
+                f"release:publish: step failed: {shlex.join(step)}"
+                f"{f' ({failed})' if isinstance(failed, str) else ''}\n"
+                "rerun release:publish to resume (it keeps the tag), or run by hand:\n" + remaining,
+            )
     print(f"published https://github.com/{REPOSITORY}/releases/tag/{tag}")
 
 

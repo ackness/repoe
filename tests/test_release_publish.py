@@ -1,11 +1,16 @@
 """Offline tests for RePoE.release.publish: staging, SHA256SUMS, sequence numbers, preflight, release body."""
 
+import contextlib
 import hashlib
+import io
+import json
 import os
 from pathlib import Path
 import subprocess
+import shutil
 import tempfile
 import unittest
+from unittest import mock
 import zipfile
 
 from RePoE.data_publication import encoded, pin
@@ -164,7 +169,7 @@ class SequenceTest(unittest.TestCase):
         self.assertEqual(publish.remote_tags(output), {"game/9.9-1": "2" * 40, "game/9.9-2": "3" * 40})
 
 
-class PreflightTest(unittest.TestCase):
+class GitRepoCase(unittest.TestCase):
     """Temporary repositories: ``origin`` is a local bare repository."""
 
     def setUp(self):
@@ -188,6 +193,8 @@ class PreflightTest(unittest.TestCase):
         git(self.repo, "commit", "-q", "-m", name)
         return git(self.repo, "rev-parse", "HEAD").strip()
 
+
+class PreflightTest(GitRepoCase):
     def test_clean_commit_on_master_passes(self):
         commit, problems, warnings = publish.preflight(self.repo)
         self.assertEqual((commit, problems, warnings), (git(self.repo, "rev-parse", "HEAD").strip(), [], []))
@@ -214,24 +221,215 @@ class PreflightTest(unittest.TestCase):
         self.assertEqual(problems, [])
         self.assertRegex(warnings[0], "could not fetch origin/master")
         self.assertIsNone(publish.list_remote_tags(self.repo))
-        sequence, problems = publish.plan_sequence(self.repo, "9.9", commit, None)
-        self.assertIsNone(sequence)
-        self.assertRegex(problems[0], "could not be listed")
+        decision = publish.plan(self.repo, "9.9", commit, None)
+        self.assertEqual((decision["action"], decision["sequence"]), (None, None))
+        self.assertRegex(decision["problems"][0], "could not be listed")
 
-    def test_sequence_from_remote_tags(self):
+    def test_plan_from_remote_and_local_tags(self):
         first = git(self.repo, "rev-parse", "HEAD").strip()
         self.assertEqual(publish.list_remote_tags(self.repo), {})
+        self.assertEqual(publish.plan(self.repo, "9.9", first, {}), {"action": "new", "sequence": 1, "problems": []})
         git(self.repo, "tag", "-a", "-m", "one", "game/9.9-1")
+        # An unpushed tag on HEAD is resumed, never replaced by a new number.
+        self.assertEqual(
+            publish.plan(self.repo, "9.9", first, {}), {"action": "resume-push", "sequence": 1, "problems": []}
+        )
         git(self.repo, "push", "-q", "origin", "refs/tags/game/9.9-1")
         tags = publish.list_remote_tags(self.repo)
         self.assertEqual(tags, {"game/9.9-1": first})
         self.assertEqual(
-            publish.plan_sequence(self.repo, "9.9", first, tags), (2, ["HEAD is already published as game/9.9-1"])
+            publish.plan(self.repo, "9.9", first, tags), {"action": "remote-tag", "sequence": 1, "problems": []}
         )
         second = self.commit("b.txt")
-        self.assertEqual(publish.plan_sequence(self.repo, "9.9", second, tags), (2, []))
-        git(self.repo, "tag", "game/9.9-2")  # local only
-        self.assertRegex(publish.plan_sequence(self.repo, "9.9", second, tags)[1][0], "local tag game/9.9-2")
+        self.assertEqual(publish.plan(self.repo, "9.9", second, tags), {"action": "new", "sequence": 2, "problems": []})
+        git(self.repo, "tag", "game/9.9-2", first)  # local only, on another commit
+        self.assertRegex(publish.plan(self.repo, "9.9", second, tags)["problems"][0], "local tag game/9.9-2")
+
+
+class Runner:
+    """Runs git for real in the test repository; answers gh from ``gh``."""
+
+    def __init__(self, repo, gh=None):
+        self.repo, self.gh, self.calls = repo, gh or {}, []
+
+    def __call__(self, command, capture=False):
+        self.calls.append(command)
+        if command[0] == "git":
+            return subprocess.run(command, cwd=self.repo, capture_output=True, check=False)
+        answer = self.gh.get(command[1] if command[1] == "auth" else command[2], (0, b""))
+        if callable(answer):
+            answer = answer(command)
+        return subprocess.CompletedProcess(command, answer[0], b"", answer[1])
+
+    def commands(self):
+        return [" ".join(c[:3]) for c in self.calls]
+
+
+class MainTest(GitRepoCase):
+    """``main()`` against a temporary repository with release:build replaced by a staged fixture."""
+
+    def setUp(self):
+        super().setUp()
+        self.head = git(self.repo, "rev-parse", "HEAD").strip()
+        self.fixture = StageTest("run")
+        self.fixture.setUp()
+        self.addCleanup(self.fixture.tearDown)
+        self.fixture.receipt["producer"]["commit"] = self.head
+        self.fixture.write_build()
+        root = Path(self.temporary.name)
+        for target, value in (
+            ("built", lambda args, config: self.fixture.build_dir),
+            ("load_target", lambda config: TARGET),
+            ("STAGE", root / "stage"),
+        ):
+            patcher = mock.patch.object(publish, target, value)
+            patcher.start()
+            self.addCleanup(patcher.stop)
+
+    def main(self, *argv, runner=None):
+        stdout, stderr = io.StringIO(), io.StringIO()
+        runner = runner or Runner(self.repo)
+        with contextlib.redirect_stdout(stdout), contextlib.redirect_stderr(stderr):
+            try:
+                publish.main(["--repo", str(self.repo), "--config", "unused", *argv], runner=runner)
+                code = 0
+            except SystemExit as exit:
+                code = exit.code
+        return code, stdout.getvalue() + stderr.getvalue(), runner
+
+    def remote_tag(self, tag):
+        return git(self.origin, "rev-parse", "--verify", f"refs/tags/{tag}^{{commit}}").strip()
+
+    def test_without_yes_nothing_runs(self):
+        code, output, runner = self.main()
+        self.assertEqual(code, 0, output)
+        self.assertIn("dry run: nothing was tagged", output)
+        self.assertIn(f"tag: game/9.9-1 -> {self.head}", output)
+        self.assertEqual(runner.calls, [])
+        self.assertEqual(self.main("--dry-run")[0], 0)
+
+    def test_yes_tags_pushes_and_releases(self):
+        code, output, runner = self.main("--yes")
+        self.assertEqual(code, 0, output)
+        self.assertEqual(
+            runner.commands(), ["gh auth status", "git tag --annotate", "git push origin", "gh release create"]
+        )
+        self.assertEqual(self.remote_tag("game/9.9-1"), self.head)
+        self.assertIn("--verify-tag", runner.calls[-1])
+        notes = (Path(self.temporary.name) / "stage/poe2-international-9.9/release-notes.md").read_text()
+        self.assertIn("sequence 1", notes)
+
+    def test_yes_requires_gh(self):
+        runner = Runner(self.repo, {"auth": (1, b"not logged in")})
+        with mock.patch.object(publish, "built", side_effect=AssertionError("built")):
+            code, output, _ = self.main("--yes", runner=runner)
+        self.assertEqual(code, 1)
+        self.assertIn("gh is not authenticated: not logged in", output)
+        self.assertEqual(runner.commands(), ["gh auth status"])
+        self.assertEqual(git(self.repo, "tag", "--list"), "")
+
+    def test_yes_refuses_a_dirty_tree_before_building(self):
+        (self.repo / "a.txt").write_text("changed")
+        with mock.patch.object(publish, "built", side_effect=AssertionError("built")):
+            code, output, runner = self.main("--yes")
+        self.assertEqual(code, 1)
+        self.assertIn("refusing to publish", output)
+        self.assertNotIn("git tag --annotate", runner.commands())
+
+    def test_a_different_package_needs_allow_different(self):
+        package = json.loads((self.fixture.build_dir / "package.json").read_text())
+        package["package"]["identical_to_reference"] = False
+        (self.fixture.build_dir / "package.json").write_text(json.dumps(package))
+        code, output, _ = self.main()
+        self.assertEqual(code, 1)
+        self.assertIn("differs from the reference package", output)
+        self.assertEqual(self.main("--allow-different")[0], 0)
+
+    def test_refuses_a_package_not_built_from_clean_head(self):
+        self.fixture.receipt["producer"]["commit"] = "f" * 40
+        self.fixture.write_build()
+        code, output, _ = self.main()
+        self.assertEqual(code, 1)
+        self.assertIn("not built from a clean HEAD", output)
+        self.fixture.receipt["producer"].update(commit=self.head, dirty=True)
+        self.fixture.write_build()
+        self.assertEqual(self.main()[0], 1)
+
+    def test_a_failed_step_resumes_with_the_same_tag(self):
+        runner = Runner(self.repo, {"create": (1, b"boom")})
+        code, output, _ = self.main("--yes", runner=runner)
+        self.assertEqual(code, 1)
+        self.assertIn("step failed: gh release create game/9.9-1", output)
+        self.assertIn("run by hand:\n  gh release create game/9.9-1", output)
+        self.assertNotIn("Traceback", output)
+        self.assertEqual(self.remote_tag("game/9.9-1"), self.head)
+        # Rerun: the pushed tag is kept; only the Release is created.
+        runner = Runner(self.repo, {"view": (1, b"release not found")})
+        code, output, runner = self.main("--yes", runner=runner)
+        self.assertEqual(code, 0, output)
+        self.assertEqual(runner.commands(), ["gh auth status", "gh release view", "gh release create"])
+        self.assertIn("game/9.9-1", runner.calls[-1])
+
+    def test_a_missing_gh_fails_the_step_cleanly(self):
+        def missing(command):
+            raise FileNotFoundError("gh")
+
+        runner = Runner(self.repo, {"create": missing})
+        code, output, _ = self.main("--yes", runner=runner)
+        self.assertEqual(code, 1)
+        self.assertIn("step failed: gh release create", output)
+
+    def test_an_unpushed_local_tag_resumes_from_the_push(self):
+        git(self.repo, "tag", "-a", "-m", "earlier run", "game/9.9-1")
+        code, output, runner = self.main("--yes")
+        self.assertEqual(code, 0, output)
+        self.assertEqual(runner.commands(), ["gh auth status", "git push origin", "gh release create"])
+        self.assertEqual(self.remote_tag("game/9.9-1"), self.head)
+
+    def test_an_existing_release_is_checked_not_republished(self):
+        git(self.repo, "tag", "-a", "-m", "one", "game/9.9-1")
+        git(self.repo, "push", "-q", "origin", "refs/tags/game/9.9-1")
+        staged_assets = Path(self.temporary.name) / "stage/poe2-international-9.9/assets"
+
+        def download(change=None):
+            def run(command):
+                out = Path(command[command.index("--dir") + 1])
+                for path in staged_assets.iterdir():
+                    shutil.copyfile(path, out / path.name)
+                if change:
+                    (out / "receipt.json").write_text("{}")
+                return 0, b""
+
+            return run
+
+        code, output, runner = self.main("--yes", runner=Runner(self.repo, {"download": download()}))
+        self.assertEqual(code, 0, output)
+        self.assertIn("already published: game/9.9-1", output)
+        self.assertNotIn("gh release create", runner.commands())
+        code, output, _ = self.main(runner=Runner(self.repo, {"download": download(change=True)}))
+        self.assertEqual(code, 1)
+        self.assertIn("already released with other assets", output)
+
+    def test_reuse_requires_the_build_of_this_checkout(self):
+        cache = Path(self.temporary.name) / "cache"
+        out = cache / "poe2-international-9.9"
+        out.mkdir(parents=True)
+        (out / "receipt.json").write_bytes(encoded({"producer": {"commit": "old"}}))
+        lock = {"target": TARGET}
+        args = mock.Mock(reuse=True, repo=self.repo, adapter="adapter")
+        mock.patch.stopall()  # the real built()
+        with (
+            mock.patch.object(build, "load_config", return_value=(Path("c"), lock, {}, {}, {})),
+            mock.patch.object(build, "producer_identity", return_value={"commit": "new"}),
+        ):
+            with self.assertRaisesRegex(ValueError, "not built from this checkout"):
+                publish.built(args, "c", cache)
+        with (
+            mock.patch.object(build, "load_config", return_value=(Path("c"), lock, {}, {}, {})),
+            mock.patch.object(build, "producer_identity", return_value={"commit": "old"}),
+            contextlib.redirect_stderr(io.StringIO()),
+        ):
+            self.assertEqual(publish.built(args, "c", cache), out)
 
 
 if __name__ == "__main__":

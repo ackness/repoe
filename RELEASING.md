@@ -206,25 +206,37 @@ mise run release:publish -- --config release/0.5.5.5 --yes   # tag, push and rel
 | Assets | `pobr-game-<patch>.zip` (the release:build zip, byte for byte), `receipt.json`, `SHA256SUMS` (GNU `sha256sum` lines for the other two, sorted by name) |
 | Body | Generated from the receipt: patch, sequence, contract version and tag, producer commit, zip size and SHA-256, member and class counts |
 
-It refuses unless HEAD is clean (no tracked change, no untracked file that
-is not ignored), HEAD is on `origin/master` after fetching it, the build was
-made from that clean HEAD, the zip equals the lock's `reference` package
-(pass `--allow-different` for a new patch or an intended data change), HEAD
-does not already carry a `game/<patch>-*` tag, and the remote's tags could be
-listed. `--reuse` accepts `.cache/release/<target>/` only when its receipt's
-producer (commit, declarations, code pins, adapter binary, contract) equals
-the current checkout's; otherwise the build is rerun.
+Checks before the build (with `--yes`, any failure refuses before anything
+is built): the tree is clean (no tracked change, no untracked file that is
+not ignored), HEAD is on `origin/master` after fetching it, the remote's
+`game/*` tags could be listed, no stray local `game/<patch>-<n>` tag is in
+the way, and `gh` is installed and authenticated (`gh auth status`, `--yes`
+only). Checks after the build: the build was made from that clean HEAD, and
+the zip equals the lock's `reference` package (pass `--allow-different` for
+a new patch or an intended data change). `--reuse` accepts
+`.cache/release/<target>/` only when its receipt's producer (commit,
+declarations, code pins, adapter binary, contract) equals the current
+checkout's; otherwise rerun without it.
 
 Without `--yes` (or with `--dry-run`) nothing is tagged, pushed or released:
 the assets, `release-notes.md` and `tag-message.txt` are staged under
 `.cache/release/publish/<target>/` and the exact commands are printed. A
 problem is reported and exits 1, but staging still happens; a failed fetch of
-`origin/master` is only a warning (the local ref is used), and with `--yes`
-any problem or warning refuses before anything is built. With `--yes` they run in order: `git tag --annotate`, `git push
-origin refs/tags/<tag>` and `gh release create <tag> --verify-tag`. If a step
-fails, the remaining commands are printed; run them by hand rather than
-rerunning `release:publish`, which would pick the next `<n>`. The maintainer
-needs push access to `origin` and an authenticated `gh`.
+`origin/master` is only a warning (the local ref is used). With `--yes` the
+commands run in order: `git tag --annotate`, `git push origin
+refs/tags/<tag>` and `gh release create <tag> --verify-tag`.
+
+A commit never gets a second sequence number, so a publish that stopped
+half way is resumed by running `release:publish -- --yes` again:
+
+| HEAD already has | It does |
+| --- | --- |
+| an unpushed local `game/<patch>-<k>` tag | push it, then create its Release |
+| `game/<patch>-<k>` on `origin`, no Release | create the Release for `<k>` |
+| `game/<patch>-<k>` with a Release | download its assets and compare them with the staged ones: equal is "already published" (exit 0), different is an error |
+
+A failed step prints the commands that remain; rerunning resumes the same
+way. The maintainer needs push access to `origin` and an authenticated `gh`.
 
 Existing `handoff/*` tags stay: PoBR's lock already references them, and
 release:build still reads its inputs from them. `publication/index.json`, the
