@@ -15,105 +15,9 @@
       "reason": "TODO",
       "exit": "TODO"
     },
-    "data/0.5.5.5/base/character_constants.json": {
-      "bytes": 430,
-      "sha256": "66c4c54ff85f937d44580ee0bfad5488415f68eb2f6709679483a6c98cbf50af",
-      "origin": "unknown (no _meta)",
-      "unchanged_since_0.5.5.4.2": false,
-      "reason": "TODO",
-      "exit": "TODO"
-    },
-    "data/0.5.5.5/base/cost_types.json": {
-      "bytes": 1125,
-      "sha256": "5dac3a7f08d63b8512f1d24870d50f876cf7907c6cc2a405473a4c65926fb88a",
-      "origin": "unknown (no _meta)",
-      "unchanged_since_0.5.5.4.2": true,
-      "reason": "TODO",
-      "exit": "TODO"
-    },
     "data/0.5.5.5/base/enemy_presets.json": {
       "bytes": 7973,
       "sha256": "d8504ef38860682d03872e9b006493cecb91f078650c3f7580d056d34d3cb861",
-      "origin": "unknown (no _meta)",
-      "unchanged_since_0.5.5.4.2": true,
-      "reason": "TODO",
-      "exit": "TODO"
-    },
-    "data/0.5.5.5/base/game_constants.json": {
-      "bytes": 2610,
-      "sha256": "5a06b87ffec6776d4623b372ccd050f2a103c7720b2be5b88242630856cc9323",
-      "origin": "unknown (no _meta)",
-      "unchanged_since_0.5.5.4.2": false,
-      "reason": "TODO",
-      "exit": "TODO"
-    },
-    "data/0.5.5.5/base/granted_effect_levels.json": {
-      "bytes": 2927324,
-      "sha256": "3a66d591def23772ff43b3b63ec96e9a12fc4f3c88be40f741681914926f51da",
-      "origin": "unknown (no _meta)",
-      "unchanged_since_0.5.5.4.2": true,
-      "reason": "TODO",
-      "exit": "TODO"
-    },
-    "data/0.5.5.5/base/granted_effect_stat_sets.json": {
-      "bytes": 15306716,
-      "sha256": "f2a58ba510a388108c73dac55c10dc6743d35e7ee4d5ef7343bfbcd0e45de7c7",
-      "origin": "unknown (no _meta)",
-      "unchanged_since_0.5.5.4.2": false,
-      "reason": "TODO",
-      "exit": "TODO"
-    },
-    "data/0.5.5.5/base/granted_effects.json": {
-      "bytes": 2419331,
-      "sha256": "1ec310c6878a644c4390592d31c4a294ef84bbfee3d7375a85b183ccb8d10994",
-      "origin": "unknown (no _meta)",
-      "unchanged_since_0.5.5.4.2": false,
-      "reason": "TODO",
-      "exit": "TODO"
-    },
-    "data/0.5.5.5/base/jewel_radii.json": {
-      "bytes": 1507,
-      "sha256": "4ac9e16361d48897350464dd967a2d16ae690bddecd6a7498c827385a2a5b6c9",
-      "origin": "unknown (no _meta)",
-      "unchanged_since_0.5.5.4.2": false,
-      "reason": "TODO",
-      "exit": "TODO"
-    },
-    "data/0.5.5.5/base/mods.json": {
-      "bytes": 8811358,
-      "sha256": "ef56f044022e1750c19777dccb9e9a6f32dda5fbdf393db9f062c9217f345c10",
-      "origin": "unknown (no _meta)",
-      "unchanged_since_0.5.5.4.2": false,
-      "reason": "TODO",
-      "exit": "TODO"
-    },
-    "data/0.5.5.5/base/monster_resistances.json": {
-      "bytes": 437456,
-      "sha256": "3085f5b99c05518651efd2a6337d0492436d7bcc242e2a7715b11017286c1ed3",
-      "origin": "pobr-data-adapter ordinary-facts monster-resistances",
-      "unchanged_since_0.5.5.4.2": false,
-      "reason": "TODO",
-      "exit": "TODO"
-    },
-    "data/0.5.5.5/base/non_damaging_ailments.json": {
-      "bytes": 1385,
-      "sha256": "9dfe31a4a218088bcc32b30f5fb3deec142ad61cf9924430756e2ff2bec0be8b",
-      "origin": "unknown (no _meta)",
-      "unchanged_since_0.5.5.4.2": false,
-      "reason": "TODO",
-      "exit": "TODO"
-    },
-    "data/0.5.5.5/base/skill_gems.json": {
-      "bytes": 631856,
-      "sha256": "2a65df5da5144d88046f3fb9eab302ebf93293bc0bb29c88d8930ca5eb8f31b7",
-      "origin": "unknown (no _meta)",
-      "unchanged_since_0.5.5.4.2": true,
-      "reason": "TODO",
-      "exit": "TODO"
-    },
-    "data/0.5.5.5/base/stats.json": {
-      "bytes": 2911521,
-      "sha256": "c006461cf0997b96d24f4aa5112dd03979c3a377ff8a8d4c1d308adad00a8f8d",
       "origin": "unknown (no _meta)",
       "unchanged_since_0.5.5.4.2": true,
       "reason": "TODO",
@@ -143,14 +47,6 @@
       "reason": "TODO",
       "exit": "TODO"
     },
-    "data/0.5.5.5/overlay/boss_poise_thresholds.json": {
-      "bytes": 831,
-      "sha256": "7d6ff365fd3369a7aaf9a34591a720da48f792caf63826d5002510ff14efaa6d",
-      "origin": "pobr-data-adapter ordinary boss-poise",
-      "unchanged_since_0.5.5.4.2": false,
-      "reason": "TODO",
-      "exit": "TODO"
-    },
     "data/0.5.5.5/overlay/catalysts.json": {
       "bytes": 2005,
       "sha256": "b8f80cda954d1f92e13310dd56f48daffca0567f09d39a074b236bf2a45c85f1",
@@ -172,30 +68,6 @@
       "sha256": "0767ba472ecaa863557a0988556000b44183c45a82f7726fa898aae916df721a",
       "origin": "sync-pob-catalog extract-lua --what curse-priority; vendor PathOfBuilding-PoE2 bb52d6b368307457eb9c54bb13f1829993d390b1",
       "unchanged_since_0.5.5.4.2": true,
-      "reason": "TODO",
-      "exit": "TODO"
-    },
-    "data/0.5.5.5/overlay/gem_effects.json": {
-      "bytes": 233820,
-      "sha256": "63bb4d8d0fe0ecee85dff7a35b629901b4ebf5360a9917f1311b273959ecda1c",
-      "origin": "pobr-data-adapter ordinary-facts gem-effects",
-      "unchanged_since_0.5.5.4.2": false,
-      "reason": "TODO",
-      "exit": "TODO"
-    },
-    "data/0.5.5.5/overlay/gem_quality_stats.json": {
-      "bytes": 163299,
-      "sha256": "67c3adfbec11bf787280f5524c2ff117d0eddd57b9874af7ebe8b4cbf1a603be",
-      "origin": "pobr-data-adapter --ordinary-domain gem-quality",
-      "unchanged_since_0.5.5.4.2": false,
-      "reason": "TODO",
-      "exit": "TODO"
-    },
-    "data/0.5.5.5/overlay/granted_effect_minions.json": {
-      "bytes": 38380,
-      "sha256": "0d9701e2e00b274b6ef5e89c4e6d961ac978da2384724933347f4a9693622057",
-      "origin": "sync-pob-catalog extract-lua; vendor PathOfBuilding-PoE2 bb52d6b368307457eb9c54bb13f1829993d390b1",
-      "unchanged_since_0.5.5.4.2": false,
       "reason": "TODO",
       "exit": "TODO"
     },
@@ -247,43 +119,11 @@
       "reason": "TODO",
       "exit": "TODO"
     },
-    "data/0.5.5.5/overlay/runes.json": {
-      "bytes": 314790,
-      "sha256": "9fb6561f34a795ed92ec9cce6e55f900de55ce3af250283f8a4f2085ece5e322",
-      "origin": "pobr-data-adapter ordinary socketables",
-      "unchanged_since_0.5.5.4.2": false,
-      "reason": "TODO",
-      "exit": "TODO"
-    },
-    "data/0.5.5.5/overlay/skill_stat_map.json": {
-      "bytes": 559713,
-      "sha256": "944e86eb729899a547daedc8eab6741d773eb40ec1f64a380a9acd2c20054661",
-      "origin": "sync-pob-catalog extract-lua; vendor PathOfBuilding-PoE2 bb52d6b368307457eb9c54bb13f1829993d390b1",
-      "unchanged_since_0.5.5.4.2": true,
-      "reason": "TODO",
-      "exit": "TODO"
-    },
     "data/0.5.5.5/overlay/special_mods.json": {
       "bytes": 10725,
       "sha256": "1d4ea323c6a980865119dad5e86c05d7097097a055bc026fa16eb52f483f097e",
       "origin": "hand-curated（S0 = parse_keystone_special 搬迁；S1/S2 = vendor specialModList 探针求值转写，详见各 source_note）; vendor PathOfBuilding-PoE2 2df5a7433dd2f1609e2fad8a6c3c917f923fe34f",
       "unchanged_since_0.5.5.4.2": true,
-      "reason": "TODO",
-      "exit": "TODO"
-    },
-    "data/0.5.5.5/overlay/stat_set_labels.json": {
-      "bytes": 207388,
-      "sha256": "825e594f43f07a4115ee29e57622670688e5d1c099f7e11a30ba66b3b80cca06",
-      "origin": "sync-pob-catalog extract-lua; vendor PathOfBuilding-PoE2 bb52d6b368307457eb9c54bb13f1829993d390b1",
-      "unchanged_since_0.5.5.4.2": true,
-      "reason": "TODO",
-      "exit": "TODO"
-    },
-    "data/0.5.5.5/overlay/totem_varieties.json": {
-      "bytes": 19731,
-      "sha256": "24973936b7fd2bb035cd2a1175477acdf490e416764c6fb86ba80752335c3791",
-      "origin": "pobr-data-adapter ordinary-facts totem-varieties",
-      "unchanged_since_0.5.5.4.2": false,
       "reason": "TODO",
       "exit": "TODO"
     },
