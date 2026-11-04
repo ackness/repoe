@@ -7,6 +7,8 @@ mod output;
 mod physical;
 pub(crate) mod player;
 pub(crate) mod reader;
+#[cfg(test)]
+mod testing;
 mod trust;
 
 pub(crate) use output::Output;

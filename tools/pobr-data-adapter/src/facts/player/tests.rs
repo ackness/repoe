@@ -9,31 +9,9 @@ use std::collections::BTreeMap;
 use pobr_data::catalog::native_player::*;
 use serde_json::{Value, json};
 
+use super::super::testing::Scratch;
 use super::super::{json_bytes, player, trust};
 use crate::raw_source::sha256_hex;
-
-struct Scratch(std::path::PathBuf);
-static SCRATCH_SEQUENCE: std::sync::atomic::AtomicU64 = std::sync::atomic::AtomicU64::new(0);
-impl Scratch {
-    fn new() -> Self {
-        let suffix = std::time::SystemTime::now()
-            .duration_since(std::time::UNIX_EPOCH)
-            .unwrap()
-            .as_nanos();
-        let sequence = SCRATCH_SEQUENCE.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
-        let path = std::env::temp_dir().join(format!(
-            "pobr-player-{}-{suffix}-{sequence}",
-            std::process::id()
-        ));
-        std::fs::create_dir(&path).unwrap();
-        Self(path.canonicalize().unwrap())
-    }
-}
-impl Drop for Scratch {
-    fn drop(&mut self) {
-        let _ = std::fs::remove_dir_all(&self.0);
-    }
-}
 
 fn fixture() -> (NativePlayerContextDef, trust::VerifiedInput) {
     let fixture: Value = serde_json::from_slice(include_bytes!(

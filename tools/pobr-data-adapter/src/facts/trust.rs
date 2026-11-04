@@ -10,6 +10,9 @@ use serde_json::{Map, Number, Value};
 
 use crate::raw_source::sha256_hex;
 
+#[cfg(test)]
+mod tests;
+
 /// The facts envelope the ordinary domains read: RePoE's `items-actors-bc` profile.
 const FORMAT: &str = "repoe-native-facts/v4";
 const PROFILE: &str = "items-actors-bc";
