@@ -560,9 +560,7 @@ fn plain_display_semantics(record: &Value) -> Result<Value, String> {
         let template = branch["template_raw"]
             .as_str()
             .ok_or("missing CSD template")?;
-        branch["template_raw"] = json!(pobr_core::mod_parser::engine::strip_display_markup(
-            template
-        ));
+        branch["template_raw"] = json!(pobr_data::text::strip_display_markup(template));
     }
     Ok(signature)
 }

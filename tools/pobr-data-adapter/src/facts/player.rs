@@ -9,7 +9,7 @@ use pobr_data::catalog::native_player::{
     NativePlayerFacts, NativePlayerMetadataStat, NativePlayerOrigin, NativePlayerReference,
     NativeStartingRelation,
 };
-use pobr_data::catalog::native_runtime::{NativeGame, NativeRealm};
+use pobr_data::catalog::native_player::{NativeGame, NativeRealm};
 use serde_json::{Value, json};
 
 use super::trust::{self, VerifiedInput, require, strict_json};

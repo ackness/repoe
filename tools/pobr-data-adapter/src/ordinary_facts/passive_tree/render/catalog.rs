@@ -113,8 +113,7 @@ impl Renderer<'_> {
                     }
                 },
             )?;
-            let template =
-                pobr_core::mod_parser::engine::strip_display_markup(&text.replace("\\n", "\n"));
+            let template = pobr_data::text::strip_display_markup(&text.replace("\\n", "\n"));
             if template.trim().is_empty() {
                 return Err("empty CSD effect description".into());
             }

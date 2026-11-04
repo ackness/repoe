@@ -111,7 +111,7 @@ pub(super) fn read(input: &selected::Input) -> Result<Lookups, String> {
                 i64::try_from(row).map_err(|_| "lookup row overflow")? + start
             };
             let raw_label = text(&raw[field])?;
-            let label = pobr_core::mod_parser::engine::strip_display_markup(raw_label);
+            let label = pobr_data::text::strip_display_markup(raw_label);
             if mapping.insert(key, label.clone()).is_some() {
                 return Err(format!("duplicate {handler} lookup key {key}"));
             }
@@ -154,7 +154,7 @@ pub(super) fn read(input: &selected::Input) -> Result<Lookups, String> {
             joins.push(json!({"skill_row":skill_row,"base_item_row":skill["BaseItemType"]}));
         }
         let raw_label = labels.join(" and ");
-        let label = pobr_core::mod_parser::engine::strip_display_markup(&raw_label);
+        let label = pobr_data::text::strip_display_markup(&raw_label);
         if skills.insert(key, label.clone()).is_some() {
             return Err("duplicate specific-skill Index".into());
         }

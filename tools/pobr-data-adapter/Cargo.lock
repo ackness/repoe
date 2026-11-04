@@ -106,7 +106,7 @@ checksum = "6b947ae49db0d222b1dbc6b113ce7248a3fc3a6ca21b696717bfc000ba4484d8"
 [[package]]
 name = "pobr-core"
 version = "0.0.29"
-source = "git+https://github.com/ackness/pobr?tag=engine-crates%2F20261102#174ca6fb0b044064e61bff50ecbf178e37a3fe4e"
+source = "git+https://github.com/ackness/pobr?tag=contract%2F1.0#95d71c6f8692bf0c2bef7e8ae3ceb593a7c1392c"
 dependencies = [
  "aho-corasick",
  "pobr-data",
@@ -118,7 +118,7 @@ dependencies = [
 [[package]]
 name = "pobr-data"
 version = "0.0.29"
-source = "git+https://github.com/ackness/pobr?tag=engine-crates%2F20261102#174ca6fb0b044064e61bff50ecbf178e37a3fe4e"
+source = "git+https://github.com/ackness/pobr?tag=contract%2F1.0#95d71c6f8692bf0c2bef7e8ae3ceb593a7c1392c"
 dependencies = [
  "serde",
  "serde_json",
@@ -142,11 +142,10 @@ dependencies = [
 [[package]]
 name = "pobr-gamedata"
 version = "0.0.29"
-source = "git+https://github.com/ackness/pobr?tag=engine-crates%2F20261102#174ca6fb0b044064e61bff50ecbf178e37a3fe4e"
+source = "git+https://github.com/ackness/pobr?tag=contract%2F1.0#95d71c6f8692bf0c2bef7e8ae3ceb593a7c1392c"
 dependencies = [
  "pobr-data",
  "serde",
- "serde_ignored",
  "serde_json",
  "sha2",
 ]
@@ -154,7 +153,7 @@ dependencies = [
 [[package]]
 name = "pobr-item"
 version = "0.0.29"
-source = "git+https://github.com/ackness/pobr?tag=engine-crates%2F20261102#174ca6fb0b044064e61bff50ecbf178e37a3fe4e"
+source = "git+https://github.com/ackness/pobr?tag=contract%2F1.0#95d71c6f8692bf0c2bef7e8ae3ceb593a7c1392c"
 dependencies = [
  "pobr-data",
 ]
@@ -162,7 +161,7 @@ dependencies = [
 [[package]]
 name = "pobr-tree"
 version = "0.0.29"
-source = "git+https://github.com/ackness/pobr?tag=engine-crates%2F20261102#174ca6fb0b044064e61bff50ecbf178e37a3fe4e"
+source = "git+https://github.com/ackness/pobr?tag=contract%2F1.0#95d71c6f8692bf0c2bef7e8ae3ceb593a7c1392c"
 dependencies = [
  "pobr-data",
  "serde",
@@ -258,16 +257,6 @@ dependencies = [
  "proc-macro2",
  "quote",
  "syn",
-]
-
-[[package]]
-name = "serde_ignored"
-version = "0.1.14"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "115dffd5f3853e06e746965a20dcbae6ee747ae30b543d91b0e089668bb07798"
-dependencies = [
- "serde",
- "serde_core",
 ]
 
 [[package]]

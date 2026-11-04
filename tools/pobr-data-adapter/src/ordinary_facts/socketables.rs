@@ -388,10 +388,7 @@ fn project(
                 match renderer.render(&values) {
                     Ok((text, evidence)) => {
                         lines.extend(text.into_iter().map(|line| {
-                            format!(
-                                "{prefix}{}",
-                                pobr_core::mod_parser::engine::strip_display_markup(&line)
-                            )
+                            format!("{prefix}{}", pobr_data::text::strip_display_markup(&line))
                         }));
                         selected.push(json!({"source_row":row,"packet":key,"prefix":prefix,"evidence":evidence}));
                     }
