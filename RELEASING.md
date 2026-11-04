@@ -32,7 +32,17 @@ Output (under `.cache/release/<game>-<realm>-<patch>/`, replaced on each run):
 Pinned inputs are extracted once into `.cache/release/inputs/`, keyed by
 SHA-256, and re-verified on every run. Nothing is read from a checkout's data
 directories, a vendor tree or the game CDN; `--fetch` only runs
-`git fetch --depth=1 origin <commit>` for a pinned commit that is missing locally.
+`git fetch --depth=1 origin <commit>` for a pinned commit, and
+`git fetch origin refs/tags/<tag>` for a package's publication tag, that is
+missing locally. Without `--fetch`, Git runs with `GIT_NO_LAZY_FETCH=1`, so a
+partial clone cannot fetch missing objects behind the build's back.
+
+A package's `tag` must name its locked `revision`; a tag that names another
+commit fails the build. The receipt records each tag as `verified` or, when
+the tag is not present locally and `--fetch` was not given,
+`not-present-locally`. The producer is `dirty` (with `dirty_paths`) on any
+tracked change and on any untracked file under `RePoE/`, `release/`,
+`tools/pobr-data-adapter/` or the toolchain pins.
 
 ## Declarations
 

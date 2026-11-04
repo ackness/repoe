@@ -75,6 +75,8 @@ CODE = (
     "RePoE/pobr_crafting_catalog.py",
     "tools/pobr-data-adapter/Cargo.lock",
 )
+# Paths whose untracked files can change the build (sources, declarations, policies, toolchain pins).
+PRODUCER_PATHS = ("RePoE", "release", "tools/pobr-data-adapter", "mise.toml", "mise.lock", "rust-toolchain.toml")
 
 
 def runtime_encoded(value):
@@ -180,10 +182,44 @@ def load_config(config):
 # --- pinned inputs -------------------------------------------------------------------------------
 
 
-def git(repo, *args, check=True):
-    result = subprocess.run(["git", "--no-replace-objects", "-C", str(repo), *args], capture_output=True, check=False)
+def git(repo, *args, check=True, online=False):
+    """Run Git; unless ``online``, a partial clone must not lazily fetch missing objects."""
+    env = os.environ if online else {**os.environ, "GIT_NO_LAZY_FETCH": "1"}
+    command = ["git", "--no-replace-objects", "-C", str(repo), *args]
+    result = subprocess.run(command, capture_output=True, check=False, env=env)
     require(not check or result.returncode == 0, f"git {' '.join(args[:3])} failed: {result.stderr.decode().strip()}")
     return result
+
+
+def tag_commit(repo, tag):
+    result = git(repo, "rev-parse", "--quiet", "--verify", f"refs/tags/{tag}^{{commit}}", check=False)
+    return result.stdout.decode().strip() if result.returncode == 0 else None
+
+
+def verify_tag(repo, spec, fetch):
+    """Check the lock's publication tag names the locked revision.
+
+    A tag missing locally is fetched with ``--fetch``; otherwise it is
+    reported as unverified rather than trusted.
+    """
+    tag = spec["tag"]
+    commit = tag_commit(repo, tag)
+    if commit is None and fetch:
+        git(
+            repo,
+            "fetch",
+            "--quiet",
+            "--depth=1",
+            "--no-tags",
+            "origin",
+            f"refs/tags/{tag}:refs/tags/{tag}",
+            online=True,
+        )
+        commit = tag_commit(repo, tag)
+    if commit is None:
+        return "not-present-locally"
+    require(commit == spec["revision"], f"Tag {tag} names {commit}, not the locked revision {spec['revision']}")
+    return "verified"
 
 
 def git_blob(repo, spec, fetch):
@@ -191,7 +227,7 @@ def git_blob(repo, spec, fetch):
     present = git(repo, "cat-file", "-e", f"{spec['revision']}^{{commit}}", check=False).returncode == 0
     if not present:
         require(fetch, f"Missing local commit {spec['revision']} ({spec['path']}); rerun with --fetch")
-        git(repo, "fetch", "--quiet", "--depth=1", "--no-tags", "origin", spec["revision"])
+        git(repo, "fetch", "--quiet", "--depth=1", "--no-tags", "origin", spec["revision"], online=True)
     listing = git(repo, "ls-tree", "-z", spec["revision"], "--", spec["path"]).stdout.split(b"\0")
     require(len(listing) == 2 and listing[0], f"Missing Git blob {spec['path']}")
     metadata, name = listing[0].split(b"\t", 1)
@@ -203,8 +239,9 @@ def git_blob(repo, spec, fetch):
 class Package:
     """An extracted, pinned zip; members are verified on every open."""
 
-    def __init__(self, name, spec, raw, root, members):
+    def __init__(self, name, spec, raw, root, members, tag=None):
         self.name, self.spec, self.raw, self.root, self.members = name, spec, raw, root, members
+        self.tag = tag
 
     def path(self, member):
         relative(member)
@@ -222,6 +259,7 @@ class Package:
 
 def open_package(repo, name, spec, cache, fetch):
     raw = git_blob(repo, spec, fetch)
+    tag = verify_tag(repo, spec, fetch) if "tag" in spec else None
     root = cache / "packages" / spec["sha256"]
     with zipfile.ZipFile(io.BytesIO(raw)) as archive:
         if "manifest" in spec:
@@ -240,7 +278,7 @@ def open_package(repo, name, spec, cache, fetch):
             stage.rename(root)
     for member, expected in members.items():
         require(file_pin(root / member) == expected, f"{name}: cached member changed: {member}")
-    return Package(name, spec, raw, root, members)
+    return Package(name, spec, raw, root, members, tag)
 
 
 def prepare_facts(package, spec, cache):
@@ -560,12 +598,16 @@ def write_zip(path, members):
 
 
 def producer_identity(repo, adapter, config, config_pins):
+    """The producer commit; dirty on any tracked change or any untracked file under the build's inputs."""
     head = git(repo, "rev-parse", "HEAD").stdout.decode().strip()
-    status = git(repo, "status", "--porcelain", "--untracked-files=no").stdout.decode().splitlines()
+    tracked = git(repo, "status", "--porcelain", "--untracked-files=no").stdout.decode().splitlines()
+    inputs = git(repo, "status", "--porcelain", "--untracked-files=all", "--", *PRODUCER_PATHS).stdout.decode()
+    dirty = sorted({line[3:] for line in tracked + inputs.splitlines() if line})
     return {
         "repository": "ackness/repoe",
         "commit": head,
-        "dirty": bool(status),
+        "dirty": bool(dirty),
+        "dirty_paths": dirty,
         "config": {display(config / name): value for name, value in config_pins.items()},
         "code": {name: file_pin(ROOT / name) for name in CODE},
         "adapter_binary": file_pin(adapter),
@@ -708,6 +750,7 @@ def build(
         "producer": producer,
         "inputs": {
             "packages": lock["packages"],
+            "tags": {name: package.tag for name, package in packages.items() if package.tag},
             "facts": {
                 "handoff": facts["handoff"],
                 "archive": facts["archive"],

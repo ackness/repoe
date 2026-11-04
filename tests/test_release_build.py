@@ -351,6 +351,43 @@ class ReleaseBuildTest(unittest.TestCase):
         with self.assertRaisesRegex(ValueError, "--fetch"):
             self.run_build(config)
 
+    def set_tag(self, config, tag):
+        lock = json.loads((config / "inputs.lock.json").read_text())
+        lock["packages"]["inputs"]["tag"] = tag
+        (config / "inputs.lock.json").write_text(json.dumps(lock))
+
+    def test_publication_tag_must_name_the_locked_revision(self):
+        config = self.fixture()
+        self.set_tag(config, "handoff/inputs")
+        _, receipt, _ = self.run_build(config)
+        self.assertEqual(receipt["inputs"]["tags"], {"inputs": "not-present-locally"})
+        self.git("tag", "handoff/inputs")
+        _, receipt, _ = self.run_build(config)
+        self.assertEqual(receipt["inputs"]["tags"], {"inputs": "verified"})
+        self.git("tag", "-d", "handoff/inputs")
+        self.commit({"later.txt": b"later"})
+        self.git("tag", "-a", "-m", "moved", "handoff/inputs")
+        with self.assertRaisesRegex(ValueError, "Tag handoff/inputs names .* not the locked revision"):
+            self.run_build(config)
+
+    def test_untracked_producer_inputs_mark_the_build_dirty(self):
+        config = self.fixture()
+        (self.repo / "scratch.txt").write_text("unrelated")
+        _, receipt, _ = self.run_build(config)
+        self.assertFalse(receipt["producer"]["dirty"])
+        (self.repo / "tools/pobr-data-adapter/policies").mkdir(parents=True)
+        (self.repo / "tools/pobr-data-adapter/policies/new.json").write_text("{}")
+        _, receipt, _ = self.run_build(config)
+        self.assertTrue(receipt["producer"]["dirty"])
+        self.assertEqual(receipt["producer"]["dirty_paths"], ["tools/pobr-data-adapter/policies/new.json"])
+
+    def test_offline_git_disables_lazy_fetch(self):
+        printenv = ["-c", "alias.printenv=!env", "printenv"]
+        environment = {k: v for k, v in os.environ.items() if k != "GIT_NO_LAZY_FETCH"}
+        with mock.patch.dict(os.environ, environment, clear=True):
+            self.assertIn(b"GIT_NO_LAZY_FETCH=1", build.git(self.repo, *printenv).stdout)
+            self.assertNotIn(b"GIT_NO_LAZY_FETCH=1", build.git(self.repo, *printenv, online=True).stdout)
+
     def test_refuses_to_replace_foreign_output(self):
         (self.root / "out").mkdir()
         (self.root / "out" / "keep.txt").write_text("x")
