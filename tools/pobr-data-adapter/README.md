@@ -7,11 +7,22 @@ in [`policies/`](policies). The tool and the policies moved here from PoBR
 published packages through its `pipeline/data.lock.json`.
 
 It is a standalone Cargo workspace inside this Python repository. PoBR's data
-types come from the immutable, non-release tag `engine-crates/20261102` of
-`ackness/pobr` (`pobr-data`, `pobr-core`; `pobr-gamedata`, `pobr-item` and
-`pobr-tree` for tests). `Cargo.lock` pins the resolved commit `174ca6fb`. When
-PoBR changes a runtime type, create a new tag there and bump all five entries in
-`Cargo.toml` together; never move an existing tag.
+types come from the immutable contract tag `contract/1.0` of `ackness/pobr`
+(`contract/<n>.<m>`, where n is `pobr_data::CONTRACT_VERSION`); `Cargo.lock`
+pins the resolved commit `95d71c6f`. Production code depends on `pobr-data`
+only. The engine crates `pobr-core`, `pobr-gamedata`, `pobr-item` and
+`pobr-tree` are dev-dependencies for the tests that check how PoBR consumes the
+output, and they must name the same tag: two tags compile two copies of
+`pobr-data` whose types do not match. When PoBR publishes a new contract tag,
+bump all five entries in `Cargo.toml` together and adapt the tests to engine API
+changes; never move an existing tag. `mise run adapter:check` fails if a PoBR
+crate other than `pobr-data` reaches the normal dependency tree, or if the
+locked PoBR crates resolve to more than one commit.
+
+Changing the pin does not change the published bytes by itself: `contract/1.0`
+(from `engine-crates/20261102`, `174ca6fb`) reproduced the published game part
+exactly. The sealed manifest does not record a contract version yet; adding
+one changes package bytes, so it waits for the next published release.
 
 ## Configuration ownership
 
@@ -48,7 +59,7 @@ mise reads it locally, and CI installs it with rustup.
 
 ```sh
 mise run adapter -- --ordinary-facts <F> --facts-manifest-sha256 <HEX> --version <patch> --out <fresh-directory> ...
-mise run adapter:check       # fmt, clippy -D warnings, cargo test
+mise run adapter:check       # fmt, clippy -D warnings, cargo test, pobr-data-only normal deps
 mise run adapter:keystones   # rebuild the published package's special_derived.json and compare bytes
 ```
 
@@ -91,7 +102,8 @@ repository:
 - "production `data/`" is the tracked `publication/` directory. The output
   guards refuse to write under it, as they refused PoBR's `data/`.
 - `CURRENT` is PoBR's runtime pointer. This tool never reads or writes it.
-- Links to PoBR source point at the `engine-crates/20261102` tag.
+- Links to PoBR source point at the `engine-crates/20261102` tag, the pin
+  when they were moved; `contract/1.0` replaced it.
 
 One scope decision from the move applies to every mode: the PoB2-derived
 parser and special-rule bytes in the published game package are frozen. New

@@ -53,6 +53,14 @@ the tag is not present locally and `--fetch` was not given,
 tracked change and on any untracked file under `RePoE/`, `release/`,
 `tools/pobr-data-adapter/` or the toolchain pins.
 
+The adapter's PoBR crates are pinned to one data-contract tag of
+`ackness/pobr` (currently `contract/1.0`) in
+`tools/pobr-data-adapter/Cargo.toml`; the receipt's `producer.code` pins
+`Cargo.lock`, which fixes the PoBR commit. A pin bump changes the receipt but
+must not change the zip: check it with `release:build -- --check` like any
+adapter change. The root manifest does not yet record the contract version;
+that is a package change for the next published release.
+
 ## Declarations
 
 Everything the build reads is declared in `release/<patch>/`:
