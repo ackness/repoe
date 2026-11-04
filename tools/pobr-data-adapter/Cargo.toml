@@ -8,12 +8,14 @@ description = "Adapts pinned RePoE facts and PoBR domain policies into PoBR's ru
 # A standalone workspace: RePoE is otherwise a Python project.
 [workspace]
 
-# PoBR engine crates come from one immutable, non-release tag of ackness/pobr.
-# Cargo.lock pins the resolved commit; bump the tag deliberately when PoBR's
-# data types change, never move it.
+# PoBR crates come from one immutable contract tag of ackness/pobr,
+# `contract/<n>.<m>` with n = pobr_data::CONTRACT_VERSION. Every PoBR entry,
+# normal and dev, names the same tag: mixed tags compile two copies of
+# pobr-data whose types do not match. Cargo.lock pins the resolved commit; bump
+# the tag deliberately when PoBR's data contract changes, never move it.
 [dependencies]
-pobr-data = { git = "https://github.com/ackness/pobr", tag = "engine-crates/20261102" }
-pobr-core = { git = "https://github.com/ackness/pobr", tag = "engine-crates/20261102" }
+pobr-data = { git = "https://github.com/ackness/pobr", tag = "contract/1.0" }
+pobr-core = { git = "https://github.com/ackness/pobr", tag = "contract/1.0" }
 serde = { version = "1", features = ["derive"] }
 # Raw PSG coordinates must round-trip exactly; the default parser can shift one ULP.
 serde_json = { version = "1", features = ["float_roundtrip"] }
@@ -24,9 +26,9 @@ sha2 = { version = "0.11", default-features = false }
 rustix = { version = "1.1", features = ["fs"] }
 
 [dev-dependencies]
-pobr-gamedata = { git = "https://github.com/ackness/pobr", tag = "engine-crates/20261102" }
-pobr-item = { git = "https://github.com/ackness/pobr", tag = "engine-crates/20261102" }
-pobr-tree = { git = "https://github.com/ackness/pobr", tag = "engine-crates/20261102" }
+pobr-gamedata = { git = "https://github.com/ackness/pobr", tag = "contract/1.0" }
+pobr-item = { git = "https://github.com/ackness/pobr", tag = "contract/1.0" }
+pobr-tree = { git = "https://github.com/ackness/pobr", tag = "contract/1.0" }
 
 # Same settings as PoBR: line tables for panic locations, no incremental object
 # graphs, and optimized dependencies so JSON-heavy tests stay fast.
