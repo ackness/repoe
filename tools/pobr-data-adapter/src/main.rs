@@ -12,6 +12,8 @@
 //! mise run adapter -- --tree <data.json> --out <dir> --patch <patch>
 //! # Keystone-derived special rules from a prepared passive_tree.json (mise run adapter:keystones)
 //! mise run adapter -- --emit-special-derived <passive_tree.json> --out <dir> --patch <patch>
+//! # The pobr_data::CONTRACT_VERSION this binary was compiled against (release:build records it)
+//! mise run adapter -- --contract-version
 //! ```
 
 mod special_derived;
@@ -34,6 +36,7 @@ fn main() -> ExitCode {
         Ok(Mode::Tree(args)) => tree::run(args),
         Ok(Mode::SpecialDerived(args)) => special_derived::run(args),
         Ok(Mode::OrdinaryFacts(args)) => ordinary_facts::run(*args),
+        Ok(Mode::ContractVersion) => Ok(pobr_data::CONTRACT_VERSION.to_string()),
         Err(err) => Err(err),
     };
     match result {
@@ -54,6 +57,8 @@ enum Mode {
     Tree(tree::TreeArgs),
     /// Derives `generated/special_derived.json` from the existing `passive_tree.json`'s keystone nodes.
     SpecialDerived(special_derived::SpecialDerivedArgs),
+    /// Prints the `pobr_data::CONTRACT_VERSION` the binary was compiled against.
+    ContractVersion,
 }
 
 fn parse_args() -> Result<Mode, String> {
@@ -62,6 +67,12 @@ fn parse_args() -> Result<Mode, String> {
 
 fn parse_args_from(args: impl Iterator<Item = String>) -> Result<Mode, String> {
     let args: Vec<_> = args.collect();
+    if args.iter().any(|arg| arg == "--contract-version") {
+        return match args.as_slice() {
+            [_] => Ok(Mode::ContractVersion),
+            _ => Err("--contract-version takes no other arguments".into()),
+        };
+    }
     if args.iter().any(|arg| arg == "--ordinary-facts") {
         return ordinary_facts::parse_args(args.into_iter())
             .map(|args| Mode::OrdinaryFacts(Box::new(args)));
@@ -128,4 +139,22 @@ pub(crate) fn write_pretty<T: serde::Serialize>(path: &Path, value: &T) -> Resul
         .map_err(|e| format!("failed to serialize {}: {e}", path.display()))?;
     fs::write(path, format!("{json}\n"))
         .map_err(|e| format!("failed to write {}: {e}", path.display()))
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn parse(args: &[&str]) -> Result<Mode, String> {
+        parse_args_from(args.iter().map(|arg| arg.to_string()))
+    }
+
+    #[test]
+    fn contract_version_is_a_mode_of_its_own() {
+        assert!(matches!(
+            parse(&["--contract-version"]),
+            Ok(Mode::ContractVersion)
+        ));
+        assert!(parse(&["--contract-version", "--out", "x"]).is_err());
+    }
 }

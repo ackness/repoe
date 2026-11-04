@@ -26,6 +26,8 @@ FAKE_ADAPTER = textwrap.dedent(
     import hashlib, json, sys
     from pathlib import Path
     args = sys.argv[1:]
+    if args == ["--contract-version"]:
+        sys.exit(print(1))
     values = dict(zip(args[::2], args[1::2]))
     if values.get("--ordinary-domain") == "fail":
         sys.exit("synthetic failure")
@@ -482,6 +484,27 @@ class ReleaseBuildTest(unittest.TestCase):
         for name in build.CODE:
             covered = any(name == p or (p.endswith("/**") and name.startswith(p[:-2])) for p in patterns)
             self.assertTrue(covered, f"{name} is not in the release workflow's paths filter")
+
+    def test_receipt_records_the_pobr_contract(self):
+        _, receipt, _ = self.run_build(self.fixture())
+        contract = receipt["producer"]["contract"]
+        self.assertEqual(contract["version"], 1)
+        self.assertRegex(contract["tag"], r"^contract/1\.\d+$")
+        self.assertRegex(contract["commit"], r"^[0-9a-f]{40}$")
+        lock = self.root / "Cargo.lock"
+        source = "git+https://github.com/ackness/pobr?tag=contract%2F2.0#" + "1" * 40
+        lock.write_text(f'[[package]]\nname = "pobr-data"\nsource = "{source}"\n')
+        with self.assertRaisesRegex(ValueError, "contract version 1, but Cargo.lock pins contract/2.0"):
+            build.pobr_contract(self.adapter, lock)
+        lock.write_text(lock.read_text() + f'[[package]]\nname = "pobr-core"\nsource = "{source[:-40]}{"2" * 40}"\n')
+        with self.assertRaisesRegex(ValueError, "exactly one"):
+            build.pobr_contract(self.adapter, lock)
+        dotgit = "git+https://github.com/ackness/pobr.git?tag=contract%2F1.3#" + "e" * 40
+        lock.write_text(f'[[package]]\nname = "pobr-data"\nsource = "{dotgit}"\n')
+        self.assertEqual(build.pobr_contract(self.adapter, lock)["tag"], "contract/1.3")
+        lock.write_text(f'[[package]]\nname = "pobr-data"\nsource = "{dotgit[:-1]}X"\n')
+        with self.assertRaisesRegex(ValueError, "pinned by tag and commit"):
+            build.pobr_contract(self.adapter, lock)
 
     def test_template_expansion(self):
         bindings = {"a.b": [1], "nested": {"c": 2}}

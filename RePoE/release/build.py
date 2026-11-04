@@ -22,10 +22,13 @@ import io
 import json
 import os
 from pathlib import Path, PurePosixPath
+import re
 import shutil
 import stat
 import subprocess
 import sys
+import tomllib
+from urllib.parse import parse_qs, urlsplit
 import zipfile
 
 from RePoE import pobr_crafting_catalog, pobr_historical_trees, source_rebinding
@@ -76,6 +79,8 @@ CODE = (
     "tools/pobr-data-adapter/Cargo.lock",
 )
 # Paths whose untracked files can change the build (sources, declarations, policies, toolchain pins).
+POBR_SOURCE = "git+https://github.com/ackness/pobr"
+CARGO_LOCK = ADAPTER_DIR / "Cargo.lock"
 PRODUCER_PATHS = ("RePoE", "release", "tools/pobr-data-adapter", "mise.toml", "mise.lock", "rust-toolchain.toml")
 
 
@@ -619,6 +624,37 @@ def write_zip(path, members):
             archive.writestr(info, members[member], compress_type=zipfile.ZIP_DEFLATED, compresslevel=9)
 
 
+def pobr_contract(adapter, cargo_lock=CARGO_LOCK):
+    """The PoBR data contract the adapter was built against.
+
+    ``version`` is the ``pobr_data::CONTRACT_VERSION`` compiled into the
+    adapter (``--contract-version``); ``tag`` and ``commit`` are the single
+    ``ackness/pobr`` source Cargo.lock resolves every PoBR crate to. The tag
+    must be ``contract/<version>.<m>``.
+    """
+    sources = {
+        package["source"]
+        for package in tomllib.loads(Path(cargo_lock).read_text())["package"]
+        if package.get("source", "").startswith((POBR_SOURCE + "?", POBR_SOURCE + ".git?"))
+    }
+    require(len(sources) == 1, f"Cargo.lock must pin exactly one {POBR_SOURCE} source, found {sorted(sources)}")
+    url = urlsplit(sources.pop())
+    tags = parse_qs(url.query).get("tag", [])
+    require(
+        len(tags) == 1 and re.fullmatch(r"[0-9a-f]{40}", url.fragment),
+        f"PoBR crates must be pinned by tag and commit: {url.geturl()}",
+    )
+    result = subprocess.run([str(adapter), "--contract-version"], capture_output=True, check=False)
+    output = result.stdout.decode().strip()
+    require(result.returncode == 0 and output.isdigit(), f"{adapter} --contract-version failed: {result.stderr!r}")
+    version, tag = int(output), tags[0]
+    require(
+        re.fullmatch(rf"contract/{version}\.\d+", tag),
+        f"The adapter is built for contract version {version}, but Cargo.lock pins {tag}",
+    )
+    return {"repository": "ackness/pobr", "version": version, "tag": tag, "commit": url.fragment}
+
+
 def producer_identity(repo, adapter, config, config_pins):
     """The producer commit; dirty on any tracked change or any untracked file under the build's inputs."""
     head = git(repo, "rev-parse", "HEAD").stdout.decode().strip()
@@ -633,6 +669,7 @@ def producer_identity(repo, adapter, config, config_pins):
         "config": {display(config / name): value for name, value in config_pins.items()},
         "code": {name: file_pin(ROOT / name) for name in CODE},
         "adapter_binary": file_pin(adapter),
+        "contract": pobr_contract(adapter),
     }
 
 
