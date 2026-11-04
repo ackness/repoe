@@ -31,7 +31,7 @@ from RePoE import pobr_crafting_catalog, pobr_historical_trees, source_rebinding
 from RePoE.data_publication import archive_manifest, decode, encoded, pin, pinned, relative, require
 
 ROOT = Path(__file__).resolve().parents[2]
-CONFIG = ROOT / "release" / "0.5.5.5"
+RELEASES = ROOT / "release"
 CACHE = ROOT / ".cache" / "release"
 ADAPTER_DIR = ROOT / "tools" / "pobr-data-adapter"
 ADAPTER = ADAPTER_DIR / "target" / "release" / "pobr-data-adapter"
@@ -111,6 +111,20 @@ def log(message):
 # --- configuration -------------------------------------------------------------------------------
 
 
+def patch_key(name):
+    parts = name.split(".")
+    return tuple(int(part) for part in parts) if all(part.isdigit() for part in parts) else None
+
+
+def default_config(releases=RELEASES):
+    """The highest game patch directory under ``release/`` (one per patch, named by the patch)."""
+    patches = [p for p in Path(releases).iterdir() if (p / "inputs.lock.json").is_file()]
+    invalid = sorted(p.name for p in patches if patch_key(p.name) is None)
+    require(not invalid, f"Release directories must be named by game patch: {invalid}")
+    require(patches, f"No release declaration under {display(releases)}; pass --config")
+    return max(patches, key=lambda p: patch_key(p.name))
+
+
 def load_config(config):
     config = Path(config).absolute()
     documents, pins = {}, {}
@@ -122,6 +136,10 @@ def load_config(config):
     lock, domains, frozen = (documents[name] for name in SCHEMAS)
     target = lock["target"]
     require(set(target) == {"game", "game_patch", "realm"}, "Invalid target")
+    require(
+        config.parent != RELEASES or config.name == target["game_patch"],
+        f"{display(config)} declares game patch {target['game_patch']}",
+    )
     require(domains["target"] == target and frozen["target"] == target, "Config target mismatch")
     packages = lock["packages"]
     require(isinstance(packages, dict) and packages, "No input packages")
@@ -602,7 +620,7 @@ def fresh_manifest(target, files, receipt_pin, producer):
 
 
 def build(
-    config=CONFIG,
+    config=None,
     out=None,
     adapter=ADAPTER,
     cache=CACHE,
@@ -611,7 +629,7 @@ def build(
     repo=ROOT,
     policies=POLICIES,
 ):
-    config, lock, domains, frozen, config_pins = load_config(config)
+    config, lock, domains, frozen, config_pins = load_config(config or default_config())
     target = lock["target"]
     name = f"{target['game']}-{target['realm']}-{target['game_patch']}"
     out = Path(out or cache / name).absolute()
@@ -752,7 +770,11 @@ def report(receipt):
 
 def main(argv=None):
     parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
-    parser.add_argument("--config", type=Path, default=CONFIG, help="release declaration directory")
+    parser.add_argument(
+        "--config",
+        type=Path,
+        help="release declaration directory release/<patch> (default: the highest patch under release/)",
+    )
     parser.add_argument("--out", type=Path, help="output directory under .cache/ (default .cache/release/<target>)")
     parser.add_argument("--adapter", type=Path, default=ADAPTER, help="built pobr-data-adapter binary")
     parser.add_argument("--cache", type=Path, default=CACHE, help="input extraction cache")

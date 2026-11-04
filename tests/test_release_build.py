@@ -347,6 +347,38 @@ class ReleaseBuildTest(unittest.TestCase):
             self.run_build(self.fixture())
         self.assertTrue((self.root / "out" / "keep.txt").exists())
 
+    def test_default_config_is_the_highest_patch(self):
+        releases = self.root / "release"
+        for name in ("0.5.5.5", "0.10.0", "0.9.1.2"):
+            (releases / name).mkdir(parents=True)
+            (releases / name / "inputs.lock.json").write_text("{}")
+        (releases / "notes").mkdir()  # no declaration: ignored
+        self.assertEqual(build.default_config(releases), releases / "0.10.0")
+        (releases / "next").mkdir()
+        (releases / "next" / "inputs.lock.json").write_text("{}")
+        with self.assertRaisesRegex(ValueError, "named by game patch"):
+            build.default_config(releases)
+
+    def test_config_option_selects_the_declaration(self):
+        config = self.fixture()
+        calls = []
+
+        def fake_build(*args):
+            calls.append(args[0])
+            raise ValueError("stop")
+
+        for argv, expected in (([], None), (["--config", str(config)], config)):
+            with self.subTest(argv=argv), mock.patch.object(build, "build", fake_build):
+                with self.assertRaises(SystemExit), mock.patch("sys.stderr", io.StringIO()):
+                    build.main(argv)
+                self.assertEqual(calls.pop(), expected)
+        # A directory under release/ must be named by the patch it declares.
+        with mock.patch.object(build, "RELEASES", config.parent):
+            with self.assertRaisesRegex(ValueError, "declares game patch 9.9"):
+                build.load_config(config)
+            renamed = config.rename(config.parent / "9.9")
+            self.assertEqual(build.load_config(renamed)[0], renamed)
+
     def test_template_expansion(self):
         bindings = {"a.b": [1], "nested": {"c": 2}}
         value = {"x": {"$retained": "a.b"}, "y": [{"$retained": "nested.c"}], "z": 3}

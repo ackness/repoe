@@ -99,7 +99,7 @@ description = "Restore reviewed historical attribute selectors from a pinned own
 run = "python -B -m RePoE.pobr_historical_trees"
 
 [tasks."release:build"]
-description = "Rebuild the game part from pinned handoff inputs and classify every member against the reference package (release/<patch>)"
+description = "Rebuild the game part from pinned handoff inputs and classify every member against the reference package (--config release/<patch>, default: highest patch)"
 run = "cargo build --locked --release --quiet --manifest-path tools/pobr-data-adapter/Cargo.toml && python -B -m RePoE.release.build"
 
 [tasks."tree:input"]

@@ -6,11 +6,18 @@ which bytes the code in this repository derived, which a producer only carried
 over from one of its inputs, and which are still copied from a frozen input.
 
 ```sh
-mise run release:build                    # build the adapter, then the package
+mise run release:build                    # build the adapter, then the package of the highest patch
+mise run release:build -- --config release/0.5.5.5  # a specific patch declaration
 mise run release:build -- --fetch         # fetch missing pinned commits from origin first
 mise run release:build -- --check         # exit 1 unless the zip equals the reference package
 mise run release:build -- --manifest fresh  # always write a new root manifest.json
 ```
+
+Without `--config`, the build uses the highest game patch directory under
+`release/` (directories are named by patch and compared numerically, so
+`0.10.0` is above `0.9.1`; a directory named otherwise is an error). There is
+no separate "current" pointer to keep in sync: adding `release/<new patch>/`
+makes it the default.
 
 Output (under `.cache/release/<game>-<realm>-<patch>/`, replaced on each run):
 
@@ -116,14 +123,20 @@ supplement or the player context archive is pinned only by hash), `pob2-derived`
    published game package. Update policy pins and member paths in
    `domains.json`; carry `frozen-inputs.json` over and replace frozen
    members with jobs where possible.
-3. Run `mise run release:build`. Review every `*-different` member:
+3. Run `mise run release:build` (the new directory is now the default; the
+   old one stays buildable with `--config release/<old patch>`). Review every
+   `*-different` member:
    it should be explained by the new facts, not by a changed policy you did
    not intend.
 4. Publish `game-build-part.zip` with `receipt.json` and `SHA256SUMS` from a
    tagged commit; PoBR then pins that tag and hash.
 
 CI (`.github/workflows/verify.yml`, job `release`) runs
-`release:build -- --fetch --check` on a clean checkout, so a change that makes
-the declared build stop reproducing the reference package fails. When a
+`release:build -- --config release/<patch> --fetch --check` for every patch
+directory on a clean checkout, so a change that makes any declared build stop
+reproducing its reference package fails. Every directory under `release/` is
+a claim that it still reproduces; when an old patch is superseded and no
+longer needs to (for example after an intended adapter change), delete its
+directory: Git history keeps it. When a
 release is meant to differ (a new patch), publish it first and then move
 `reference` to it, so CI checks the package that PoBR actually pins.

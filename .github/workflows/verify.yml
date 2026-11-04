@@ -68,9 +68,12 @@ jobs:
           cache-bin: 'false'
           save-if: ${{ github.event_name != 'pull_request' }}
       # Pinned handoff commits are fetched from origin by SHA (Git only, no game CDN).
-      # --check fails unless the zip is byte-identical to the lock's reference package.
-      - name: Rebuild the game package from pinned inputs
-        run: mise run release:build -- --fetch --check
+      # --check fails unless each zip is byte-identical to its lock's reference package.
+      - name: Rebuild every declared patch's game package from pinned inputs
+        run: |
+          for config in release/*/; do
+            mise run release:build -- --config "${config%/}" --fetch --check
+          done
       - uses: actions/upload-artifact@v4.6.2
         if: always()
         with:
