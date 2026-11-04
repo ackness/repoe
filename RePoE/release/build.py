@@ -141,7 +141,8 @@ def load_config(config):
     for member, entry in frozen["members"].items():
         relative(member)
         require(
-            {"bytes", "sha256", "origin", "reason", "exit"} <= set(entry), f"{member}: incomplete frozen declaration"
+            {"bytes", "sha256", "category", "origin", "reason", "exit"} <= set(entry),
+            f"{member}: incomplete frozen declaration",
         )
     require(domains["manifest"]["mode"] in ("retain-if-identical", "fresh"), "Unknown manifest mode")
     return config, lock, domains, frozen, pins
@@ -594,7 +595,10 @@ def build(config=CONFIG, out=None, adapter=ADAPTER, cache=CACHE, fetch=False, ma
             "files": dict(sorted(ctx.inputs.items())),
         },
         "jobs": jobs,
-        "frozen": {"source": frozen["source"], "members": sorted(frozen["members"])},
+        "frozen": {
+            "source": frozen["source"],
+            "members": {m: e["category"] for m, e in sorted(frozen["members"].items())},
+        },
         "members": classes,
         "summary": counts,
         "reference": {"package": lock["reference"], "members_identical": identical},

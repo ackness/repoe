@@ -6,214 +6,246 @@
     "realm": "international"
   },
   "source": "previous",
+  "categories": {
+    "unpinned-input": "An adapter producer exists; an input it needs is not pinned in any handoff.",
+    "pob2-derived": "PoB2-derived compatibility bytes with no RePoE producer.",
+    "migrated-constants": "No _meta; values migrated from PoBR/PoB2 constants, no RePoE producer.",
+    "shared-overlay": "Version-independent data/overlay-common files curated by hand."
+  },
   "members": {
     "data/0.5.5.5/base/base_player_mods.json": {
       "bytes": 2035,
       "sha256": "5f93bf335cd2dd71ae1ce8bf137a7a0dfe621ee6e3778d0fc6c9f83befc85687",
-      "origin": "unknown (no _meta)",
+      "category": "migrated-constants",
+      "origin": "unknown (no _meta); see reason",
       "unchanged_since_0.5.5.4.2": true,
-      "reason": "TODO",
-      "exit": "TODO"
+      "reason": "No _meta. Per pobr-data catalog/base_player_mods.rs: player baseline mods migrated value-for-value from PoBR Rust constants mirroring PoB2 CalcSetup.lua. No RePoE producer.",
+      "exit": "Generate from client facts (e.g. GameConstants/player context) or move into PoBR-owned Rust rules."
     },
     "data/0.5.5.5/base/enemy_presets.json": {
       "bytes": 7973,
       "sha256": "d8504ef38860682d03872e9b006493cecb91f078650c3f7580d056d34d3cb861",
-      "origin": "unknown (no _meta)",
+      "category": "migrated-constants",
+      "origin": "unknown (no _meta); see reason",
       "unchanged_since_0.5.5.4.2": true,
-      "reason": "TODO",
-      "exit": "TODO"
+      "reason": "No _meta. Per pobr-data catalog/enemy_presets.rs: enemy tier presets migrated from PoBR Rust constants mirroring PoB2 ConfigOptions.lua/Data.lua. No RePoE producer.",
+      "exit": "Move into PoBR-owned simulation presets or generate the numeric parts from client facts."
     },
     "data/0.5.5.5/base/unarmed_data.json": {
       "bytes": 2547,
       "sha256": "d224263fde5b621da26573bb1d6316ebf6fd09e54d3e7bce302867da2bd406c9",
-      "origin": "unknown (no _meta)",
+      "category": "unpinned-input",
+      "origin": "unknown (no _meta); see reason",
       "unchanged_since_0.5.5.4.2": false,
-      "reason": "TODO",
-      "exit": "TODO"
+      "reason": "The unarmed-data domain requires --player-context, the verified player archive with manifest c0412e13…; only its manifest is retained (tools/pobr-data-adapter/tests/fixtures/native-facts/player-context-manifest.json).",
+      "exit": "Publish the player-context archive (manifest c0412e13d92141476cae28d7dc9b58db9ec74cc82c8084847af6fed62f141bd5) as a handoff and declare the `unarmed-data` job."
     },
     "data/0.5.5.5/base/weapon_types.json": {
       "bytes": 1848,
       "sha256": "5b15e7302f73422664fee33dde6d24e4868a731510991b7709c4b274a162f214",
-      "origin": "unknown (no _meta)",
+      "category": "migrated-constants",
+      "origin": "unknown (no _meta); see reason",
       "unchanged_since_0.5.5.4.2": true,
-      "reason": "TODO",
-      "exit": "TODO"
+      "reason": "No _meta. Per pobr-data catalog/weapon_types.rs: line-for-line migration of PoB2 data.weaponTypeInfo. No RePoE producer.",
+      "exit": "Generate from client WeaponTypes/ItemClasses facts in RePoE."
     },
     "data/0.5.5.5/generated/special_vendor.json": {
       "bytes": 1466053,
       "sha256": "12d91522257bfb57b5cdfc63073bd3a5df8c7a87d2b1c13c3ba3f959c936d4a5",
+      "category": "pob2-derived",
       "origin": "sync-pob-catalog extract-lua; vendor PathOfBuilding-PoE2 bb52d6b368307457eb9c54bb13f1829993d390b1",
       "unchanged_since_0.5.5.4.2": true,
-      "reason": "TODO",
-      "exit": "TODO"
+      "reason": "PoB2 specialModList extraction (parser special rules). PoB2-derived compatibility bytes; no RePoE producer exists.",
+      "exit": "Replace with PoBR-owned Rust special-mod rules (roadmap: parser rules move to pobr)."
     },
     "data/0.5.5.5/overlay/catalysts.json": {
       "bytes": 2005,
       "sha256": "b8f80cda954d1f92e13310dd56f48daffca0567f09d39a074b236bf2a45c85f1",
+      "category": "unpinned-input",
       "origin": "pobr-data-adapter ordinary catalysts",
       "unchanged_since_0.5.5.4.2": false,
-      "reason": "TODO",
-      "exit": "TODO"
+      "reason": "The adapter domain exists but needs a selected-table supplement pinned only by its manifest SHA-256 edad16f5… (recorded in _meta and sources/sources.lock.json); its bytes are in no handoff tag.",
+      "exit": "Publish the selected-table supplement (manifest edad16f5a5ed2ab78671a8cecf8d7d24724a0d679741da6752051ab3f4a4f16c) as a handoff, pin it in inputs.lock.json and declare the `catalysts` job."
     },
     "data/0.5.5.5/overlay/config_options.json": {
       "bytes": 414791,
       "sha256": "5eec7db8f2dfe39caaa02e5d69ea03b9d5aede46b8640bc77e2731dfe152444b",
+      "category": "pob2-derived",
       "origin": "sync-pob-catalog extract-lua --what config-options; vendor PathOfBuilding-PoE2 bb52d6b368307457eb9c54bb13f1829993d390b1",
       "unchanged_since_0.5.5.4.2": true,
-      "reason": "TODO",
-      "exit": "TODO"
+      "reason": "PoB2 ConfigOptions extraction. PoB2-derived compatibility bytes; no RePoE producer exists.",
+      "exit": "Replace with PoBR-owned config semantics (Rust rules)."
     },
     "data/0.5.5.5/overlay/curse_priority.json": {
       "bytes": 1197,
       "sha256": "0767ba472ecaa863557a0988556000b44183c45a82f7726fa898aae916df721a",
+      "category": "pob2-derived",
       "origin": "sync-pob-catalog extract-lua --what curse-priority; vendor PathOfBuilding-PoE2 bb52d6b368307457eb9c54bb13f1829993d390b1",
       "unchanged_since_0.5.5.4.2": true,
-      "reason": "TODO",
-      "exit": "TODO"
+      "reason": "PoB2 curse priority extraction. PoB2-derived compatibility bytes; no RePoE producer exists.",
+      "exit": "Generate from client facts or move into PoBR-owned rules."
     },
     "data/0.5.5.5/overlay/item_granted_skills.json": {
       "bytes": 4217,
       "sha256": "fc1f874a99372d86d6ec30fba0f42bd099d74643e3adb76265a3e0b4785815dd",
+      "category": "unpinned-input",
       "origin": "pobr-data-adapter ordinary item-grants",
       "unchanged_since_0.5.5.4.2": false,
-      "reason": "TODO",
-      "exit": "TODO"
+      "reason": "item-grants runs without its optional supplement, but then omits _meta.variant_links (the only difference; all values match). The published file used supplement e2c314ef…, whose bytes are in no handoff tag.",
+      "exit": "Publish the selected-table supplement (manifest e2c314ef164985a9334d2f46056d5be1266bec3a32b4be18658e5e62a14e5260) as a handoff, pin it in inputs.lock.json and declare the `item-grants` job."
     },
     "data/0.5.5.5/overlay/mirage_configs.json": {
       "bytes": 3501,
       "sha256": "57a0b855062e1ec1a62461c634900fcb0b97e8b634ad0db9e09cc88a70c104c9",
+      "category": "pob2-derived",
       "origin": "sync-pob-catalog gen-mirage-configs（数据内嵌于工具源码）; vendor PathOfBuilding-PoE2 bb52d6b368307457eb9c54bb13f1829993d390b1",
       "unchanged_since_0.5.5.4.2": true,
-      "reason": "TODO",
-      "exit": "TODO"
+      "reason": "Embedded in the retired sync-pob-catalog tool, reconciled with PoB2. PoB2-derived compatibility bytes; no RePoE producer exists.",
+      "exit": "Move into PoBR-owned rules or generate from client facts."
     },
     "data/0.5.5.5/overlay/mod_parser_rules.json": {
       "bytes": 399196,
       "sha256": "c719c7c3eeed65048067f264fd0a62f81cc20d89b917f05e2aa53753166242af",
+      "category": "pob2-derived",
       "origin": "sync-pob-catalog extract-lua; vendor PathOfBuilding-PoE2 bb52d6b368307457eb9c54bb13f1829993d390b1",
       "unchanged_since_0.5.5.4.2": true,
-      "reason": "TODO",
-      "exit": "TODO"
+      "reason": "PoB2 ModParser extraction. PoB2-derived compatibility bytes; no RePoE producer exists.",
+      "exit": "Replace with PoBR-owned Rust parser rules."
     },
     "data/0.5.5.5/overlay/mod_scalability.json": {
       "bytes": 2496835,
       "sha256": "4713a22c2f32dc21fe0c017f6fed792cb799ac449171187fbb2d2b7acd814fc8",
+      "category": "pob2-derived",
       "origin": "sync-pob-catalog extract-lua; vendor PathOfBuilding-PoE2 bb52d6b368307457eb9c54bb13f1829993d390b1",
       "unchanged_since_0.5.5.4.2": true,
-      "reason": "TODO",
-      "exit": "TODO"
+      "reason": "PoB2 mod scalability extraction. PoB2-derived compatibility bytes; no RePoE producer exists.",
+      "exit": "Generate scalability from client Mods/Stats facts in RePoE."
     },
     "data/0.5.5.5/overlay/passive_jewel_slots.json": {
       "bytes": 5012,
       "sha256": "26bf7ad0d96fb2fe84392da141b2cf8c63d8313aeb620be165f33c65746439e2",
+      "category": "unpinned-input",
       "origin": "pobr-data-adapter ordinary passive-jewel-slots",
       "unchanged_since_0.5.5.4.2": false,
-      "reason": "TODO",
-      "exit": "TODO"
+      "reason": "The adapter domain exists but needs a selected-table supplement pinned only by its manifest SHA-256 e2c314ef… (recorded in _meta and sources/sources.lock.json); its bytes are in no handoff tag.",
+      "exit": "Publish the selected-table supplement (manifest e2c314ef164985a9334d2f46056d5be1266bec3a32b4be18658e5e62a14e5260) as a handoff, pin it in inputs.lock.json and declare the `passive-jewel-slots` job."
     },
     "data/0.5.5.5/overlay/passive_jewels.json": {
       "bytes": 14663,
       "sha256": "a93b2729bb015f8902a909367e62a1a2abc2787cde0f6d929191222283c33690",
+      "category": "pob2-derived",
       "origin": "luajit pipeline/extract-passive-jewels.lua <vendor_src> <output.json>",
       "unchanged_since_0.5.5.4.2": true,
-      "reason": "TODO",
-      "exit": "TODO"
+      "reason": "luajit extract-passive-jewels.lua over PoB2. PoB2-derived compatibility bytes; no RePoE producer exists.",
+      "exit": "Generate from client passive/jewel facts in RePoE."
     },
     "data/0.5.5.5/overlay/special_mods.json": {
       "bytes": 10725,
       "sha256": "1d4ea323c6a980865119dad5e86c05d7097097a055bc026fa16eb52f483f097e",
+      "category": "pob2-derived",
       "origin": "hand-curated（S0 = parse_keystone_special 搬迁；S1/S2 = vendor specialModList 探针求值转写，详见各 source_note）; vendor PathOfBuilding-PoE2 2df5a7433dd2f1609e2fad8a6c3c917f923fe34f",
       "unchanged_since_0.5.5.4.2": true,
-      "reason": "TODO",
-      "exit": "TODO"
+      "reason": "Hand-curated from PoB2 specialModList probes. PoB2-derived compatibility bytes; no RePoE producer exists.",
+      "exit": "Replace with PoBR-owned Rust special-mod rules."
     },
     "data/0.5.5.5/overlay/trade_catalog.json": {
       "bytes": 3104568,
       "sha256": "de57e010c8bf93f18bf557c650d6cdc06d98bc3fbde58049227b31feda9deea6",
+      "category": "pob2-derived",
       "origin": "luajit pipeline/extract-trade-catalog.lua vendor/PathOfBuilding-PoE2/src <out> <crafting_sources>",
       "unchanged_since_0.5.5.4.2": true,
-      "reason": "TODO",
-      "exit": "TODO"
+      "reason": "luajit extract-trade-catalog.lua over PoB2 mod/base/gem tables. PoB2-derived compatibility bytes; no RePoE producer exists.",
+      "exit": "Generate the trade catalog from client Mods/BaseItemTypes facts in RePoE."
     },
     "data/0.5.5.5/overlay/trade_stat_map.json": {
       "bytes": 124884,
       "sha256": "b4fcaca76ed5c653e06d3bb2d9e7f146fca4643417d508159de48d9c910ce839",
+      "category": "pob2-derived",
       "origin": "luajit pipeline/extract-trade-map.lua vendor/PathOfBuilding-PoE2/src <out>",
       "unchanged_since_0.5.5.4.2": true,
-      "reason": "TODO",
-      "exit": "TODO"
+      "reason": "luajit extract-trade-map.lua over PoB2 tradeHashes. PoB2-derived compatibility bytes; no RePoE producer exists.",
+      "exit": "Generate from a pinned trade-site stats source in RePoE."
     },
     "data/0.5.5.5/overlay/trigger_configs.json": {
       "bytes": 21125,
       "sha256": "89634d02d0f25b5c2214e639c3217058e3ad8c0c4f973b242aa05194633a8646",
+      "category": "pob2-derived",
       "origin": "sync-pob-catalog gen-trigger-configs（数据内嵌于工具源码 + vendor key 对账）; vendor PathOfBuilding-PoE2 bb52d6b368307457eb9c54bb13f1829993d390b1",
       "unchanged_since_0.5.5.4.2": true,
-      "reason": "TODO",
-      "exit": "TODO"
+      "reason": "Embedded in the retired sync-pob-catalog tool, reconciled with PoB2 keys. PoB2-derived compatibility bytes; no RePoE producer exists.",
+      "exit": "Move into PoBR-owned rules."
     },
     "data/0.5.5.5/overlay/uniques.json": {
       "bytes": 241759,
       "sha256": "06dbd5055882cf8d883c94dd56b989fc847d19e9f8da023494178deac7066600",
+      "category": "pob2-derived",
       "origin": "sync-pob-catalog extract-lua; vendor PathOfBuilding-PoE2 bb52d6b368307457eb9c54bb13f1829993d390b1",
       "unchanged_since_0.5.5.4.2": true,
-      "reason": "TODO",
-      "exit": "TODO"
+      "reason": "PoB2 unique catalog extraction. The `uniques` adapter domain only projects this retained catalog into a separate overlay/unique_relations.json, which is not in this package layout.",
+      "exit": "Generate uniques from client UniqueStashLayout/Words/Mods facts in RePoE; then decide whether unique_relations.json joins the layout."
     },
     "data/overlay-common/boss_poise_thresholds.json": {
       "bytes": 1475,
       "sha256": "a2b7c35f8fd02c5e3c8997e0d0634faa6b17385b8c201620d941c5f7ecf27a10",
+      "category": "shared-overlay",
       "origin": "manual",
       "unchanged_since_0.5.5.4.2": true,
-      "reason": "TODO",
-      "exit": "TODO"
+      "reason": "Hand-curated 0.5.5.4.2 shared overlay; the version overlay is generated by boss-poise.",
+      "exit": "Drop from the package once PoBR no longer loads overlay-common for this domain."
     },
     "data/overlay-common/buff_definitions.json": {
       "bytes": 14694,
       "sha256": "0fd267716e0e4d1bee9dadf76c2a794b28f0941c1dd301b5c6b2ec3bf9009026",
+      "category": "shared-overlay",
       "origin": "manual-curation (00-index 裁决 §4.2-4 批准的 overlay 通道例外); vendor PathOfBuilding-PoE2 ce8bffaba31f8e68cfce70579e1c96465e7c133c",
       "unchanged_since_0.5.5.4.2": true,
-      "reason": "TODO",
-      "exit": "TODO"
+      "reason": "Manual curation of PoB2 CalcPerform buff logic. PoB2-derived compatibility bytes; no RePoE producer exists.",
+      "exit": "Replace with PoBR-owned Rust buff rules or client BuffDefinitions facts."
     },
     "data/overlay-common/high_precision_mods.json": {
       "bytes": 2849,
       "sha256": "e7d310b8d7729acec6cefefc4309c3d29407a78f3ce1526754d40c03d3aa64bf",
+      "category": "shared-overlay",
       "origin": "manual transcription (M0-W4d); vendor PathOfBuilding-PoE2 2df5a7433dd2f1609e2fad8a6c3c917f923fe34f",
       "unchanged_since_0.5.5.4.2": true,
-      "reason": "TODO",
-      "exit": "TODO"
+      "reason": "Manual transcription of PoB2 Data.lua highPrecisionMods. PoB2-derived compatibility bytes; no RePoE producer exists.",
+      "exit": "Move into PoBR-owned rules."
     },
     "data/overlay-common/item_granted_skills.json": {
       "bytes": 3240,
       "sha256": "0cfd12f28ef7261c01bb270db033ad31ca959e618ac274355a657bd495d8b087",
+      "category": "shared-overlay",
       "origin": "manual",
       "unchanged_since_0.5.5.4.2": true,
-      "reason": "TODO",
-      "exit": "TODO"
+      "reason": "Hand-curated 0.5.5.4.2 shared overlay; the version overlay (item-grants) takes precedence.",
+      "exit": "Drop once PoBR no longer loads overlay-common for this domain."
     },
     "data/overlay-common/passive_jewel_slots.json": {
       "bytes": 5786,
       "sha256": "b196f9b3582a21fe1c26626d64a3449a1c83dab16044e970a0edd2b9215ca06b",
+      "category": "shared-overlay",
       "origin": "manual",
       "unchanged_since_0.5.5.4.2": true,
-      "reason": "TODO",
-      "exit": "TODO"
+      "reason": "Hand-curated 0.5.5.4.2 shared overlay; the version overlay takes precedence.",
+      "exit": "Drop once PoBR no longer loads overlay-common for this domain."
     },
     "data/overlay-common/totem_varieties.json": {
       "bytes": 4583,
       "sha256": "a9fce28d816e07432fd810d6c95a1567f5cb0a6007acd42e88089f728bfa0cca",
+      "category": "shared-overlay",
       "origin": "manual",
       "unchanged_since_0.5.5.4.2": true,
-      "reason": "TODO",
-      "exit": "TODO"
+      "reason": "Hand-curated 0.5.5.4.2 shared overlay; the version overlay is generated by totem-varieties.",
+      "exit": "Drop once PoBR no longer loads overlay-common for this domain."
     },
     "data/overlay-common/vendor_name_aliases.json": {
       "bytes": 14378,
       "sha256": "af40f1f97ff893b076225fbc5778884d83450f70aa7b99e3fda7461eeb047ba4",
+      "category": "shared-overlay",
       "origin": "",
       "unchanged_since_0.5.5.4.2": true,
-      "reason": "TODO",
-      "exit": "TODO"
+      "reason": "PoBR-authored PoB2 ModName -> StatId alias table; its _meta says consumed_by NONE.",
+      "exit": "Remove from the package after confirming PoBR has no reader."
     }
   }
 }
