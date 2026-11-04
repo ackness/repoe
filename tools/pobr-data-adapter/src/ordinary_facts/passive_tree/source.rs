@@ -186,7 +186,7 @@ impl<'a> Facts<'a> {
             .as_object()
             .ok_or("invalid reference context")?;
         let raw = raw.as_object().ok_or("invalid passive context")?;
-        // Same whole-row rule as native_facts/runtime/tree.rs: identical keys;
+        // Whole-row rule: identical keys;
         // only these six fields vary. No interpretation of unknown/context keys.
         let keys: BTreeSet<_> = raw.keys().chain(reference.keys()).collect();
         Ok(keys

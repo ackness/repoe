@@ -2,7 +2,7 @@
 
 use std::path::Path;
 
-use super::{Args, Profile, trust};
+use super::trust;
 
 pub(crate) mod selected;
 
@@ -50,14 +50,10 @@ pub(crate) fn open(
     tables: &[&str],
 ) -> Result<VerifiedFacts, String> {
     let facts = trust::verify_selection(
-        &Args {
-            input: input.into(),
-            expected_manifest_sha256: expected_manifest_sha256.into(),
-            source_lock: input.join("source-lock.json"),
-            out: Default::default(),
-            profile: Profile::ItemsActorsBc,
-        },
-        Some(tables),
+        input,
+        expected_manifest_sha256,
+        &input.join("source-lock.json"),
+        tables,
     )?;
     trust::require(
         facts.manifest["source_identity"]["game_patch"] == version,

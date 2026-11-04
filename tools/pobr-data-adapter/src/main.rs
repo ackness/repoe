@@ -1,16 +1,13 @@
 //! pobr-data-adapter: adapts authenticated owner facts into PoBR's runtime JSON.
 //!
-//! Inputs are pinned RePoE publications (ordinary and native physical facts,
-//! the historical official tree package) plus the domain policies in `policies/`. It
+//! Inputs are pinned RePoE publications (physical facts and supplements, the
+//! historical official tree package) plus the domain policies in `policies/`. It
 //! never reads vendor Lua or a local raw-table export.
 //!
 //! Usage:
 //! ```text
 //! # Ordinary domains from pinned physical facts (see ordinary-facts.md)
 //! mise run adapter -- --ordinary-facts <F> --facts-manifest-sha256 <HEX> --version <patch> --out <fresh-directory>
-//! # Frozen schema-4 native facts and runtime (see native-facts.md, native-runtime.md)
-//! mise run adapter -- --native-facts <F> ...
-//! mise run adapter -- --native-runtime <F> ...
 //! # Passive tree domain candidate from the pinned official tree export (see ordinary-passive-tree.md)
 //! mise run adapter -- --tree <data.json> --out <dir> --patch <patch>
 //! # Keystone-derived special rules from a prepared passive_tree.json (mise run adapter:keystones)
@@ -28,7 +25,6 @@ use serde::Deserialize;
 
 mod facts;
 mod monsters;
-mod native_facts;
 mod ordinary_facts;
 mod raw_source;
 mod skills;
@@ -37,8 +33,6 @@ fn main() -> ExitCode {
     let result = match parse_args() {
         Ok(Mode::Tree(args)) => tree::run(args),
         Ok(Mode::SpecialDerived(args)) => special_derived::run(args),
-        Ok(Mode::NativeFacts(args)) => native_facts::run(args),
-        Ok(Mode::NativeRuntime(args)) => native_facts::runtime::run(*args),
         Ok(Mode::OrdinaryFacts(args)) => ordinary_facts::run(*args),
         Err(err) => Err(err),
     };
@@ -57,8 +51,6 @@ fn main() -> ExitCode {
 /// Independent data-domain adapter modes, mutually exclusive.
 enum Mode {
     OrdinaryFacts(Box<ordinary_facts::Args>),
-    NativeRuntime(Box<native_facts::runtime::Args>),
-    NativeFacts(native_facts::Args),
     Tree(tree::TreeArgs),
     /// Derives `generated/special_derived.json` from the existing `passive_tree.json`'s keystone nodes.
     SpecialDerived(special_derived::SpecialDerivedArgs),
@@ -73,14 +65,6 @@ fn parse_args_from(args: impl Iterator<Item = String>) -> Result<Mode, String> {
     if args.iter().any(|arg| arg == "--ordinary-facts") {
         return ordinary_facts::parse_args(args.into_iter())
             .map(|args| Mode::OrdinaryFacts(Box::new(args)));
-    }
-    if args.iter().any(|arg| arg == "--native-runtime") {
-        return native_facts::runtime::parse_args(args.into_iter())
-            .map(Box::new)
-            .map(Mode::NativeRuntime);
-    }
-    if args.iter().any(|arg| arg == "--native-facts") {
-        return native_facts::parse_args(args.into_iter()).map(Mode::NativeFacts);
     }
     let mut tree = None;
     let mut special_derived = None;
@@ -119,8 +103,7 @@ fn parse_args_from(args: impl Iterator<Item = String>) -> Result<Mode, String> {
             patch,
         })),
         (None, None) => Err(
-            "missing --ordinary-facts / --native-facts / --native-runtime / --tree <data.json> / \
-             --emit-special-derived <passive_tree.json>"
+            "missing --ordinary-facts / --tree <data.json> / --emit-special-derived <passive_tree.json>"
                 .into(),
         ),
     }

@@ -59,11 +59,23 @@ pub(crate) struct Identity {
 #[derive(Deserialize)]
 #[serde(deny_unknown_fields)]
 pub(crate) struct PassiveInput {
+    #[expect(
+        dead_code,
+        reason = "decoded only so that passives.json keeps its exact shape"
+    )]
     pub definitions: Vec<DefinitionInput>,
     pub default_graph_instances: Vec<InstanceInput>,
+    #[expect(
+        dead_code,
+        reason = "decoded only so that passives.json keeps its exact shape"
+    )]
     pub class_overrides: Vec<ClassInput>,
 }
 
+#[expect(
+    dead_code,
+    reason = "decoded only so that passives.json keeps its exact shape"
+)]
 #[derive(Deserialize)]
 #[serde(deny_unknown_fields)]
 pub(crate) struct DefinitionInput {
@@ -73,6 +85,10 @@ pub(crate) struct DefinitionInput {
     pub stats: Vec<PassiveStatInput>,
 }
 
+#[expect(
+    dead_code,
+    reason = "decoded only so that passives.json keeps its exact shape"
+)]
 #[derive(Deserialize)]
 #[serde(deny_unknown_fields)]
 pub(crate) struct PassiveStatInput {
@@ -94,6 +110,10 @@ pub(crate) struct InstanceInput {
     pub splines: Vec<i64>,
 }
 
+#[expect(
+    dead_code,
+    reason = "decoded only so that passives.json keeps its exact shape"
+)]
 #[derive(Deserialize)]
 #[serde(deny_unknown_fields)]
 pub(crate) struct ClassInput {

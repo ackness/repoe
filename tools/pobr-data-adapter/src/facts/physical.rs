@@ -5,10 +5,8 @@ use std::collections::{BTreeMap, BTreeSet};
 use serde::de::DeserializeOwned;
 use serde_json::Value;
 
-use super::Profile;
 use super::model::{Graph, GraphInput, Group, Identity, InputRef, PassiveInput};
 use super::trust::{self, VerifiedInput, require};
-use crate::native_facts::{core_skills, gems, items_actors};
 
 pub(crate) fn normalize_graph(
     graph: GraphInput,
@@ -127,40 +125,19 @@ pub(crate) struct Tables<'src> {
 }
 
 impl<'src> Tables<'src> {
-    pub(crate) fn new(input: &'src VerifiedInput) -> Result<Self, String> {
-        Self::read(input, &trust::tables(input.profile), true)
-    }
-
     /// Read selected, already authenticated tables with the existing physical-row checks.
     pub(crate) fn selected(
         input: &'src VerifiedInput,
         selected: &[&'static str],
     ) -> Result<Self, String> {
-        Self::read(input, selected, false)
-    }
-
-    fn read(
-        input: &'src VerifiedInput,
-        selected: &[&'static str],
-        native_projection: bool,
-    ) -> Result<Self, String> {
-        Self::read_documents(&input.documents, selected, input.profile, native_projection)
+        Self::selected_documents(&input.documents, selected)
     }
 
     /// Supplemental physical tables use the same row/column checks, without a
-    /// full-profile projection or a fabricated parent fact manifest.
+    /// fabricated parent fact manifest.
     pub(crate) fn selected_documents(
         documents: &'src BTreeMap<String, Value>,
         selected: &[&'static str],
-    ) -> Result<Self, String> {
-        Self::read_documents(documents, selected, Profile::ItemsActorsBc, false)
-    }
-
-    fn read_documents(
-        documents: &'src BTreeMap<String, Value>,
-        selected: &[&'static str],
-        profile: Profile,
-        native_projection: bool,
     ) -> Result<Self, String> {
         let mut rows = BTreeMap::new();
         for &table in selected {
@@ -187,32 +164,6 @@ impl<'src> Tables<'src> {
                 "physical table identity mismatch",
             )?;
             let fields: Vec<String> = decode(&doc["physical_fields"])?;
-            if native_projection && profile != Profile::BaseV1 {
-                require(
-                    core_skills::required_fields(table)
-                        .iter()
-                        .all(|required| fields.iter().any(|field| field == required)),
-                    "missing core-skill physical field",
-                )?;
-            }
-            if native_projection
-                && matches!(profile, Profile::GemsConstraintsA1 | Profile::ItemsActorsBc)
-            {
-                require(
-                    gems::required_fields(table)
-                        .iter()
-                        .all(|required| fields.iter().any(|field| field == required)),
-                    "missing gem physical field",
-                )?;
-            }
-            if native_projection && profile == Profile::ItemsActorsBc {
-                require(
-                    items_actors::required_fields(table)
-                        .iter()
-                        .all(|required| fields.contains(required)),
-                    "missing items/actors physical field",
-                )?;
-            }
             let unique: BTreeSet<_> = fields.iter().collect();
             require(
                 unique.len() == fields.len() && !fields.is_empty(),
@@ -236,7 +187,7 @@ impl<'src> Tables<'src> {
                     && validation["schema_row_bytes"]
                         .as_u64()
                         .is_some_and(|v| v > 0)
-                    && if profile == Profile::ItemsActorsBc && source_rows.is_empty() {
+                    && if source_rows.is_empty() {
                         validation["actual_row_bytes"] == 0
                     } else {
                         validation["schema_row_bytes"] == validation["actual_row_bytes"]
@@ -250,7 +201,7 @@ impl<'src> Tables<'src> {
                 require(row["_row"] == index, "physical row order mismatch")?;
                 trust::exact_keys(&row["values"], &fields)?;
                 if fields.iter().any(|f| f == "Id") {
-                    if profile == Profile::ItemsActorsBc && table == "SummonedSpecificMonsters" {
+                    if table == "SummonedSpecificMonsters" {
                         require(
                             row["values"]["Id"].is_i64() || row["values"]["Id"].is_u64(),
                             "invalid numeric summoned-monster Id",

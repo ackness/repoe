@@ -16,7 +16,9 @@ use super::trust::{self, VerifiedInput, require, strict_json};
 use super::{inputs, json_bytes};
 use crate::raw_source::sha256_hex;
 
-pub(crate) const PRODUCER_REVISION: &str = "cf190d05b09b7aac17e484107cd8152b5ae00fa1";
+#[cfg(test)]
+mod tests;
+
 const FIXTURE: &[u8] =
     include_bytes!("../../tests/fixtures/native-facts/player-context-manifest.json");
 const PAYLOADS: &[&str] = &[

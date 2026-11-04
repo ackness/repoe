@@ -1498,28 +1498,8 @@ fn implementation_sha256() -> String {
             include_bytes!("facts/model.rs").as_slice(),
         ),
         (
-            "native_facts/convert.rs",
-            include_bytes!("native_facts/convert.rs").as_slice(),
-        ),
-        (
             "facts/output.rs",
             include_bytes!("facts/output.rs").as_slice(),
-        ),
-        (
-            "native_facts/mod.rs",
-            include_bytes!("native_facts/mod.rs").as_slice(),
-        ),
-        (
-            "native_facts/core_skills.rs",
-            include_bytes!("native_facts/core_skills.rs").as_slice(),
-        ),
-        (
-            "native_facts/gems.rs",
-            include_bytes!("native_facts/gems.rs").as_slice(),
-        ),
-        (
-            "native_facts/items_actors.rs",
-            include_bytes!("native_facts/items_actors.rs").as_slice(),
         ),
         ("main.rs", include_bytes!("main.rs").as_slice()),
         ("raw_source.rs", include_bytes!("raw_source.rs").as_slice()),

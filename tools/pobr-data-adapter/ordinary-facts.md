@@ -63,11 +63,10 @@ mise run adapter -- \
 ```
 
 The output parent must exist; the leaf must not exist, even as an empty directory
-or dangling symlink. Linux/macOS directory handles enforce the existing native
-adapter's input and production `data/` protections. Use a path outside `data/`,
+or dangling symlink. Linux/macOS directory handles enforce the shared `facts`
+output guard's input and production `data/` protections. Use a path outside `data/`,
 such as `.cache/ordinary-stats-mods`. Arguments are required, cannot repeat, and
-cannot be combined with another adapter mode (`--native-facts`, `--native-runtime`,
-`--tree`, `--emit-special-derived`).
+cannot be combined with another adapter mode (`--tree`, `--emit-special-derived`).
 
 An invalid, missing-value or repeated `--ordinary-domain` is an error. Omitting
 it preserves the Stats/Mods JSON, marker and receipt content except for the
@@ -175,14 +174,14 @@ marker. `producer-receipt.json` is written last; an interrupted directory is
 incomplete and is never reused. `complete_runtime: false` and `adoption:
 "not-adopted"` separate conversion from complete-package integration and actual
 use. Target-compatible remaining domains/assets are still needed for a complete
-ordinary runtime package; the schema-4 guard is unchanged.
+ordinary runtime package.
 
 ## Shared reader for subsequent producers
 
 Within this tool, reuse:
 
 ```rust,ignore
-use crate::native_facts::reader::{self, Tables};
+use crate::facts::reader::{self, Tables};
 
 let facts = reader::open(input, expected_manifest_sha256, version, selected_tables)?;
 let tables = Tables::selected(&facts, selected_tables)?;
@@ -196,7 +195,7 @@ selected immutable bytes and parsed documents. `Tables::selected` accepts
 available in `facts.documents["tables/Table.json"]`. Consumers declare their
 field contracts and perform domain joins after this shared verification; they
 must not reinterpret `_row` as a stable ID or reopen unverified payload bytes.
-This is the same physical reader as the native adapter, not another parser in
+It is the adapter's one physical reader (`src/facts/`), not another parser in
 the engine. Full-tree `native_stats` and later item/skill producers should reuse
 it, adding the appropriate selected tables and ordinary domain conversions.
 
@@ -212,5 +211,5 @@ Coordinator commands (not run by the implementation worker):
 
 ```sh
 mise exec -- cargo test --locked --manifest-path tools/pobr-data-adapter/Cargo.toml ordinary_facts::tests
-mise exec -- cargo test --locked --manifest-path tools/pobr-data-adapter/Cargo.toml native_facts::
+mise exec -- cargo test --locked --manifest-path tools/pobr-data-adapter/Cargo.toml facts::
 ```
