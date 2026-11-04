@@ -11,6 +11,7 @@ RePoE reads client resources, preserves their identities and relationships, and 
 | Consume a published game-data package | [Publication index](publication/index.json) and [consumer contract](RePoE/docs/publication_index.md) |
 | Set up the exporters or run a local export | [Development](#development) and [exporting data](#exporting-data) below |
 | Convert facts into PoBR runtime JSON | [Rust data adapter](tools/pobr-data-adapter/README.md) |
+| Rebuild the PoBR game package from pinned inputs | [Releasing](RELEASING.md) (`mise run release:build`) |
 | Inspect client resources and their provenance | [Client acquisition](RePoE/docs/client-sources.md) and [resource lookup](RePoE/docs/client-index.md) |
 | Find a domain's schema or validation limits | [Data contracts](#data-contracts) below |
 
@@ -108,6 +109,7 @@ RePoE/source_rebinding.py     Offline source verification
 RePoE/docs/                   Domain formats and producer contracts
 schema/                       Pinned decoding schema and provenance
 tools/pobr-data-adapter/      Rust runtime-data adapter and domain policies
+RePoE/release/, release/      Game-package release build and its pinned declarations
 publication/index.json        Current owner-publication discovery entry point
 publication/releases/         Ordered publication descriptors
 tests/                        Offline Python regressions
