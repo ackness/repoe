@@ -6,7 +6,7 @@ use serde::{Deserialize, Serialize};
 use serde_json::Value;
 
 use super::super::stat_set_codec::policy::{hex, validate_extraction_metadata};
-use crate::native_facts::reader::VerifiedFacts;
+use crate::facts::reader::VerifiedFacts;
 use crate::raw_source::sha256_hex;
 
 #[derive(Deserialize, Serialize)]

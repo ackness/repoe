@@ -4,7 +4,7 @@ use super::super::stat_set_codec::read_pinned;
 use super::{
     Converted, ascendancy, nonstat, policy, prepared, render::Renderer, source::Facts, unlock,
 };
-use crate::native_facts::reader::{self, VerifiedFacts};
+use crate::facts::reader::{self, VerifiedFacts};
 use crate::raw_source::sha256_hex;
 use pobr_data::catalog::{PassiveNodeDef, PassiveNodeKind, PassiveTreeMeta};
 use pobr_data::native_stat::{NativePassiveContext, NativePassiveStats};

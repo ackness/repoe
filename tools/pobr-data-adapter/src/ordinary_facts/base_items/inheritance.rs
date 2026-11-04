@@ -9,7 +9,7 @@ use std::collections::{BTreeMap, BTreeSet};
 use pobr_data::catalog::BaseItemDef;
 use serde_json::{Value, json};
 
-use crate::native_facts::reader::{Tables, VerifiedFacts};
+use crate::facts::reader::{Tables, VerifiedFacts};
 use crate::ordinary_facts::BranchCodecArgs;
 use crate::ordinary_facts::convert::{column, text};
 

@@ -12,13 +12,13 @@ use pobr_data::catalog::native_player::{
 use pobr_data::catalog::native_runtime::{NativeGame, NativeRealm};
 use serde_json::{Value, json};
 
-use super::super::trust::{self, VerifiedInput, require, strict_json};
+use super::trust::{self, VerifiedInput, require, strict_json};
 use super::{inputs, json_bytes};
 use crate::raw_source::sha256_hex;
 
-pub(super) const PRODUCER_REVISION: &str = "cf190d05b09b7aac17e484107cd8152b5ae00fa1";
+pub(crate) const PRODUCER_REVISION: &str = "cf190d05b09b7aac17e484107cd8152b5ae00fa1";
 const FIXTURE: &[u8] =
-    include_bytes!("../../../tests/fixtures/native-facts/player-context-manifest.json");
+    include_bytes!("../../tests/fixtures/native-facts/player-context-manifest.json");
 const PAYLOADS: &[&str] = &[
     "KeywordPopups.json",
     "StartingPassiveSkills.json",
@@ -276,7 +276,7 @@ fn reference(table: &str, row: usize, values: &Value) -> NativePlayerReference {
     }
 }
 
-pub(super) fn validate_projection(
+pub(crate) fn validate_projection(
     c: &NativePlayerContextDef,
     parent: &VerifiedInput,
 ) -> Result<(), String> {

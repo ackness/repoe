@@ -6,7 +6,7 @@ use pobr_data::catalog::{ModDef, ModStat, SpawnWeight, StatDef};
 use serde::Serialize;
 use serde_json::{Value, json};
 
-use crate::native_facts::reader::{Tables, VerifiedFacts};
+use crate::facts::reader::{Tables, VerifiedFacts};
 
 pub(super) const TABLES: [&str; 5] = ["Stats", "Mods", "ModType", "ModFamily", "Tags"];
 const STAT_SLOTS: usize = 8;

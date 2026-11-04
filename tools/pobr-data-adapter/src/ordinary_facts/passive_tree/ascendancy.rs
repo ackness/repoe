@@ -1,6 +1,6 @@
 //! Source-owned ascendancy membership and replacement relationships.
 use super::{refresh, source::Facts};
-use crate::native_facts::reader::{self, VerifiedFacts, selected};
+use crate::facts::reader::{self, VerifiedFacts, selected};
 use crate::raw_source::sha256_hex;
 use serde::Deserialize;
 use serde_json::{Value, json};

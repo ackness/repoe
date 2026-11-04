@@ -5,7 +5,7 @@ use std::collections::BTreeMap;
 use serde_json::{Value, json};
 
 use super::super::skill_stat_map::policy::identity;
-use crate::native_facts::reader::{Tables, VerifiedFacts};
+use crate::facts::reader::{Tables, VerifiedFacts};
 
 pub(super) struct Level {
     pub source_row: usize,

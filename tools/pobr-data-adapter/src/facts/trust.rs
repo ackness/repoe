@@ -11,16 +11,16 @@ use serde_json::{Map, Number, Value};
 use super::{Args, Profile};
 use crate::raw_source::sha256_hex;
 
-pub(super) const PRODUCER_REVISION: &str = "b6def2152dfc48d8ec49c7a237b2e973c3830e97";
+pub(crate) const PRODUCER_REVISION: &str = "b6def2152dfc48d8ec49c7a237b2e973c3830e97";
 const DECODER_PIN_SHA: &str = "64703bc3c5eca107108244e02baf0dc2cd46669e62a6b5ba273f868aa9db0095";
-pub(super) const DECODER_PIN: &[u8] =
+pub(crate) const DECODER_PIN: &[u8] =
     include_bytes!("../../tests/fixtures/native-facts/pypoe-sources.json");
-pub(super) const PYPOE: &str = "66d1d7442c5718260e1a8efd24989d22987e91af";
-pub(super) const SCHEMA_REVISION: &str = "6034b071846ef61b39046ebdb59e6d5717179509";
-pub(super) const SCHEMA_SHA: &str =
+pub(crate) const PYPOE: &str = "66d1d7442c5718260e1a8efd24989d22987e91af";
+pub(crate) const SCHEMA_REVISION: &str = "6034b071846ef61b39046ebdb59e6d5717179509";
+pub(crate) const SCHEMA_SHA: &str =
     "50e098543345cf8323aeb294e2cfef1b6b44842faccf560ada935cebe22727df";
 
-pub(super) const TABLES: [&str; 8] = [
+pub(crate) const TABLES: [&str; 8] = [
     "Characters",
     "ClassPassiveSkillOverrides",
     "GrantedEffectQualityStats",
@@ -32,7 +32,7 @@ pub(super) const TABLES: [&str; 8] = [
 ];
 
 pub(crate) struct VerifiedInput {
-    pub(super) profile: Profile,
+    pub(crate) profile: Profile,
     pub manifest: Value,
     pub manifest_bytes: Vec<u8>,
     pub lock_bytes: Vec<u8>,
@@ -40,12 +40,12 @@ pub(crate) struct VerifiedInput {
     pub documents: BTreeMap<String, Value>,
 }
 
-pub(super) fn verify(args: &Args) -> Result<VerifiedInput, String> {
+pub(crate) fn verify(args: &Args) -> Result<VerifiedInput, String> {
     verify_selection(args, None)
 }
 
 /// Reuse the same authenticated envelope while reading only the requested physical tables.
-pub(super) fn verify_selection(
+pub(crate) fn verify_selection(
     args: &Args,
     selected_tables: Option<&[&str]>,
 ) -> Result<VerifiedInput, String> {
@@ -326,7 +326,7 @@ fn verify_manifest(m: &Value, profile: Profile) -> Result<(), String> {
     )
 }
 
-pub(super) fn verify_decoder(decoder: &Value) -> Result<(), String> {
+pub(crate) fn verify_decoder(decoder: &Value) -> Result<(), String> {
     exact_keys(
         decoder,
         &[
@@ -372,7 +372,7 @@ pub(super) fn verify_decoder(decoder: &Value) -> Result<(), String> {
     Ok(())
 }
 
-pub(super) fn payload_paths(profile: Profile) -> Vec<String> {
+pub(crate) fn payload_paths(profile: Profile) -> Vec<String> {
     tables(profile)
         .into_iter()
         .map(|table| format!("tables/{table}.json"))
@@ -405,23 +405,23 @@ pub(super) fn payload_paths(profile: Profile) -> Vec<String> {
         .collect()
 }
 
-pub(super) fn tables(profile: Profile) -> Vec<&'static str> {
+pub(crate) fn tables(profile: Profile) -> Vec<&'static str> {
     TABLES
         .into_iter()
         .chain(if profile != Profile::BaseV1 {
-            super::core_skills::TABLES.to_vec()
+            crate::native_facts::core_skills::TABLES.to_vec()
         } else {
             vec![]
         })
         .chain(
             if matches!(profile, Profile::GemsConstraintsA1 | Profile::ItemsActorsBc) {
-                super::gems::TABLES.to_vec()
+                crate::native_facts::gems::TABLES.to_vec()
             } else {
                 vec![]
             },
         )
         .chain(if profile == Profile::ItemsActorsBc {
-            super::items_actors::TABLES.to_vec()
+            crate::native_facts::items_actors::TABLES.to_vec()
         } else {
             vec![]
         })
@@ -436,7 +436,7 @@ fn raw_paths(profile: Profile) -> Vec<String> {
         .collect()
 }
 
-pub(super) fn verify_acquisition(value: &Value) -> Result<(), String> {
+pub(crate) fn verify_acquisition(value: &Value) -> Result<(), String> {
     exact_keys(value, &["status".into(), "evidence".into()])?;
     require(
         matches!(
@@ -460,7 +460,7 @@ pub(super) fn verify_acquisition(value: &Value) -> Result<(), String> {
     Ok(())
 }
 
-pub(super) fn require(condition: bool, message: &str) -> Result<(), String> {
+pub(crate) fn require(condition: bool, message: &str) -> Result<(), String> {
     if condition {
         Ok(())
     } else {
@@ -468,7 +468,7 @@ pub(super) fn require(condition: bool, message: &str) -> Result<(), String> {
     }
 }
 
-pub(super) fn exact_keys(value: &Value, expected: &[String]) -> Result<(), String> {
+pub(crate) fn exact_keys(value: &Value, expected: &[String]) -> Result<(), String> {
     let keys: BTreeSet<_> = value
         .as_object()
         .ok_or("expected JSON object")?
@@ -535,7 +535,7 @@ fn no_symlink_components(path: &Path) -> Result<(), String> {
     Ok(())
 }
 
-pub(super) fn read_regular(path: &Path) -> Result<Vec<u8>, String> {
+pub(crate) fn read_regular(path: &Path) -> Result<Vec<u8>, String> {
     no_symlink_components(path)?;
     require(
         fs::symlink_metadata(path)
@@ -573,7 +573,7 @@ fn verify_inventory(root: &Path, dir: &Path, expected: &BTreeSet<String>) -> Res
     Ok(())
 }
 
-pub(super) fn require_absent(path: &Path) -> Result<(), String> {
+pub(crate) fn require_absent(path: &Path) -> Result<(), String> {
     match fs::symlink_metadata(path) {
         Err(e) if e.kind() == std::io::ErrorKind::NotFound => Ok(()),
         Err(e) => Err(format!("inspect output: {e}")),
@@ -582,7 +582,7 @@ pub(super) fn require_absent(path: &Path) -> Result<(), String> {
 }
 
 /// Recursively reject duplicate keys before serde can overwrite evidence.
-pub(super) fn strict_json(bytes: &[u8]) -> Result<Value, String> {
+pub(crate) fn strict_json(bytes: &[u8]) -> Result<Value, String> {
     let mut decoder = serde_json::Deserializer::from_slice(bytes);
     let value = UniqueJson::deserialize(&mut decoder).map_err(|e| e.to_string())?;
     decoder.end().map_err(|e| e.to_string())?;

@@ -12,7 +12,7 @@ use serde_json::{Value, json};
 
 use super::stat_set_codec::read_pinned;
 use super::totem_varieties::RowRanges;
-use crate::native_facts::reader::{self, Tables, VerifiedFacts};
+use crate::facts::reader::{self, Tables, VerifiedFacts};
 use crate::raw_source::sha256_hex;
 
 pub(super) const TABLES: [&str; 2] = ["GrantedEffects", "MonsterVarieties"];

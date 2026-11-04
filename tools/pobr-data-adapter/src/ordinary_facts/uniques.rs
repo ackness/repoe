@@ -16,7 +16,7 @@ use serde_json::{Value, json};
 
 use super::convert::{column, resolve, text};
 use super::stat_set_codec::{policy::hex, read_pinned};
-use crate::native_facts::reader::{Tables, VerifiedFacts};
+use crate::facts::reader::{Tables, VerifiedFacts};
 use crate::raw_source::sha256_hex;
 
 #[cfg(all(test, any(target_os = "linux", target_os = "macos")))]

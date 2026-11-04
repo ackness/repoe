@@ -5,7 +5,7 @@ use std::collections::BTreeSet;
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 
-use crate::native_facts::reader::VerifiedFacts;
+use crate::facts::reader::VerifiedFacts;
 use crate::raw_source::sha256_hex;
 
 #[derive(Deserialize, Serialize)]

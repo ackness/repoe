@@ -4,7 +4,7 @@ use std::collections::{BTreeMap, BTreeSet};
 
 use serde_json::{Value, json};
 
-use crate::native_facts::reader::{Tables, VerifiedFacts, selected};
+use crate::facts::reader::{Tables, VerifiedFacts, selected};
 use crate::ordinary_facts::convert::{column, resolve, text};
 use crate::raw_source::sha256_hex;
 

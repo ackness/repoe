@@ -1,16 +1,14 @@
 //! Opt-in RePoE facts to PoBR domain candidate conversion, without runtime publication.
 
 mod convert;
-mod core_skills;
-mod gems;
-mod items_actors;
+pub(crate) mod core_skills;
+pub(crate) mod gems;
+pub(crate) mod items_actors;
 mod model;
-mod output;
-pub(crate) mod reader;
 pub(crate) mod runtime;
-mod trust;
 
-pub(crate) use output::Output;
+pub(crate) use crate::facts::Args;
+use crate::facts::{Profile, json_bytes, output, trust};
 
 #[cfg(all(test, any(target_os = "linux", target_os = "macos")))]
 mod tests;
@@ -41,56 +39,10 @@ fn native_output_is_explicitly_unsupported() {
 }
 
 use std::collections::BTreeMap;
-use std::path::PathBuf;
 
 use serde_json::json;
 
 use crate::raw_source::sha256_hex;
-
-pub(crate) struct Args {
-    input: PathBuf,
-    expected_manifest_sha256: String,
-    source_lock: PathBuf,
-    out: PathBuf,
-    profile: Profile,
-}
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-enum Profile {
-    BaseV1,
-    CoreSkillsA0,
-    GemsConstraintsA1,
-    ItemsActorsBc,
-}
-
-impl Profile {
-    fn format(self) -> &'static str {
-        match self {
-            Self::BaseV1 => "repoe-native-facts/v1",
-            Self::CoreSkillsA0 => "repoe-native-facts/v2",
-            Self::GemsConstraintsA1 => "repoe-native-facts/v3",
-            Self::ItemsActorsBc => "repoe-native-facts/v4",
-        }
-    }
-
-    fn producer_revision(self) -> &'static str {
-        match self {
-            Self::BaseV1 => trust::PRODUCER_REVISION,
-            Self::CoreSkillsA0 => "aa2fb163aa422317db5c32031607eb199214e7b7",
-            Self::GemsConstraintsA1 => "c450fb8e3ad4e5792386c7c5bb81c90d85407e62",
-            Self::ItemsActorsBc => "e41401224a085a676c84b8f14b144f20fe37c79a",
-        }
-    }
-
-    fn name(self) -> Option<&'static str> {
-        match self {
-            Self::BaseV1 => None,
-            Self::CoreSkillsA0 => Some("core-skills-a0"),
-            Self::GemsConstraintsA1 => Some("gems-constraints-a1"),
-            Self::ItemsActorsBc => Some("items-actors-bc"),
-        }
-    }
-}
 
 pub(crate) fn parse_args(args: impl Iterator<Item = String>) -> Result<Args, String> {
     let mut values = BTreeMap::new();
@@ -231,14 +183,14 @@ fn implementation_sha256() -> String {
     let mut bytes = Vec::new();
     for (name, source) in [
         ("mod.rs", include_bytes!("mod.rs").as_slice()),
-        ("trust.rs", include_bytes!("trust.rs").as_slice()),
+        ("trust.rs", include_bytes!("../facts/trust.rs").as_slice()),
         ("model.rs", include_bytes!("model.rs").as_slice()),
         ("convert.rs", include_bytes!("convert.rs").as_slice()),
         (
             "core_skills.rs",
             include_bytes!("core_skills.rs").as_slice(),
         ),
-        ("output.rs", include_bytes!("output.rs").as_slice()),
+        ("output.rs", include_bytes!("../facts/output.rs").as_slice()),
         ("gems.rs", include_bytes!("gems.rs").as_slice()),
         (
             "items_actors.rs",
@@ -258,10 +210,4 @@ fn implementation_sha256() -> String {
         bytes.push(0);
     }
     sha256_hex(&bytes)
-}
-
-fn json_bytes(value: &impl serde::Serialize) -> Result<Vec<u8>, String> {
-    let mut bytes = serde_json::to_vec(value).map_err(|e| e.to_string())?;
-    bytes.push(b'\n');
-    Ok(bytes)
 }

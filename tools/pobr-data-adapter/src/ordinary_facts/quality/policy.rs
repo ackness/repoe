@@ -7,7 +7,7 @@ use std::path::PathBuf;
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 
-use crate::native_facts::reader::{self, VerifiedFacts};
+use crate::facts::reader::{self, VerifiedFacts};
 use crate::raw_source::sha256_hex;
 use crate::skills::quality::{Compatibility, validate_compatibility};
 

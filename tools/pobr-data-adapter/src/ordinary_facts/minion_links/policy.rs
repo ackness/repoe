@@ -7,7 +7,7 @@ use serde_json::Value;
 
 use super::super::skill_stat_map::policy::{Source, identity};
 use super::super::stat_set_codec::policy::hex;
-use crate::native_facts::reader::VerifiedFacts;
+use crate::facts::reader::VerifiedFacts;
 use crate::raw_source::sha256_hex;
 
 #[derive(Deserialize)]

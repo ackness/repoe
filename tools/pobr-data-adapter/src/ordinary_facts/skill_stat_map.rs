@@ -12,7 +12,7 @@ use pobr_data::catalog::stat_map::{SkillStatMapDef, StatMapEntry};
 use serde_json::{Value, json};
 
 use super::stat_set_codec::{self, read_pinned};
-use crate::native_facts::reader::{Tables, VerifiedFacts};
+use crate::facts::reader::{Tables, VerifiedFacts};
 use crate::raw_source::sha256_hex;
 
 pub(super) const TABLES: [&str; 3] = ["Stats", "GrantedEffects", "GrantedEffectStatSets"];

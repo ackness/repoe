@@ -22,7 +22,7 @@ pub(super) const REFRESH_TABLES: [&str; 5] = [
 pub(super) mod tests;
 
 use super::stat_set_codec::read_pinned;
-use crate::native_facts::reader::{self, VerifiedFacts};
+use crate::facts::reader::{self, VerifiedFacts};
 use crate::raw_source::sha256_hex;
 use pobr_core::rules::passive_stats;
 use pobr_data::catalog::{PassiveNodeDef, PassiveNodeKind, PassiveTreeMeta};

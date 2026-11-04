@@ -1,7 +1,7 @@
 //! Shape/reference validation of prepared compatibility without normalizing its Values.
 
 use super::source::{Facts, integer};
-use crate::native_facts::reader;
+use crate::facts::reader;
 use crate::raw_source::sha256_hex;
 use pobr_data::catalog::{PassiveNodeDef, PassiveTreeMeta};
 use serde_json::{Value, json};

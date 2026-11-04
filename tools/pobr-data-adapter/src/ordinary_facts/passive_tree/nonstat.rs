@@ -1,7 +1,7 @@
 //! Native client text for complete passive skill and point grants.
 
 use super::{render, source};
-use crate::native_facts::reader::{self, Tables, VerifiedFacts, selected};
+use crate::facts::reader::{self, Tables, VerifiedFacts, selected};
 use crate::ordinary_facts::convert;
 use crate::raw_source::sha256_hex;
 use serde_json::{Value, json};

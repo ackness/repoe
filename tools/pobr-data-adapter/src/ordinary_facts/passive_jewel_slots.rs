@@ -4,7 +4,7 @@ use pobr_data::catalog::passive_jewel_slots::{PassiveJewelSlotDef, PassiveJewelS
 use serde_json::{Value, json};
 
 use super::convert::{column, text};
-use crate::native_facts::reader::{Tables, VerifiedFacts, selected};
+use crate::facts::reader::{Tables, VerifiedFacts, selected};
 use crate::raw_source::sha256_hex;
 
 #[cfg(all(test, any(target_os = "linux", target_os = "macos")))]

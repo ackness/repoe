@@ -7,7 +7,7 @@ mod tests;
 
 use super::stat_set_codec::policy::hex;
 use super::stat_set_codec::{Pinned, read_pinned};
-use crate::native_facts::reader::{self, Tables, VerifiedFacts};
+use crate::facts::reader::{self, Tables, VerifiedFacts};
 use crate::raw_source::sha256_hex;
 use pobr_data::catalog::character_constants::CharacterConstantsDef;
 use pobr_data::catalog::game_constants::GameConstantsDef;

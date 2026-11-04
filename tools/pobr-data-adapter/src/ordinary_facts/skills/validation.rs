@@ -5,7 +5,7 @@ use std::collections::BTreeSet;
 use serde::de::DeserializeOwned;
 use serde_json::{Value, json};
 
-use crate::native_facts::reader::{Tables, VerifiedFacts};
+use crate::facts::reader::{Tables, VerifiedFacts};
 use crate::skills::SkillTables;
 
 use super::super::convert::column;

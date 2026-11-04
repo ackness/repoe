@@ -8,7 +8,7 @@ use serde_json::{Value, json};
 
 use super::convert::{column, resolve, text};
 use super::stat_set_codec::{policy::hex, read_pinned};
-use crate::native_facts::reader::{Tables, VerifiedFacts, selected};
+use crate::facts::reader::{Tables, VerifiedFacts, selected};
 use crate::raw_source::sha256_hex;
 
 mod links;

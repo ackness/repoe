@@ -8,18 +8,18 @@ use std::path::{Component, Path};
 use serde_json::Value;
 use sha2::{Digest, Sha256};
 
-use super::super::trust::{exact_keys, require, strict_json};
+use super::trust::{exact_keys, require, strict_json};
 use crate::raw_source::sha256_hex;
 
-pub(super) struct Descriptions {
+pub(crate) struct Descriptions {
     pub manifest: Value,
 }
 
-pub(super) fn pinned_json(path: &Path, expected: &str, cap: u64) -> Result<Value, String> {
+pub(crate) fn pinned_json(path: &Path, expected: &str, cap: u64) -> Result<Value, String> {
     strict_json(&pinned_bytes(path, expected, cap)?)
 }
 
-pub(super) fn pinned_bytes(path: &Path, expected: &str, cap: u64) -> Result<Vec<u8>, String> {
+pub(crate) fn pinned_bytes(path: &Path, expected: &str, cap: u64) -> Result<Vec<u8>, String> {
     check_sha(expected)?;
     let mut bytes = Vec::new();
     open(path, cap)?
@@ -30,7 +30,7 @@ pub(super) fn pinned_bytes(path: &Path, expected: &str, cap: u64) -> Result<Vec<
     Ok(bytes)
 }
 
-pub(super) fn descriptions(root: &Path, expected: &str) -> Result<Descriptions, String> {
+pub(crate) fn descriptions(root: &Path, expected: &str) -> Result<Descriptions, String> {
     let manifest = pinned_json(&root.join("manifest.json"), expected, 1024 * 1024)?;
     require(
         manifest["format"] == "repoe-native-descriptions/v1"
@@ -221,8 +221,8 @@ fn open(path: &Path, cap: u64) -> Result<Take<File>, String> {
     Ok(file.take(cap.checked_add(1).ok_or("supplement size overflow")?))
 }
 
-pub(super) fn rows<'a>(
-    input: &'a super::super::trust::VerifiedInput,
+pub(crate) fn rows<'a>(
+    input: &'a super::trust::VerifiedInput,
     table: &str,
 ) -> Result<&'a [Value], String> {
     input
@@ -233,8 +233,8 @@ pub(super) fn rows<'a>(
         .ok_or_else(|| format!("missing table {table}"))
 }
 
-pub(super) fn row<'a>(
-    input: &'a super::super::trust::VerifiedInput,
+pub(crate) fn row<'a>(
+    input: &'a super::trust::VerifiedInput,
     table: &str,
     index: usize,
 ) -> Result<&'a Value, String> {
@@ -244,8 +244,8 @@ pub(super) fn row<'a>(
         .ok_or_else(|| format!("missing row {table}/{index}"))
 }
 
-pub(super) fn find<'a>(
-    input: &'a super::super::trust::VerifiedInput,
+pub(crate) fn find<'a>(
+    input: &'a super::trust::VerifiedInput,
     table: &str,
     id: &str,
 ) -> Result<(usize, &'a Value), String> {
@@ -257,22 +257,22 @@ pub(super) fn find<'a>(
         .ok_or_else(|| format!("missing {table} id {id}"))
 }
 
-pub(super) fn index(value: &Value) -> Result<usize, String> {
+pub(crate) fn index(value: &Value) -> Result<usize, String> {
     value
         .as_u64()
         .and_then(|v| usize::try_from(v).ok())
         .ok_or_else(|| format!("expected physical row index, got {value}"))
 }
 
-pub(super) fn text(value: &Value) -> Result<String, String> {
+pub(crate) fn text(value: &Value) -> Result<String, String> {
     value
         .as_str()
         .map(String::from)
         .ok_or_else(|| format!("expected string, got {value}"))
 }
 
-pub(super) fn ids(
-    input: &super::super::trust::VerifiedInput,
+pub(crate) fn ids(
+    input: &super::trust::VerifiedInput,
     table: &str,
     values: &Value,
 ) -> Result<Vec<String>, String> {

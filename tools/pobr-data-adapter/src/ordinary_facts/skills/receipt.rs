@@ -5,7 +5,7 @@ use std::collections::{BTreeMap, BTreeSet};
 use pobr_data::catalog::SkillStatSetDef;
 use serde_json::{Value, json};
 
-use crate::native_facts::reader::{Tables, VerifiedFacts};
+use crate::facts::reader::{Tables, VerifiedFacts};
 use crate::skills::SkillsBundle;
 
 use super::validation::{FIELDS, PhysicalSkills, index, list};

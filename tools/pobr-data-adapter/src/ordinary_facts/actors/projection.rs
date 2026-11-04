@@ -4,7 +4,7 @@ use std::collections::BTreeMap;
 
 use serde_json::{Map, Value, json};
 
-use crate::native_facts::reader::{Tables, VerifiedFacts};
+use crate::facts::reader::{Tables, VerifiedFacts};
 
 pub(super) const OWNED_FIELDS: [&str; 22] = [
     "name",

@@ -5,12 +5,12 @@ use std::collections::BTreeMap;
 use serde::{Deserialize, Serialize};
 use serde_json::{Number, Value};
 
-use super::convert::{Tables, array, decode};
 use super::gems::FactRef;
 use super::model::InputRef;
 use super::trust::{VerifiedInput, require};
+use crate::facts::physical::{Tables, array, decode};
 
-pub(super) const TABLES: [&str; 38] = [
+pub(crate) const TABLES: [&str; 38] = [
     "ArmourTypes",
     "AttributeRequirements",
     "BuffDefinitions",
@@ -367,7 +367,7 @@ pub(super) fn normalize(
     Ok((converted, summary))
 }
 
-pub(super) fn required_fields(table: &str) -> Vec<String> {
+pub(crate) fn required_fields(table: &str) -> Vec<String> {
     let fields: &[&str] = match table {
         "Mods" => &[
             "Id",

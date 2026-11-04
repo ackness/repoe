@@ -1,7 +1,7 @@
 //! Pinned physical joins for the data-dependent CSD formatters used in PoE2.
 use super::super::passive_tree::render::LookupValues;
 use super::*;
-use crate::native_facts::reader::selected;
+use crate::facts::reader::selected;
 use crate::ordinary_facts::convert::{resolve, text};
 
 const TABLES: [&str; 9] = [

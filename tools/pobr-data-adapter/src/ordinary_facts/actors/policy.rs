@@ -5,7 +5,7 @@ use std::collections::BTreeSet;
 use serde::{Deserialize, Serialize};
 
 use super::{Catalog, prepared, projection::OWNED_FIELDS};
-use crate::native_facts::reader::VerifiedFacts;
+use crate::facts::reader::VerifiedFacts;
 use crate::ordinary_facts::skill_stat_map::policy::{Source, identity};
 use crate::ordinary_facts::stat_set_codec::policy::hex;
 use crate::raw_source::sha256_hex;

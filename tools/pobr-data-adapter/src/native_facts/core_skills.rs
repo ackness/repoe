@@ -3,11 +3,11 @@
 use serde::{Deserialize, Serialize};
 use serde_json::{Number, Value};
 
-use super::convert::{Tables, array, decode};
 use super::model::{Identity, InputRef};
 use super::trust::{VerifiedInput, exact_keys, require};
+use crate::facts::physical::{Tables, array, decode};
 
-pub(super) const TABLES: [&str; 7] = [
+pub(crate) const TABLES: [&str; 7] = [
     "GrantedEffectLabels",
     "ActiveSkills",
     "ActiveSkillType",
@@ -217,7 +217,7 @@ pub(super) fn same_facts(expected: &Value, actual: &Value) -> bool {
     }
 }
 
-pub(super) fn required_fields(table: &str) -> &'static [&'static str] {
+pub(crate) fn required_fields(table: &str) -> &'static [&'static str] {
     match table {
         "GrantedEffectLabels" => &["Id", "Text"],
         "GrantedEffectStatSets" => &["Id", "Label"],

@@ -14,7 +14,7 @@ use pobr_data::catalog::{ArmourBaseStats, BaseItemDef, UtilityBaseStats, WeaponB
 use serde_json::{Value, json};
 
 use super::convert::{column, resolve, resolve_list, text, u32_value};
-use crate::native_facts::reader::{Tables, VerifiedFacts};
+use crate::facts::reader::{Tables, VerifiedFacts};
 
 pub(super) const TABLES: [&str; 11] = [
     "BaseItemTypes",

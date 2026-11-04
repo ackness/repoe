@@ -14,7 +14,7 @@ use serde_json::{Value, json};
 
 use super::skill_stat_map::policy::identity;
 use super::stat_set_codec::{self, read_pinned};
-use crate::native_facts::reader::{self, Tables, VerifiedFacts};
+use crate::facts::reader::{self, Tables, VerifiedFacts};
 use crate::raw_source::sha256_hex;
 
 pub(super) const TABLES: [&str; 5] = [

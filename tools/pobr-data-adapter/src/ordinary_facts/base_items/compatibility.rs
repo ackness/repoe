@@ -6,7 +6,7 @@ use pobr_data::catalog::{BaseItemDef, BaseItemOverridesDef};
 use serde::Deserialize;
 use serde_json::{Value, json};
 
-use crate::native_facts::reader::{self, VerifiedFacts};
+use crate::facts::reader::{self, VerifiedFacts};
 use crate::ordinary_facts::{CodecArgs, stat_set_codec::read_pinned};
 
 const OWNED: [&str; 6] = [

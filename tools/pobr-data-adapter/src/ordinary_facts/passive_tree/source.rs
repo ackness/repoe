@@ -1,7 +1,7 @@
 //! Authenticated physical identities, complete stat slots and whole-row context.
 
 use super::policy::{Policy, VARIABLES};
-use crate::native_facts::reader::{self, Tables, VerifiedFacts};
+use crate::facts::reader::{self, Tables, VerifiedFacts};
 use crate::raw_source::sha256_hex;
 use pobr_data::native_stat::{NativeStat, NativeStatProvenance, NativeStatReference};
 use serde_json::{Value, json};

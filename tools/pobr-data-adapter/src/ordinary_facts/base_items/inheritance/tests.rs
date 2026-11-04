@@ -4,7 +4,7 @@ use std::fs;
 use serde_json::{Value, json};
 
 use super::{FORMAT, POLICY};
-use crate::native_facts::reader;
+use crate::facts::reader;
 use crate::ordinary_facts::base_items::tests::fixture;
 use crate::ordinary_facts::tests::Fixture;
 use crate::ordinary_facts::{Args, BranchCodecArgs, CodecArgs, Domain, run};

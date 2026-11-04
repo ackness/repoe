@@ -2,8 +2,6 @@
 //!
 //! This produces queryable catalogs, not calculation admission or source approval.
 
-mod inputs;
-pub(crate) mod player;
 mod player_policy;
 mod skills;
 mod skills_policy;
@@ -24,6 +22,7 @@ use pobr_gamedata::GameData;
 use serde_json::{Value, json};
 
 use super::{Profile, convert, json_bytes, output, trust};
+use crate::facts::{inputs, player};
 use crate::raw_source::sha256_hex;
 
 pub(crate) struct Args {
@@ -569,14 +568,20 @@ fn implementation_sha256() -> String {
     let mut source = super::implementation_sha256().into_bytes();
     for (name, bytes) in [
         ("runtime/mod.rs", include_bytes!("mod.rs").as_slice()),
-        ("runtime/inputs.rs", include_bytes!("inputs.rs").as_slice()),
+        (
+            "runtime/inputs.rs",
+            include_bytes!("../../facts/inputs.rs").as_slice(),
+        ),
         ("runtime/tree.rs", include_bytes!("tree.rs").as_slice()),
         ("runtime/skills.rs", include_bytes!("skills.rs").as_slice()),
         (
             "runtime/skills_policy.rs",
             include_bytes!("skills_policy.rs").as_slice(),
         ),
-        ("runtime/player.rs", include_bytes!("player.rs").as_slice()),
+        (
+            "runtime/player.rs",
+            include_bytes!("../../facts/player.rs").as_slice(),
+        ),
         (
             "player-producer-manifest.json",
             include_bytes!("../../../tests/fixtures/native-facts/player-context-manifest.json")

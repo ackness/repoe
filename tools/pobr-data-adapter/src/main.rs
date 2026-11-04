@@ -26,6 +26,7 @@ use std::process::ExitCode;
 
 use serde::Deserialize;
 
+mod facts;
 mod monsters;
 mod native_facts;
 mod ordinary_facts;

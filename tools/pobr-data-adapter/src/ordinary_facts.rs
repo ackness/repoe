@@ -32,7 +32,7 @@ use std::path::PathBuf;
 
 use serde_json::json;
 
-use crate::native_facts::{Output, reader};
+use crate::facts::{Output, reader};
 use crate::raw_source::sha256_hex;
 
 pub(crate) struct Args {
@@ -1248,12 +1248,12 @@ fn implementation_sha256() -> String {
             include_bytes!("ordinary_facts/unarmed.rs").as_slice(),
         ),
         (
-            "native_facts/runtime/player.rs",
-            include_bytes!("native_facts/runtime/player.rs").as_slice(),
+            "facts/player.rs",
+            include_bytes!("facts/player.rs").as_slice(),
         ),
         (
-            "native_facts/runtime/inputs.rs",
-            include_bytes!("native_facts/runtime/inputs.rs").as_slice(),
+            "facts/inputs.rs",
+            include_bytes!("facts/inputs.rs").as_slice(),
         ),
         (
             "player-context-manifest.json",
@@ -1261,8 +1261,8 @@ fn implementation_sha256() -> String {
                 .as_slice(),
         ),
         (
-            "native_facts/reader/selected.rs",
-            include_bytes!("native_facts/reader/selected.rs").as_slice(),
+            "facts/reader/selected.rs",
+            include_bytes!("facts/reader/selected.rs").as_slice(),
         ),
         (
             "selected-tables-producer.json",
@@ -1481,20 +1481,29 @@ fn implementation_sha256() -> String {
             include_bytes!("ordinary_facts/convert.rs").as_slice(),
         ),
         (
-            "native_facts/reader.rs",
-            include_bytes!("native_facts/reader.rs").as_slice(),
+            "facts/reader.rs",
+            include_bytes!("facts/reader.rs").as_slice(),
         ),
         (
-            "native_facts/trust.rs",
-            include_bytes!("native_facts/trust.rs").as_slice(),
+            "facts/trust.rs",
+            include_bytes!("facts/trust.rs").as_slice(),
+        ),
+        ("facts/mod.rs", include_bytes!("facts/mod.rs").as_slice()),
+        (
+            "facts/physical.rs",
+            include_bytes!("facts/physical.rs").as_slice(),
+        ),
+        (
+            "facts/model.rs",
+            include_bytes!("facts/model.rs").as_slice(),
         ),
         (
             "native_facts/convert.rs",
             include_bytes!("native_facts/convert.rs").as_slice(),
         ),
         (
-            "native_facts/output.rs",
-            include_bytes!("native_facts/output.rs").as_slice(),
+            "facts/output.rs",
+            include_bytes!("facts/output.rs").as_slice(),
         ),
         (
             "native_facts/mod.rs",
