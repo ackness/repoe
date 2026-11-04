@@ -153,9 +153,11 @@ supplement or the player context archive is pinned only by hash), `pob2-derived`
 4. Publish `game-build-part.zip` with `receipt.json`, `package.json` and `SHA256SUMS` from a
    tagged commit; PoBR then pins that tag and hash.
 
-CI (`.github/workflows/verify.yml`, job `release`) runs
+CI (`.github/workflows/release-build.yml`) runs
 `release:build -- --config release/<patch> --fetch --check` for every patch
-directory on a clean checkout, so a change that makes any declared build stop
+directory on a clean checkout whenever a change touches what the build reads
+(its Python modules, `release/`, the adapter, the toolchain pins or the
+workflow; a test keeps that path list in step with `build.py`'s imports), so a change that makes any declared build stop
 reproducing its reference package fails. Every directory under `release/` is
 a claim that it still reproduces; when an old patch is superseded and no
 longer needs to (for example after an intended adapter change), delete its

@@ -1,0 +1,68 @@
+name: Release build
+
+# A separate workflow because GitHub filters paths per workflow, not per job:
+# the cold `cargo build --release` and the pinned-package fetch only run when
+# something the release build reads changes. tests/test_release_build.py checks
+# that these paths cover every Python module build.py imports.
+on:
+  push:
+    branches: [master]
+    paths: &release-inputs
+      - .github/workflows/release-build.yml
+      - RePoE/__init__.py
+      - RePoE/release/**
+      - RePoE/data_publication.py
+      - RePoE/pobr_crafting_catalog.py
+      - RePoE/pobr_historical_trees.py
+      - RePoE/publication_index.py
+      - RePoE/source_io.py
+      - RePoE/source_rebinding.py
+      - release/**
+      - tools/pobr-data-adapter/**
+      - mise.toml
+      - mise.lock
+      - rust-toolchain.toml
+  pull_request:
+    paths: *release-inputs
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  release:
+    name: release:build reproduces the published game package
+    runs-on: ubuntu-latest
+    env:
+      MISE_DISABLE_TOOLS: rust
+    steps:
+      - uses: actions/checkout@v7.0.1
+      - uses: jdx/mise-action@6be3c7ed4c21d4f76b208d351d95aac273ebb76d # v5
+        with:
+          version: '2026.10.23'
+      - name: Install the pinned Rust toolchain
+        run: rustup toolchain install
+      # Its own cache: the adapter job in verify.yml builds the debug and clippy
+      # profiles, this job only the release profile, so a shared key would make
+      # one of the two restore the other's (useless) target directory.
+      - uses: Swatinem/rust-cache@v2.9.3
+        with:
+          workspaces: tools/pobr-data-adapter
+          cache-bin: 'false'
+          save-if: ${{ github.event_name != 'pull_request' }}
+      # Pinned handoff commits and tags are fetched from origin (Git only, no game CDN).
+      # --check fails unless each zip is byte-identical to its lock's reference package.
+      - name: Rebuild every declared patch's game package from pinned inputs
+        run: |
+          for config in release/*/; do
+            mise run release:build -- --config "${config%/}" --fetch --check
+          done
+      - uses: actions/upload-artifact@v4.6.2
+        if: always()
+        with:
+          name: release-receipt
+          path: |
+            .cache/release/*/receipt.json
+            .cache/release/*/package.json
+            .cache/release/*/SHA256SUMS
+          if-no-files-found: ignore

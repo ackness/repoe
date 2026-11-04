@@ -1,10 +1,12 @@
 """Synthetic end-to-end tests for RePoE.release.build (no real packages or Rust adapter)."""
 
+import ast
 import hashlib
 import io
 import json
 import os
 from pathlib import Path
+import re
 import subprocess
 import sys
 import tempfile
@@ -437,6 +439,31 @@ class ReleaseBuildTest(unittest.TestCase):
                 build.load_config(config)
             renamed = config.rename(config.parent / "9.9")
             self.assertEqual(build.load_config(renamed)[0], renamed)
+
+    def test_release_workflow_paths_cover_the_build_code(self):
+        root = Path(build.__file__).resolve().parents[2]
+        imported, pending = set(), ["RePoE/release/build.py"]
+        while pending:
+            module = pending.pop()
+            for node in ast.walk(ast.parse((root / module).read_text())):
+                if isinstance(node, ast.ImportFrom) and node.level == 1:
+                    names = [f"RePoE/{node.module}.py"] if node.module else [f"RePoE/{a.name}.py" for a in node.names]
+                elif isinstance(node, ast.ImportFrom) and node.module == "RePoE":
+                    names = [f"RePoE/{alias.name}.py" for alias in node.names]
+                elif isinstance(node, ast.ImportFrom) and (node.module or "").startswith("RePoE."):
+                    names = [node.module.replace(".", "/") + ".py"]
+                else:
+                    continue
+                for name in names:
+                    if name not in imported and (root / name).is_file():
+                        imported.add(name)
+                        pending.append(name)
+        self.assertLessEqual(imported, set(build.CODE))
+        workflow = (root / ".github/workflows/release-build.yml").read_text()
+        patterns = re.findall(r"^ +- ([^\s:]+)$", workflow.split("pull_request:")[0], re.MULTILINE)
+        for name in build.CODE:
+            covered = any(name == p or (p.endswith("/**") and name.startswith(p[:-2])) for p in patterns)
+            self.assertTrue(covered, f"{name} is not in the release workflow's paths filter")
 
     def test_template_expansion(self):
         bindings = {"a.b": [1], "nested": {"c": 2}}
