@@ -48,12 +48,13 @@ depends = ["schema:check", "lint", "test"]
 run = ["uv lock --check --offline", "uv run --locked --offline repoe --help"]
 
 [tasks."adapter:check"]
-description = "Format, lint and test tools/pobr-data-adapter with the pinned toolchain and Cargo.lock"
+description = "Format, lint and test tools/pobr-data-adapter with the pinned toolchain and Cargo.lock; production code may depend on pobr-data only"
 dir = "tools/pobr-data-adapter"
 run = [
   "cargo fmt --check",
   "cargo clippy --locked --all-targets -- -D warnings",
   "cargo test --locked",
+  "python3 -B tests/check_engine_deps.py",
 ]
 
 [tasks."adapter:keystones"]
