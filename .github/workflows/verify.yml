@@ -80,5 +80,6 @@ jobs:
           name: release-receipt
           path: |
             .cache/release/*/receipt.json
+            .cache/release/*/package.json
             .cache/release/*/SHA256SUMS
           if-no-files-found: ignore

@@ -5,7 +5,8 @@ read from local Git objects; ``--fetch`` fetches a missing pinned commit from
 ``origin`` (never the game CDN). Producers are the adapter domains and the
 Python projections declared in ``release/<patch>/domains.json``. Every other
 member is copied from a package named in ``frozen-inputs.json``. The result is
-``game-build-part.zip`` plus ``receipt.json`` under ``.cache/release/``.
+``game-build-part.zip`` plus ``receipt.json`` (how it was built) and
+``package.json`` (what was built) under ``.cache/release/``.
 
 Each member has a provenance: ``generated`` (a producer derived it),
 ``passthrough`` (a producer emitted the payload of one of its own inputs, or
@@ -42,6 +43,7 @@ SCHEMAS = {
     "frozen-inputs.json": "repoe-release-frozen-inputs/v1",
 }
 RECEIPT = "repoe-release-receipt/v1"
+PACKAGE = "repoe-release-package/v1"
 PART_SCHEMA = "pobr-build-data-part/v1"
 FACTS_IDENTITIES = ("rebound", "original")
 # Adapter file options and the SHA-256 option the adapter requires next to them.
@@ -723,11 +725,15 @@ def build(
         "provenance": provenance_counts(counts),
         "reference": {"package": lock["reference"], "members_identical": identical},
     }
-    receipt_without_package = encoded(receipt)
+    # receipt.json is complete before the package exists, so a fresh manifest
+    # inside the zip can pin it; package.json then pins the zip and receipt.
+    receipt_raw = encoded(receipt)
+    receipt_pin = {"path": "receipt.json", **pin(receipt_raw)}
+    (out / "receipt.json").write_bytes(receipt_raw)
     if mode == "retain-if-identical" and identical:
         manifest_raw, manifest_class = reference.read("manifest.json"), "retained-reference-manifest"
     else:
-        manifest = fresh_manifest(target, files, pin(receipt_without_package), producer)
+        manifest = fresh_manifest(target, files, receipt_pin, producer)
         manifest_raw, manifest_class = encoded(manifest), "fresh-manifest"
     all_members = {member: raw for member, (raw, _) in ctx.members.items()}
     all_members["manifest.json"] = manifest_raw
@@ -735,24 +741,31 @@ def build(
     write_zip(zip_path, all_members)
     package_pin = file_pin(zip_path)
     reference_spec = lock["packages"][lock["reference"]]
-    receipt["manifest"] = {"class": manifest_class, **pin(manifest_raw)}
-    receipt["package"] = {
-        "path": zip_path.name,
-        **package_pin,
-        "manifest": pin(manifest_raw),
-        "expanded_bytes": sum(len(raw) for raw in all_members.values()),
-        "identical_to_reference": package_pin["sha256"] == reference_spec["sha256"],
+    outcome = {
+        "schema": PACKAGE,
+        "target": target,
+        "receipt": receipt_pin,
+        "manifest": {"class": manifest_class, **pin(manifest_raw)},
+        "package": {
+            "path": zip_path.name,
+            **package_pin,
+            "expanded_bytes": sum(len(raw) for raw in all_members.values()),
+            "identical_to_reference": package_pin["sha256"] == reference_spec["sha256"],
+            "reference": {k: reference_spec[k] for k in ("bytes", "sha256")},
+        },
     }
-    receipt_raw = encoded(receipt)
-    (out / "receipt.json").write_bytes(receipt_raw)
+    outcome_raw = encoded(outcome)
+    (out / "package.json").write_bytes(outcome_raw)
     (out / "manifest.json").write_bytes(manifest_raw)
     (out / "SHA256SUMS").write_text(
-        f"{package_pin['sha256']}  game-build-part.zip\n{sha256(receipt_raw)}  receipt.json\n"
+        f"{package_pin['sha256']}  game-build-part.zip\n"
+        f"{receipt_pin['sha256']}  receipt.json\n"
+        f"{sha256(outcome_raw)}  package.json\n"
     )
-    return out, receipt
+    return out, receipt, outcome
 
 
-def report(receipt):
+def report(receipt, outcome):
     lines = []
     for kind in CLASSES:
         names = [m for m, e in receipt["members"].items() if e["class"] == kind]
@@ -761,8 +774,8 @@ def report(receipt):
             lines += [f"  {m}  ({receipt['members'][m].get('producer', '-')})" for m in names]
     counts = receipt["provenance"]
     lines.append("members: " + ", ".join(f"{counts[group]} {group}" for group in PROVENANCE if group in counts))
-    package = receipt["package"]
-    lines.append(f"manifest.json: {receipt['manifest']['class']}")
+    package = outcome["package"]
+    lines.append(f"manifest.json: {outcome['manifest']['class']}")
     lines.append(f"game-build-part.zip: {package['bytes']} bytes sha256 {package['sha256']}")
     lines.append(f"identical to reference package: {package['identical_to_reference']}")
     return "\n".join(lines)
@@ -783,12 +796,12 @@ def main(argv=None):
     parser.add_argument("--check", action="store_true", help="exit 1 unless the zip equals the reference package")
     args = parser.parse_args(argv)
     try:
-        out, receipt = build(args.config, args.out, args.adapter, args.cache, args.fetch, args.manifest)
+        out, receipt, outcome = build(args.config, args.out, args.adapter, args.cache, args.fetch, args.manifest)
     except (ValueError, KeyError, TypeError, OSError, zipfile.BadZipFile) as error:
         parser.exit(1, f"release:build: {error}\n")
-    print(report(receipt))
+    print(report(receipt, outcome))
     print(f"output: {out}")
-    if args.check and not receipt["package"]["identical_to_reference"]:
+    if args.check and not outcome["package"]["identical_to_reference"]:
         parser.exit(1, "release:build: package differs from the reference package\n")
 
 

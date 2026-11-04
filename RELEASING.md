@@ -24,8 +24,9 @@ Output (under `.cache/release/<game>-<realm>-<patch>/`, replaced on each run):
 | File | Content |
 | --- | --- |
 | `game-build-part.zip` | The package, written with the publication tools' zip convention |
-| `receipt.json` | Producer commit, code and adapter pins, every input package and file pin, every job's evidence and the class of every member |
-| `manifest.json`, `SHA256SUMS` | Copies of the root manifest and the zip/receipt hashes |
+| `receipt.json` | How it was built: producer commit, code and adapter pins, every input package and file pin, every job's evidence and the class of every member |
+| `package.json` | What was built: the `receipt.json`, root manifest and zip pins, and whether the zip equals the reference package |
+| `manifest.json`, `SHA256SUMS` | Copies of the root manifest and the zip/receipt/package hashes |
 | `work/` | Adapter outputs, materialized policies and per-job logs |
 
 Pinned inputs are extracted once into `.cache/release/inputs/`, keyed by
@@ -95,7 +96,9 @@ content is the input's, so it is not counted as generated.
 The root `manifest.json` is retained from the reference package
 (`retained-reference-manifest`) only when every other member is identical, so
 an unchanged rebuild reproduces the published zip byte for byte. Otherwise a
-fresh `pobr-build-data-part/v1` manifest is written (`fresh-manifest`). The
+fresh `pobr-build-data-part/v1` manifest is written (`fresh-manifest`); it
+pins `receipt.json` (`release_build.receipt`), which is complete before the
+zip exists, while `package.json` pins the zip. The
 published manifest also carries the history of the patches applied to earlier
 packages; a fresh build cannot regenerate that history, only the file pins.
 
@@ -128,7 +131,7 @@ supplement or the player context archive is pinned only by hash), `pob2-derived`
    `*-different` member:
    it should be explained by the new facts, not by a changed policy you did
    not intend.
-4. Publish `game-build-part.zip` with `receipt.json` and `SHA256SUMS` from a
+4. Publish `game-build-part.zip` with `receipt.json`, `package.json` and `SHA256SUMS` from a
    tagged commit; PoBR then pins that tag and hash.
 
 CI (`.github/workflows/verify.yml`, job `release`) runs
