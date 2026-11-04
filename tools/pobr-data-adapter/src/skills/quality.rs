@@ -1,11 +1,10 @@
 //! Gem-quality rows -> the existing quality domain (shared by the ordinary
 //! physical-facts producer).
 //!
-//! A reviewed compatibility decision fixes the supported effect scope. Neither
-//! vendor Lua nor an old output is consulted. Stat-set scope columns are
-//! retained as diagnostics: current consumers apply quality effect-wide,
-//! matching the pinned migration reference. Adding scope semantics or
-//! additional effects is a separate calculation change.
+//! The caller supplies a complete owner partition. Legacy policies preserve their
+//! historical decisions; current ordinary publication checks the partition against
+//! physical gem relationships. Scope positions are retained verbatim for consumers;
+//! this producer does not interpret or repair native branch positions.
 
 use std::collections::{BTreeMap, BTreeSet};
 

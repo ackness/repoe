@@ -72,3 +72,24 @@ primary plus three occurrences of the same additional set. Table identities and
 level keys remain unique; ordered-reference multiplicity must survive. A test-only
 flattened directory compares the original raw Path wrappers on the same invented
 rows. The production fact path never writes or reads such a directory.
+
+## Quality source vectors
+
+`quality-source-vectors.json` is a compact transcription of all 429 rows from
+`GrantedEffectQualityStats`, with physical effect/stat references resolved to IDs.
+Each record is `[effect_id, ordinary [stat_id, signed_permille] pairs, ordinary
+scopes, additional pairs, additional scopes]`; original row/channel/array order
+is preserved. It contains source facts, not consumer calculation expectations.
+
+Original F manifest: `56e71e00a72c8079d100b64861fc030206b12aaeb5ad655ccb4ab4e6726332d0`.
+The three exact input pins are:
+
+- `GrantedEffects.json`: 6314332 bytes, `528b7162a9f2efdffd7c92e698c3c903873e03ffc97bdef31f31ee6fcefd53e8`.
+- `Stats.json`: 11634008 bytes, `bef280b241a844972de0020e57c64cc403ac7e44fddf346b1014d17e1372376a`.
+- `GrantedEffectQualityStats.json`: 94479 bytes, `21ceebb7af0c53708f01097001d209753078b4c34e9c6a6f70d68bd6946c22af`.
+
+The retained ordinary archive preserves these tables and the original envelope
+under `provenance/original-{manifest,source-lock}.json`. The prepared facts manifest
+has a different identity; this fixture asserts only the selected source payloads.
+Tests verify the full 424/5 policy partition and every published rate, occurrence,
+channel and scope, including Snipe's unresolved native position 3.

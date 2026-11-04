@@ -1,6 +1,7 @@
 //! Physical quality facts through the existing ordinary effect-wide conversion.
 
 mod policy;
+mod publication;
 
 #[cfg(all(test, any(target_os = "linux", target_os = "macos")))]
 pub(super) mod tests;
@@ -14,7 +15,7 @@ use crate::native_facts::reader::{Tables, VerifiedFacts};
 use crate::raw_source::sha256_hex;
 use crate::skills::quality::{self, IndexedId, RawQuality};
 
-pub(super) use policy::Args;
+pub(super) use policy::{Args, read as read_policy};
 pub(super) const TABLES: [&str; 3] = ["GrantedEffects", "Stats", "GrantedEffectQualityStats"];
 const FIELDS: [&str; 7] = [
     "GrantedEffect",
@@ -33,9 +34,10 @@ pub(super) struct Converted {
     pub policy_parent: PathBuf,
 }
 
-pub(super) fn convert(input: &VerifiedFacts, args: &Args) -> Result<Converted, String> {
-    let pinned = policy::read(args, input)?;
-    let tables = Tables::selected(input, &TABLES)?;
+pub(super) fn convert(input: &VerifiedFacts, pinned: policy::Pinned) -> Result<Converted, String> {
+    pinned.validate_target(input)?;
+    let selected = pinned.tables();
+    let tables = Tables::selected(input, selected)?;
     check_columns(input)?;
     let effects = identities(&tables, "GrantedEffects")?;
     let stats = identities(&tables, "Stats")?;
@@ -74,7 +76,16 @@ pub(super) fn convert(input: &VerifiedFacts, args: &Args) -> Result<Converted, S
     // Validates both channels, including excluded owners: no unresolved references,
     // duplicate owners or missing decisions can be hidden by policy filtering.
     let converted = quality::convert_rows(&effects, &stats, rows, &pinned.policy.compatibility)?;
-    let inputs: BTreeMap<_, _> = TABLES
+    let publication = if selected == publication::TABLES {
+        Some(publication::validate(
+            input,
+            &tables,
+            &pinned.policy.compatibility,
+        )?)
+    } else {
+        None
+    };
+    let inputs: BTreeMap<_, _> = selected
         .iter()
         .map(|table| {
             let path = format!("tables/{table}.json");
@@ -85,7 +96,7 @@ pub(super) fn convert(input: &VerifiedFacts, args: &Args) -> Result<Converted, S
             )
         })
         .collect();
-    let doc = json!({
+    let mut doc = json!({
         "_meta": {
             "schema":"gem_quality_stats/v1",
             "generator":"pobr-data-adapter --ordinary-domain gem-quality",
@@ -101,7 +112,7 @@ pub(super) fn convert(input: &VerifiedFacts, args: &Args) -> Result<Converted, S
         },
         "effects":converted.effects
     });
-    let receipt = json!({
+    let mut receipt = json!({
         "enabled_effects":converted.effects.len(),
         "source_quality_rows":tables.len("GrantedEffectQualityStats"),
         "quality_policy":{"file":"quality-policy.json", "bytes":pinned.bytes.len(), "sha256":pinned.sha256},
@@ -124,6 +135,24 @@ pub(super) fn convert(input: &VerifiedFacts, args: &Args) -> Result<Converted, S
             "Target applicability is reuse of the existing model policy for the pinned F; it is not independent game-rule proof or source acquisition approval."
         ]
     });
+    if let Some(publication) = publication {
+        doc["_meta"]["publication"] = json!({"rule":publication["rule"], "published_owners":converted.effects.len(), "excluded_owners":excluded.len()});
+        receipt["publication"] = publication;
+        for entry in receipt["excluded_effects"]
+            .as_array_mut()
+            .ok_or("missing exclusion evidence")?
+        {
+            entry["status"] = json!(
+                "DNT-only gem relationships; raw quality preserved as evidence, not a claim of no effect"
+            );
+        }
+        receipt["pending"][2] = json!(
+            "Publication membership is checked against target gem facts; it does not certify consumer calculation support or source acquisition."
+        );
+        receipt["mapping"]["classification"] = json!(
+            "all source quality owners except verified DNT-only gem owners; explicit complete partition checked against primary/additional gem facts"
+        );
+    }
     Ok(Converted {
         overlay: BTreeMap::from([("gem_quality_stats.json".into(), super::pretty_bytes(&doc)?)]),
         receipt,
