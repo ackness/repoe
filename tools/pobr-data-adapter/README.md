@@ -8,7 +8,7 @@ published packages through its `pipeline/data.lock.json`.
 
 It is a standalone Cargo workspace inside this Python repository. PoBR's data
 types come from the immutable, non-release tag `engine-crates/20261102` of
-`ackness/pobr` (`pobr-data`, `pobr-core`, `pobr-gamedata`; `pobr-item` and
+`ackness/pobr` (`pobr-data`, `pobr-core`; `pobr-gamedata`, `pobr-item` and
 `pobr-tree` for tests). `Cargo.lock` pins the resolved commit `174ca6fb`. When
 PoBR changes a runtime type, create a new tag there and bump all five entries in
 `Cargo.toml` together; never move an existing tag.
@@ -48,19 +48,26 @@ mise reads it locally, and CI installs it with rustup.
 
 ```sh
 mise run adapter -- --ordinary-facts <F> --facts-manifest-sha256 <HEX> --version <patch> --out <fresh-directory> ...
-mise run adapter:check       # fmt, clippy -D warnings, cargo test, Python smoke tests
+mise run adapter:check       # fmt, clippy -D warnings, cargo test
 mise run adapter:keystones   # rebuild the published package's special_derived.json and compare bytes
 ```
 
 The modes are `--ordinary-facts` (current domains), `--tree` (historical
-official tree package), `--emit-special-derived` (keystone rules from a
-prepared `passive_tree.json`), and the frozen schema-4 branch `--native-facts` /
-`--native-runtime`. Each mode documents its arguments and guards:
+official tree package) and `--emit-special-derived` (keystone rules from a
+prepared `passive_tree.json`). Each mode documents its arguments and guards:
 
 - ordinary domains: [ordinary-facts.md](ordinary-facts.md) and the
   `ordinary-*.md` file for each domain;
-- passive tree: [ordinary-passive-tree.md](ordinary-passive-tree.md);
-- schema 4: [native-facts.md](native-facts.md), [native-runtime.md](native-runtime.md).
+- passive tree: [ordinary-passive-tree.md](ordinary-passive-tree.md).
+
+The ordinary domains read their input through `src/facts/`: the verifier of the
+pinned RePoE facts envelope (`repoe-native-facts/v4`) and its source lock, the
+selected-table and supplement readers, the player context archive verifier and
+the guarded output directory.
+
+The schema-4 (native runtime) modes `--native-facts` and `--native-runtime` were
+removed on 2026-11-04, after PoBR deleted its schema-4 loader; Git history keeps
+them.
 
 `adapter:keystones` checks the `game` input of the descriptor that
 [`publication/index.json`](../../publication/index.json) names as head, by
@@ -86,12 +93,9 @@ repository:
 - `CURRENT` is PoBR's runtime pointer. This tool never reads or writes it.
 - Links to PoBR source point at the `engine-crates/20261102` tag.
 
-Two scope decisions from the move apply to every mode:
-
-- The PoB2-derived parser and special-rule bytes in the published game package
-  are frozen. New parser capability goes into PoBR's Rust rules, not here.
-- The native schema-4 branch is frozen. Its producers moved here for
-  reproducibility, and PoBR's full-build calculation still rejects schema 4.
+One scope decision from the move applies to every mode: the PoB2-derived
+parser and special-rule bytes in the published game package are frozen. New
+parser capability goes into PoBR's Rust rules, not here.
 
 ## Move verification (2026-11-02)
 

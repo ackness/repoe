@@ -1,8 +1,9 @@
 //! Explicit prepared compatibility, target identity and reviewed native context.
 
 use super::super::stat_set_codec::policy::hex;
-use crate::native_facts::reader::VerifiedFacts;
+use crate::facts::reader::VerifiedFacts;
 use crate::raw_source::sha256_hex;
+use pobr_data::native_stat::NativeStat;
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 use std::collections::BTreeSet;
@@ -101,6 +102,33 @@ pub(super) struct Qualification {
     pub reference_passive_id: String,
     pub variable_fields: Vec<String>,
     pub context_sha256: String,
+    pub native_stats: NativeStats,
+}
+/// The stats a qualified node may carry as a native packet: the ones PoBR's
+/// loader maps natively today. Listing them here keeps the package independent
+/// of the engine; `tests::native_stat_allowlist_matches_pobr_map_stat` detects
+/// when PoBR's mapper and this list disagree.
+#[derive(Deserialize, Serialize)]
+#[serde(deny_unknown_fields)]
+pub(super) struct NativeStats {
+    schema: String,
+    stat_ids: Vec<String>,
+    value: String,
+    role: String,
+}
+impl NativeStats {
+    /// Admit one complete stat. A rejection is named like PoBR's
+    /// `NativePassiveRejection` (`UnknownStat`, `InexactValue`).
+    pub fn admit(&self, stat: &NativeStat) -> Result<(), &'static str> {
+        if self.stat_ids.binary_search(&stat.id).is_err() {
+            return Err("UnknownStat");
+        }
+        // i128 avoids the saturating f64 -> i64 cast accepting i64::MAX.
+        if stat.value as f64 as i128 != i128::from(stat.value) {
+            return Err("InexactValue");
+        }
+        Ok(())
+    }
 }
 #[derive(Deserialize, Serialize)]
 #[serde(deny_unknown_fields)]
@@ -171,6 +199,17 @@ impl Policy {
             return Err("unsupported native qualification schema/reference/variable fields".into());
         }
         hex(&q.context_sha256, 64, "reference context SHA256")?;
+        let n = &q.native_stats;
+        if n.schema != "pobr-ordinary-passive-native-stats/allowlist-v1"
+            || n.value != "i64-exact-in-f64"
+            || n.role.trim().is_empty()
+            || n.stat_ids.is_empty()
+            || n.stat_ids.iter().any(|id| id.is_empty() || id.trim() != id)
+            // Strictly sorted: unique, and `admit` can binary-search.
+            || !n.stat_ids.windows(2).all(|pair| pair[0] < pair[1])
+        {
+            return Err("unsupported native-stat allowlist".into());
+        }
         let mut ids = BTreeSet::new();
         let mut skills = BTreeSet::new();
         for b in &self.legacy_id_bindings {

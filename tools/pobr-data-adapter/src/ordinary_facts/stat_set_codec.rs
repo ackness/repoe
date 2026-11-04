@@ -13,7 +13,7 @@ use pobr_data::catalog::StatSetLabelsDef;
 use serde::Serialize;
 use serde_json::{Value, json};
 
-use crate::native_facts::reader::{self, Tables, VerifiedFacts};
+use crate::facts::reader::{self, Tables, VerifiedFacts};
 use crate::raw_source::sha256_hex;
 
 pub(super) const TABLES: [&str; 2] = ["GrantedEffects", "GrantedEffectStatSets"];

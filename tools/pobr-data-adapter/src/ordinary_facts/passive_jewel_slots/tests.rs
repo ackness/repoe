@@ -161,7 +161,7 @@ fn both_exact_producers_work_but_unknown_producer_patch_and_locale_fail() {
             3 => m["source_identity"]["game_patch"] = json!("0.5.5.6"),
             _ => m["format"] = json!("repoe-localized-tables/v1"),
         }
-        let bytes = crate::native_facts::reader::json_bytes(&m).unwrap();
+        let bytes = crate::facts::reader::json_bytes(&m).unwrap();
         fs::write(p, &bytes).unwrap();
         extra.sha256 = sha256_hex(&bytes);
         assert_eq!(run(a).is_ok(), mode < 2, "mode {mode}");

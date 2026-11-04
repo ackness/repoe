@@ -15,7 +15,7 @@ mise run adapter -- \
 
 The output parent must exist and the leaf must be fresh and outside `data/`.
 The external manifest pin, selected payloads, embedded lock and target patch are
-checked by `native_facts::reader::open`. `Tables::selected` supplies the existing
+checked by `facts::reader::open`. `Tables::selected` supplies the existing
 physical row/identity checks. All validation and serialization complete before
 the protected output directory is reserved. No vendor, download, implicit package
 fallback, production manifest or CURRENT update is involved.

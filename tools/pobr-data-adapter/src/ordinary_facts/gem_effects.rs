@@ -12,7 +12,7 @@ use pobr_data::catalog::{GemEffectDef, GemEffectsDef};
 use serde::Serialize;
 use serde_json::{Value, json};
 
-use crate::native_facts::reader::{Tables, VerifiedFacts};
+use crate::facts::reader::{Tables, VerifiedFacts};
 use crate::raw_source::sha256_hex;
 
 pub(super) const TABLES: [&str; 5] = [

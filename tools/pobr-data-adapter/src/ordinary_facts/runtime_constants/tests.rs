@@ -910,7 +910,7 @@ fn cli_source_and_output_boundaries_fail_before_reservation() {
 
 #[test]
 fn legacy_archive_layer_uses_the_existing_directory_handle_guards() {
-    use crate::native_facts::Output;
+    use crate::facts::Output;
     let f = fixture();
     let mut out = Output::prepare_paths(&f.root.join("input"), &f.root.join("guarded")).unwrap();
     out.reserve().unwrap();

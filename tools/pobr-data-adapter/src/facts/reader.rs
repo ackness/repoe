@@ -2,12 +2,12 @@
 
 use std::path::Path;
 
-use super::{Args, Profile, trust};
+use super::trust;
 
 pub(crate) mod selected;
 
-pub(crate) use super::convert::Tables;
 pub(crate) use super::model::{Graph, InstanceInput};
+pub(crate) use super::physical::Tables;
 pub(crate) use super::trust::VerifiedInput as VerifiedFacts;
 
 /// Read only the two additional authenticated tree projections, never all domains.
@@ -37,7 +37,7 @@ pub(crate) fn tree(facts: &VerifiedFacts) -> Result<(Graph, Vec<InstanceInput>),
     let graph =
         serde_json::from_value(facts.documents["graph.json"].clone()).map_err(|e| e.to_string())?;
     let tables = Tables::selected(facts, &["PassiveSkills", "PassiveSkillTrees"])?;
-    let graph = super::convert::normalize_graph(graph, &passives, &tables, facts)?;
+    let graph = super::physical::normalize_graph(graph, &passives, &tables, facts)?;
     Ok((graph, passives.default_graph_instances))
 }
 
@@ -50,14 +50,10 @@ pub(crate) fn open(
     tables: &[&str],
 ) -> Result<VerifiedFacts, String> {
     let facts = trust::verify_selection(
-        &Args {
-            input: input.into(),
-            expected_manifest_sha256: expected_manifest_sha256.into(),
-            source_lock: input.join("source-lock.json"),
-            out: Default::default(),
-            profile: Profile::ItemsActorsBc,
-        },
-        Some(tables),
+        input,
+        expected_manifest_sha256,
+        &input.join("source-lock.json"),
+        tables,
     )?;
     trust::require(
         facts.manifest["source_identity"]["game_patch"] == version,

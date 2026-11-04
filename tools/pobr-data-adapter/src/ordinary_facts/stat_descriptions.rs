@@ -9,7 +9,7 @@ use serde_json::{Value, json};
 
 use super::passive_tree::render::Renderer;
 use super::stat_set_codec::read_pinned;
-use crate::native_facts::reader::{self, VerifiedFacts};
+use crate::facts::reader::{self, VerifiedFacts};
 use crate::raw_source::sha256_hex;
 
 mod lookups;

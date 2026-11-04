@@ -8,8 +8,8 @@ use std::collections::BTreeMap;
 use serde::de::DeserializeOwned;
 use serde_json::{Value, json};
 
+use crate::facts::reader::{Tables, VerifiedFacts};
 use crate::monsters::{self, RawMonsterType, RawResistance, RawVariety};
-use crate::native_facts::reader::{Tables, VerifiedFacts};
 use crate::raw_source::sha256_hex;
 
 pub(super) const TABLES: [&str; 3] = ["MonsterVarieties", "MonsterTypes", "MonsterResistances"];

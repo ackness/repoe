@@ -1,7 +1,7 @@
 use super::super::tests::Fixture;
 use super::super::{Args, BranchCodecArgs, Domain, run};
 use super::*;
-use crate::native_facts::reader;
+use crate::facts::reader;
 use std::fs;
 
 fn write(path: &std::path::Path, doc: &Value) -> String {

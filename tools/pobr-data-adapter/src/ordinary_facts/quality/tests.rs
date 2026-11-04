@@ -6,7 +6,7 @@ use serde_json::{Value, json};
 
 use super::super::tests::Fixture;
 use super::super::{Args, Domain, parse_args, run};
-use crate::native_facts::Output;
+use crate::facts::Output;
 use crate::raw_source::sha256_hex;
 
 mod publication;

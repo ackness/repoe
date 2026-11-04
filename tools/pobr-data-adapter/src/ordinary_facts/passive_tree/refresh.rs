@@ -4,7 +4,7 @@ use super::super::stat_set_codec::read_pinned;
 use super::{
     Converted, ascendancy, nonstat, policy, prepared, render::Renderer, source::Facts, unlock,
 };
-use crate::native_facts::reader::{self, VerifiedFacts};
+use crate::facts::reader::{self, VerifiedFacts};
 use crate::raw_source::sha256_hex;
 use pobr_data::catalog::{PassiveNodeDef, PassiveNodeKind, PassiveTreeMeta};
 use pobr_data::native_stat::{NativePassiveContext, NativePassiveStats};
@@ -512,8 +512,9 @@ pub(super) fn project(
             object,
             &effects,
         )?;
-        // Keep the existing bounded mapper as an optimization only. Multi-stat
-        // nodes use the same ordinary parser as every other rendered tree node.
+        // A native packet is an optimization for the policy's allowlisted stats
+        // only. Multi-stat nodes use the same ordinary parser as every other
+        // rendered tree node.
         let stats = facts.stats(input, row)?;
         if text_record["owner"] == "target-csd"
             && kind == PassiveNodeKind::Normal
@@ -527,7 +528,12 @@ pub(super) fn project(
             })
             && stats.len() == 1
             && lines.len() == 1
-            && pobr_core::rules::passive_stats::map_stat(&stats[0]).is_ok()
+            && policy
+                .base_policy
+                .qualification
+                .native_stats
+                .admit(&stats[0])
+                .is_ok()
         {
             let packet = NativePassiveStats {
                 data_version: input.manifest["source_identity"]["game_patch"]

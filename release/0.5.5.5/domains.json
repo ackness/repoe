@@ -40,8 +40,8 @@
             "facts_manifest_sha256"
           ],
           "expect": {
-            "bytes": 1624833,
-            "sha256": "260ba2dc372d2cf941ef98ae712813fed784ad8eafe129a793f9b6f18cecb40a"
+            "bytes": 1625579,
+            "sha256": "7507ef54ba9562b56f1675c76282c0df3361588ab22290bef8a5ec1f2d98cde9"
           }
         },
         "--tree-reference": "ordinary:passive-tree/tree-reference/official-tree-bd87e651.json",

@@ -8,19 +8,25 @@ use std::path::{Component, Path};
 use serde::de::{self, Deserialize, Deserializer, MapAccess, SeqAccess, Visitor};
 use serde_json::{Map, Number, Value};
 
-use super::{Args, Profile};
 use crate::raw_source::sha256_hex;
 
-pub(super) const PRODUCER_REVISION: &str = "b6def2152dfc48d8ec49c7a237b2e973c3830e97";
+#[cfg(test)]
+mod tests;
+
+/// The facts envelope the ordinary domains read: RePoE's `items-actors-bc` profile.
+const FORMAT: &str = "repoe-native-facts/v4";
+const PROFILE: &str = "items-actors-bc";
 const DECODER_PIN_SHA: &str = "64703bc3c5eca107108244e02baf0dc2cd46669e62a6b5ba273f868aa9db0095";
-pub(super) const DECODER_PIN: &[u8] =
-    include_bytes!("../../tests/fixtures/native-facts/pypoe-sources.json");
-pub(super) const PYPOE: &str = "66d1d7442c5718260e1a8efd24989d22987e91af";
-pub(super) const SCHEMA_REVISION: &str = "6034b071846ef61b39046ebdb59e6d5717179509";
-pub(super) const SCHEMA_SHA: &str =
+const DECODER_PIN: &[u8] = include_bytes!("../../tests/fixtures/native-facts/pypoe-sources.json");
+pub(crate) const PYPOE: &str = "66d1d7442c5718260e1a8efd24989d22987e91af";
+pub(crate) const SCHEMA_REVISION: &str = "6034b071846ef61b39046ebdb59e6d5717179509";
+pub(crate) const SCHEMA_SHA: &str =
     "50e098543345cf8323aeb294e2cfef1b6b44842faccf560ada935cebe22727df";
 
-pub(super) const TABLES: [&str; 8] = [
+// The 77 physical tables of the profile, in the producer's order: the base
+// passive/skill tables, then those added by the core-skill, gem and item/actor
+// profiles.
+const BASE_TABLES: [&str; 8] = [
     "Characters",
     "ClassPassiveSkillOverrides",
     "GrantedEffectQualityStats",
@@ -31,8 +37,85 @@ pub(super) const TABLES: [&str; 8] = [
     "Stats",
 ];
 
+const CORE_SKILL_TABLES: [&str; 7] = [
+    "GrantedEffectLabels",
+    "ActiveSkills",
+    "ActiveSkillType",
+    "CostTypes",
+    "GrantedEffectsPerLevel",
+    "GrantedEffectStatSetsPerLevel",
+    "EffectivenessCostConstants",
+];
+
+const GEM_TABLES: [&str; 24] = [
+    "SkillGems",
+    "GemEffects",
+    "GemTags",
+    "SupportGems",
+    "SupportGemFamily",
+    "ItemExperienceTypes",
+    "ItemExperiencePerLevel",
+    "SkillCraftingData",
+    "SkillGemSearchTerms",
+    "SkillGemSupports",
+    "BaseItemTypes",
+    "ItemClasses",
+    "Tags",
+    "ActionTypes",
+    "ActiveSkillWeaponRequirement",
+    "WieldableClasses",
+    "ClientStrings",
+    "AlternateSkillTargetingBehaviours",
+    "VirtualStatContextFlags",
+    "ShapeShiftForms",
+    "MinionType",
+    "PassiveSkillStatCategories",
+    "ItemClassCategories",
+    "ItemStances",
+];
+
+const ITEM_ACTOR_TABLES: [&str; 38] = [
+    "ArmourTypes",
+    "AttributeRequirements",
+    "BuffDefinitions",
+    "BuffTemplates",
+    "ClientStrings2",
+    "ComponentCharges",
+    "EssenceMods",
+    "EssenceReplacementType",
+    "EssenceTargetItemCategories",
+    "Essences",
+    "Flasks",
+    "ItemInherentSkills",
+    "ItemSpirit",
+    "ModFamily",
+    "ModType",
+    "Mods",
+    "ShieldTypes",
+    "SoulCoreLimits",
+    "SoulCoreStatCategories",
+    "SoulCoreStats",
+    "SoulCoreTypes",
+    "SoulCores",
+    "UtilityFlaskBuffs",
+    "WeaponClasses",
+    "WeaponTypes",
+    "DefaultMonsterStats",
+    "DisplayMinionMonsterType",
+    "GameConstants",
+    "MinionGemLevelScaling",
+    "MinionStats",
+    "MonsterResistances",
+    "MonsterTypes",
+    "MonsterVarieties",
+    "PlayerMinionIntrinsicStats",
+    "SkillTotemVariations",
+    "SpectreOverrides",
+    "SummonedSpecificMonsters",
+    "SummonedSpecificMonstersOnDeath",
+];
+
 pub(crate) struct VerifiedInput {
-    pub(super) profile: Profile,
     pub manifest: Value,
     pub manifest_bytes: Vec<u8>,
     pub lock_bytes: Vec<u8>,
@@ -40,25 +123,23 @@ pub(crate) struct VerifiedInput {
     pub documents: BTreeMap<String, Value>,
 }
 
-pub(super) fn verify(args: &Args) -> Result<VerifiedInput, String> {
-    verify_selection(args, None)
-}
-
-/// Reuse the same authenticated envelope while reading only the requested physical tables.
-pub(super) fn verify_selection(
-    args: &Args,
-    selected_tables: Option<&[&str]>,
+/// Authenticate the envelope and its source lock, then read only the requested physical tables.
+pub(crate) fn verify_selection(
+    input: &Path,
+    expected_manifest_sha256: &str,
+    source_lock: &Path,
+    selected: &[&str],
 ) -> Result<VerifiedInput, String> {
-    check_sha(&args.expected_manifest_sha256)?;
-    let manifest_bytes = read_regular(&args.input.join("manifest.json"))?;
+    check_sha(expected_manifest_sha256)?;
+    let manifest_bytes = read_regular(&input.join("manifest.json"))?;
     // External byte authentication precedes even JSON parsing.
     require(
-        sha256_hex(&manifest_bytes) == args.expected_manifest_sha256,
+        sha256_hex(&manifest_bytes) == expected_manifest_sha256,
         "external manifest sha256 mismatch",
     )?;
     let manifest = strict_json(&manifest_bytes)?;
-    verify_manifest(&manifest, args.profile)?;
-    let lock_bytes = read_regular(&args.source_lock)?;
+    verify_manifest(&manifest)?;
+    let lock_bytes = read_regular(source_lock)?;
     let identity = &manifest["source_identity"];
     require(
         identity["source_lock_sha256"] == sha256_hex(&lock_bytes),
@@ -70,17 +151,15 @@ pub(super) fn verify_selection(
         "unsupported source-lock schema",
     )?;
     let source = &lock["sources"][string(&identity["source"])?];
-    if args.profile != Profile::BaseV1 {
-        require(
-            source["profile"].as_str() == args.profile.name(),
-            "source-lock profile mismatch",
-        )?;
-        verify_acquisition(&source["acquisition"])?;
-        require(
-            source["acquisition"] == identity["acquisition"],
-            "source-lock acquisition mismatch",
-        )?;
-    }
+    require(
+        source["profile"].as_str() == Some(PROFILE),
+        "source-lock profile mismatch",
+    )?;
+    verify_acquisition(&source["acquisition"])?;
+    require(
+        source["acquisition"] == identity["acquisition"],
+        "source-lock acquisition mismatch",
+    )?;
     require(
         identity["selected_source_sha256"] == sha256_hex(&super::json_bytes(source)?),
         "selected source-lock entry mismatch",
@@ -107,7 +186,7 @@ pub(super) fn verify_selection(
             &format!("source-lock decoder {key} mismatch"),
         )?;
     }
-    let raw_paths = raw_paths(args.profile);
+    let raw_paths = raw_paths();
     exact_keys(&source["resources"], &raw_paths)?;
     exact_keys(&identity["raw_resources"], &raw_paths)?;
     for path in &raw_paths {
@@ -121,31 +200,20 @@ pub(super) fn verify_selection(
             )?;
         }
     }
-    let paths = payload_paths(args.profile);
-    exact_keys(&manifest["files"], &paths)?;
-    let paths = if let Some(selected) = selected_tables {
-        let available = tables(args.profile);
-        let unique: BTreeSet<_> = selected.iter().collect();
-        require(
-            !selected.is_empty()
-                && unique.len() == selected.len()
-                && selected.iter().all(|table| available.contains(table)),
-            "invalid selected physical tables",
-        )?;
-        selected
-            .iter()
-            .map(|table| format!("tables/{table}.json"))
-            .chain(["source-lock.json".into()])
-            .collect()
-    } else {
-        let expected: BTreeSet<_> = paths
-            .iter()
-            .cloned()
-            .chain(["manifest.json".into(), "tables".into()])
-            .collect();
-        verify_inventory(&args.input, &args.input, &expected)?;
-        paths
-    };
+    exact_keys(&manifest["files"], &payload_paths())?;
+    let available = tables();
+    let unique: BTreeSet<_> = selected.iter().collect();
+    require(
+        !selected.is_empty()
+            && unique.len() == selected.len()
+            && selected.iter().all(|table| available.contains(table)),
+        "invalid selected physical tables",
+    )?;
+    let paths: Vec<String> = selected
+        .iter()
+        .map(|table| format!("tables/{table}.json"))
+        .chain(["source-lock.json".into()])
+        .collect();
     let mut bytes = BTreeMap::new();
     // No payload is consumed until every fingerprint has passed.
     for path in &paths {
@@ -153,19 +221,17 @@ pub(super) fn verify_selection(
         let fingerprint = &manifest["files"][path];
         exact_keys(fingerprint, &["bytes".into(), "sha256".into()])?;
         check_fingerprint(fingerprint)?;
-        let data = read_regular(&args.input.join(path))?;
+        let data = read_regular(&input.join(path))?;
         require(
             fingerprint["bytes"] == data.len() && fingerprint["sha256"] == sha256_hex(&data),
             &format!("payload fingerprint mismatch: {path}"),
         )?;
         bytes.insert(path.clone(), data);
     }
-    if args.profile != Profile::BaseV1 {
-        require(
-            bytes["source-lock.json"] == lock_bytes,
-            "embedded source-lock bytes mismatch",
-        )?;
-    }
+    require(
+        bytes["source-lock.json"] == lock_bytes,
+        "embedded source-lock bytes mismatch",
+    )?;
     let documents = bytes
         .iter()
         .map(|(path, data)| {
@@ -175,7 +241,6 @@ pub(super) fn verify_selection(
         })
         .collect::<Result<_, _>>()?;
     Ok(VerifiedInput {
-        profile: args.profile,
         manifest,
         manifest_bytes,
         lock_bytes,
@@ -184,8 +249,8 @@ pub(super) fn verify_selection(
     })
 }
 
-fn verify_manifest(m: &Value, profile: Profile) -> Result<(), String> {
-    let mut manifest_keys = vec![
+fn verify_manifest(m: &Value) -> Result<(), String> {
+    let manifest_keys = [
         "decoder",
         "files",
         "format",
@@ -197,22 +262,15 @@ fn verify_manifest(m: &Value, profile: Profile) -> Result<(), String> {
         "source_identity",
         "status",
         "summary",
+        "profile",
     ]
-    .into_iter()
-    .map(String::from)
-    .collect::<Vec<_>>();
-    if profile != Profile::BaseV1 {
-        manifest_keys.push("profile".into());
-        require(
-            m["profile"].as_str() == profile.name(),
-            "invalid manifest profile",
-        )?;
-    }
+    .map(String::from);
+    require(
+        m["profile"].as_str() == Some(PROFILE),
+        "invalid manifest profile",
+    )?;
     exact_keys(m, &manifest_keys)?;
-    for (key, value) in [
-        ("format", profile.format()),
-        ("status", "partial-candidate"),
-    ] {
+    for (key, value) in [("format", FORMAT), ("status", "partial-candidate")] {
         require(m[key] == value, &format!("invalid manifest {key}"))?;
     }
     require(
@@ -220,7 +278,7 @@ fn verify_manifest(m: &Value, profile: Profile) -> Result<(), String> {
         "native facts must be partial, never production_ready",
     )?;
     let identity = &m["source_identity"];
-    let mut identity_keys = vec![
+    let identity_keys = [
         "game",
         "game_patch",
         "kind",
@@ -229,18 +287,14 @@ fn verify_manifest(m: &Value, profile: Profile) -> Result<(), String> {
         "selected_source_sha256",
         "source",
         "source_lock_sha256",
+        "acquisition",
     ]
-    .into_iter()
-    .map(String::from)
-    .collect::<Vec<_>>();
-    if profile != Profile::BaseV1 {
-        identity_keys.push("acquisition".into());
-        verify_acquisition(&identity["acquisition"])?;
-        require(
-            !string(&identity["source"])?.is_empty(),
-            "empty selected source",
-        )?;
-    }
+    .map(String::from);
+    verify_acquisition(&identity["acquisition"])?;
+    require(
+        !string(&identity["source"])?.is_empty(),
+        "empty selected source",
+    )?;
     exact_keys(identity, &identity_keys)?;
     for (key, value) in [
         ("game", "poe2"),
@@ -253,20 +307,18 @@ fn verify_manifest(m: &Value, profile: Profile) -> Result<(), String> {
             &format!("invalid source identity {key}"),
         )?;
     }
-    if profile == Profile::BaseV1 {
-        require(
-            identity["source"] == "official-client-0.5.5.5",
-            "invalid source identity source",
-        )?;
-    }
     for key in ["source_lock_sha256", "selected_source_sha256"] {
         check_sha(string(&identity[key])?)?;
     }
-    // These file identities bind this consumer to the requested producer revision, which v1
-    // records as source fingerprints rather than a Git revision in the package itself.
-    let mut expected_producer = serde_json::json!({
+    // Fixed SHA-256 values of the producer's source files (RePoE e4140122), never
+    // derived from caller-supplied manifest producer claims.
+    let expected_producer = serde_json::json!({
+        "RePoE/native_actor_facts.py": "a0845e3866c5dd0fb21a8edb42f68fc9eec3affef19b426631c0066bd5e51f58",
         "RePoE/native_dat.py": "824f561af6e4b83243b459d726d6bad6821663061ac840d39c2854145707ff86",
-        "RePoE/native_facts.py": "f7bf979a7a8e4bf04143cb8d04d3728a876c1bc5dd2498c43cd2d0ec78526548",
+        "RePoE/native_facts.py": "7bbe4a84b66d88dfd2c3081550ef9891fd7beb9e6d586939749e684c7607af53",
+        "RePoE/native_gems.py": "97dbc0952b685df5de9b9d56c17c109d95f670a8a7c332821f9206433c1a363c",
+        "RePoE/native_items.py": "9350c81674a332670eb22e24aca5cb114e7f09f74dea26cf556b707f4166f1ee",
+        "RePoE/native_skills.py": "e65aff1265c3c1becd7890acb3c0182232651dd351dab5d982b0d119f74d453d",
         "RePoE/native_tools.py": "46e4a0dd7250c44f9da714f55d90ef967223e0f50b0631d130a112c6144a37c7",
         "RePoE/schema_candidate.py": "1e2d130d8e721c6398bc3cbcd63b0acb27e4487b5cddef9bf60624a8526d1b04",
         "pyproject.toml": "db02b9819adfc21f00365595bf9d53ffb15a644cb759d539b123781a572a7912",
@@ -275,28 +327,6 @@ fn verify_manifest(m: &Value, profile: Profile) -> Result<(), String> {
         "schema/source.json": "7afa08a39f3da0b2e368d716593c2adef03308f100ec49edac73e8c7416441d3",
         "uv.lock": "6ac815b9e4263081b51e823a3f297f35a1c55c7fa57956d3bdd5d4a506c1c66b"
     });
-    // Fixed SHA-256 values checked against the selected aa2fb163/c450fb8 Git blobs,
-    // never derived from caller-supplied manifest producer claims.
-    if profile != Profile::BaseV1 {
-        expected_producer["RePoE/native_facts.py"] =
-            "af8148ccf8c68fef5b0c867a892285ff95b82e50c4933d1acc4f5c499632e4a1".into();
-        expected_producer["RePoE/native_skills.py"] =
-            "e65aff1265c3c1becd7890acb3c0182232651dd351dab5d982b0d119f74d453d".into();
-    }
-    if matches!(profile, Profile::GemsConstraintsA1 | Profile::ItemsActorsBc) {
-        expected_producer["RePoE/native_facts.py"] =
-            "c484ce8b644868ff310ba4866a56062dd7aca634beb0406d6028d1ceea42bfc0".into();
-        expected_producer["RePoE/native_gems.py"] =
-            "97dbc0952b685df5de9b9d56c17c109d95f670a8a7c332821f9206433c1a363c".into();
-    }
-    if profile == Profile::ItemsActorsBc {
-        expected_producer["RePoE/native_facts.py"] =
-            "7bbe4a84b66d88dfd2c3081550ef9891fd7beb9e6d586939749e684c7607af53".into();
-        expected_producer["RePoE/native_items.py"] =
-            "9350c81674a332670eb22e24aca5cb114e7f09f74dea26cf556b707f4166f1ee".into();
-        expected_producer["RePoE/native_actor_facts.py"] =
-            "a0845e3866c5dd0fb21a8edb42f68fc9eec3affef19b426631c0066bd5e51f58".into();
-    }
     require(
         m["producer"] == expected_producer,
         "producer identity mismatch",
@@ -326,7 +356,7 @@ fn verify_manifest(m: &Value, profile: Profile) -> Result<(), String> {
     )
 }
 
-pub(super) fn verify_decoder(decoder: &Value) -> Result<(), String> {
+pub(crate) fn verify_decoder(decoder: &Value) -> Result<(), String> {
     exact_keys(
         decoder,
         &[
@@ -372,8 +402,8 @@ pub(super) fn verify_decoder(decoder: &Value) -> Result<(), String> {
     Ok(())
 }
 
-pub(super) fn payload_paths(profile: Profile) -> Vec<String> {
-    tables(profile)
+fn payload_paths() -> Vec<String> {
+    tables()
         .into_iter()
         .map(|table| format!("tables/{table}.json"))
         .chain(
@@ -382,61 +412,37 @@ pub(super) fn payload_paths(profile: Profile) -> Vec<String> {
                 "graph.json",
                 "passives.json",
                 "skills.json",
+                "skill_core.json",
+                "source-lock.json",
+                "gems.json",
+                "constraints.json",
+                "items.json",
+                "actors.json",
             ]
             .map(String::from),
         )
-        .chain(if profile != Profile::BaseV1 {
-            vec!["skill_core.json".into(), "source-lock.json".into()]
-        } else {
-            vec![]
-        })
-        .chain(
-            if matches!(profile, Profile::GemsConstraintsA1 | Profile::ItemsActorsBc) {
-                vec!["gems.json".into(), "constraints.json".into()]
-            } else {
-                vec![]
-            },
-        )
-        .chain(if profile == Profile::ItemsActorsBc {
-            vec!["items.json".into(), "actors.json".into()]
-        } else {
-            vec![]
-        })
         .collect()
 }
 
-pub(super) fn tables(profile: Profile) -> Vec<&'static str> {
-    TABLES
-        .into_iter()
-        .chain(if profile != Profile::BaseV1 {
-            super::core_skills::TABLES.to_vec()
-        } else {
-            vec![]
-        })
-        .chain(
-            if matches!(profile, Profile::GemsConstraintsA1 | Profile::ItemsActorsBc) {
-                super::gems::TABLES.to_vec()
-            } else {
-                vec![]
-            },
-        )
-        .chain(if profile == Profile::ItemsActorsBc {
-            super::items_actors::TABLES.to_vec()
-        } else {
-            vec![]
-        })
-        .collect()
+fn tables() -> Vec<&'static str> {
+    [
+        &BASE_TABLES[..],
+        &CORE_SKILL_TABLES,
+        &GEM_TABLES,
+        &ITEM_ACTOR_TABLES,
+    ]
+    .concat()
 }
 
-fn raw_paths(profile: Profile) -> Vec<String> {
-    tables(profile)
+fn raw_paths() -> Vec<String> {
+    tables()
         .into_iter()
         .map(|table| format!("Data/Balance/{table}.datc64"))
         .chain(["Metadata/PassiveSkillGraph.psg".into()])
         .collect()
 }
 
-pub(super) fn verify_acquisition(value: &Value) -> Result<(), String> {
+pub(crate) fn verify_acquisition(value: &Value) -> Result<(), String> {
     exact_keys(value, &["status".into(), "evidence".into()])?;
     require(
         matches!(
@@ -460,7 +466,7 @@ pub(super) fn verify_acquisition(value: &Value) -> Result<(), String> {
     Ok(())
 }
 
-pub(super) fn require(condition: bool, message: &str) -> Result<(), String> {
+pub(crate) fn require(condition: bool, message: &str) -> Result<(), String> {
     if condition {
         Ok(())
     } else {
@@ -468,7 +474,7 @@ pub(super) fn require(condition: bool, message: &str) -> Result<(), String> {
     }
 }
 
-pub(super) fn exact_keys(value: &Value, expected: &[String]) -> Result<(), String> {
+pub(crate) fn exact_keys(value: &Value, expected: &[String]) -> Result<(), String> {
     let keys: BTreeSet<_> = value
         .as_object()
         .ok_or("expected JSON object")?
@@ -535,7 +541,7 @@ fn no_symlink_components(path: &Path) -> Result<(), String> {
     Ok(())
 }
 
-pub(super) fn read_regular(path: &Path) -> Result<Vec<u8>, String> {
+pub(crate) fn read_regular(path: &Path) -> Result<Vec<u8>, String> {
     no_symlink_components(path)?;
     require(
         fs::symlink_metadata(path)
@@ -546,34 +552,7 @@ pub(super) fn read_regular(path: &Path) -> Result<Vec<u8>, String> {
     fs::read(path).map_err(|e| format!("{}: {e}", path.display()))
 }
 
-fn verify_inventory(root: &Path, dir: &Path, expected: &BTreeSet<String>) -> Result<(), String> {
-    no_symlink_components(dir)?;
-    for entry in fs::read_dir(dir).map_err(|e| e.to_string())? {
-        let entry = entry.map_err(|e| e.to_string())?;
-        let path = entry.path();
-        let relative = path
-            .strip_prefix(root)
-            .map_err(|e| e.to_string())?
-            .to_str()
-            .ok_or("non-UTF8 input path")?
-            .to_owned();
-        require(
-            expected.contains(&relative),
-            &format!("unexpected input path: {relative}"),
-        )?;
-        let ty = entry.file_type().map_err(|e| e.to_string())?;
-        require(!ty.is_symlink(), &format!("symlink input: {relative}"))?;
-        if relative == "tables" {
-            require(ty.is_dir(), "tables is not a directory")?;
-            verify_inventory(root, &path, expected)?;
-        } else {
-            require(ty.is_file(), "payload is not a regular file")?;
-        }
-    }
-    Ok(())
-}
-
-pub(super) fn require_absent(path: &Path) -> Result<(), String> {
+pub(crate) fn require_absent(path: &Path) -> Result<(), String> {
     match fs::symlink_metadata(path) {
         Err(e) if e.kind() == std::io::ErrorKind::NotFound => Ok(()),
         Err(e) => Err(format!("inspect output: {e}")),
@@ -582,7 +561,7 @@ pub(super) fn require_absent(path: &Path) -> Result<(), String> {
 }
 
 /// Recursively reject duplicate keys before serde can overwrite evidence.
-pub(super) fn strict_json(bytes: &[u8]) -> Result<Value, String> {
+pub(crate) fn strict_json(bytes: &[u8]) -> Result<Value, String> {
     let mut decoder = serde_json::Deserializer::from_slice(bytes);
     let value = UniqueJson::deserialize(&mut decoder).map_err(|e| e.to_string())?;
     decoder.end().map_err(|e| e.to_string())?;

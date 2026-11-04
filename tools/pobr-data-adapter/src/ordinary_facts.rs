@@ -32,7 +32,7 @@ use std::path::PathBuf;
 
 use serde_json::json;
 
-use crate::native_facts::{Output, reader};
+use crate::facts::{Output, reader};
 use crate::raw_source::sha256_hex;
 
 pub(crate) struct Args {
@@ -1029,7 +1029,7 @@ pub(crate) fn run(args: Args) -> Result<String, String> {
                 } else {
                     vec![
                         "All prepared nodes and metadata retain their non-owned fields, order, text, variants, unlock/ascendancy/armour context and unknown values. Fixed source/policy compatibility is distinct from target facts.",
-                        "Only complete single-stat whole-context eligible nodes receive target native_stats through the existing shared mapper. All others retain the full original text path; class attributes use target Characters values.",
+                        "Only complete single-stat whole-context eligible nodes receive target native_stats when the policy's native-stat allowlist admits their stat. All others retain the full original text path; class attributes use target Characters values.",
                         "Explicit identity and outside-connection exceptions are exact, consumed compatibility declarations, not node admission or legality rules. No added nodes, edge rewiring, guessed Ascendancy ordinal or Requirement predicate.",
                         "Four selected tables and lock, plus explicit prepared tree and policy only. Metadata authoring/evidence paths are declarations, not implicitly read or file-hash-verified inputs.",
                         "Draft domain candidate, incomplete and not adopted. No runtime manifest/CURRENT; full target text, BD/Web, package and source approval remain separate.",
@@ -1248,12 +1248,12 @@ fn implementation_sha256() -> String {
             include_bytes!("ordinary_facts/unarmed.rs").as_slice(),
         ),
         (
-            "native_facts/runtime/player.rs",
-            include_bytes!("native_facts/runtime/player.rs").as_slice(),
+            "facts/player.rs",
+            include_bytes!("facts/player.rs").as_slice(),
         ),
         (
-            "native_facts/runtime/inputs.rs",
-            include_bytes!("native_facts/runtime/inputs.rs").as_slice(),
+            "facts/inputs.rs",
+            include_bytes!("facts/inputs.rs").as_slice(),
         ),
         (
             "player-context-manifest.json",
@@ -1261,8 +1261,8 @@ fn implementation_sha256() -> String {
                 .as_slice(),
         ),
         (
-            "native_facts/reader/selected.rs",
-            include_bytes!("native_facts/reader/selected.rs").as_slice(),
+            "facts/reader/selected.rs",
+            include_bytes!("facts/reader/selected.rs").as_slice(),
         ),
         (
             "selected-tables-producer.json",
@@ -1481,36 +1481,25 @@ fn implementation_sha256() -> String {
             include_bytes!("ordinary_facts/convert.rs").as_slice(),
         ),
         (
-            "native_facts/reader.rs",
-            include_bytes!("native_facts/reader.rs").as_slice(),
+            "facts/reader.rs",
+            include_bytes!("facts/reader.rs").as_slice(),
         ),
         (
-            "native_facts/trust.rs",
-            include_bytes!("native_facts/trust.rs").as_slice(),
+            "facts/trust.rs",
+            include_bytes!("facts/trust.rs").as_slice(),
+        ),
+        ("facts/mod.rs", include_bytes!("facts/mod.rs").as_slice()),
+        (
+            "facts/physical.rs",
+            include_bytes!("facts/physical.rs").as_slice(),
         ),
         (
-            "native_facts/convert.rs",
-            include_bytes!("native_facts/convert.rs").as_slice(),
+            "facts/model.rs",
+            include_bytes!("facts/model.rs").as_slice(),
         ),
         (
-            "native_facts/output.rs",
-            include_bytes!("native_facts/output.rs").as_slice(),
-        ),
-        (
-            "native_facts/mod.rs",
-            include_bytes!("native_facts/mod.rs").as_slice(),
-        ),
-        (
-            "native_facts/core_skills.rs",
-            include_bytes!("native_facts/core_skills.rs").as_slice(),
-        ),
-        (
-            "native_facts/gems.rs",
-            include_bytes!("native_facts/gems.rs").as_slice(),
-        ),
-        (
-            "native_facts/items_actors.rs",
-            include_bytes!("native_facts/items_actors.rs").as_slice(),
+            "facts/output.rs",
+            include_bytes!("facts/output.rs").as_slice(),
         ),
         ("main.rs", include_bytes!("main.rs").as_slice()),
         ("raw_source.rs", include_bytes!("raw_source.rs").as_slice()),

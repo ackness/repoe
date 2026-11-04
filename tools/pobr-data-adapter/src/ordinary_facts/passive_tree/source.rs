@@ -1,7 +1,7 @@
 //! Authenticated physical identities, complete stat slots and whole-row context.
 
 use super::policy::{Policy, VARIABLES};
-use crate::native_facts::reader::{self, Tables, VerifiedFacts};
+use crate::facts::reader::{self, Tables, VerifiedFacts};
 use crate::raw_source::sha256_hex;
 use pobr_data::native_stat::{NativeStat, NativeStatProvenance, NativeStatReference};
 use serde_json::{Value, json};
@@ -186,7 +186,7 @@ impl<'a> Facts<'a> {
             .as_object()
             .ok_or("invalid reference context")?;
         let raw = raw.as_object().ok_or("invalid passive context")?;
-        // Same whole-row rule as native_facts/runtime/tree.rs: identical keys;
+        // Whole-row rule: identical keys;
         // only these six fields vary. No interpretation of unknown/context keys.
         let keys: BTreeSet<_> = raw.keys().chain(reference.keys()).collect();
         Ok(keys

@@ -9,8 +9,8 @@ use serde_json::{Value, json};
 
 use super::super::BranchCodecArgs;
 use super::super::stat_set_codec::policy::hex;
-use crate::native_facts::reader::{Tables, VerifiedFacts};
-use crate::native_facts::runtime::player as source;
+use crate::facts::player as source;
+use crate::facts::reader::{Tables, VerifiedFacts};
 
 #[derive(Deserialize, Serialize)]
 #[serde(deny_unknown_fields)]

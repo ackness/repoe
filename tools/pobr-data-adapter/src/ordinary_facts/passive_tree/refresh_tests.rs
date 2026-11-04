@@ -1,5 +1,5 @@
 use super::{refresh, render::Renderer, source::Facts};
-use crate::native_facts::reader::{self, VerifiedFacts};
+use crate::facts::reader::{self, VerifiedFacts};
 use crate::ordinary_facts::{stat_set_codec::tests::table, tests::Fixture};
 use crate::raw_source::sha256_hex;
 use serde_json::{Value, json};

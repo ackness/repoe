@@ -1,7 +1,7 @@
 //! Physical prerequisite identities in the existing all-prerequisites DTO.
 
 use super::{ascendancy, source::Facts};
-use crate::native_facts::reader::VerifiedFacts;
+use crate::facts::reader::VerifiedFacts;
 use serde_json::{Map, Value, json};
 
 pub(super) fn validate(input: &VerifiedFacts) -> Result<(), String> {

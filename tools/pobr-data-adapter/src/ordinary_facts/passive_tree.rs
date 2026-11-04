@@ -22,9 +22,8 @@ pub(super) const REFRESH_TABLES: [&str; 5] = [
 pub(super) mod tests;
 
 use super::stat_set_codec::read_pinned;
-use crate::native_facts::reader::{self, VerifiedFacts};
+use crate::facts::reader::{self, VerifiedFacts};
 use crate::raw_source::sha256_hex;
-use pobr_core::rules::passive_stats;
 use pobr_data::catalog::{PassiveNodeDef, PassiveNodeKind, PassiveTreeMeta};
 use pobr_data::native_stat::{NativePassiveContext, NativePassiveStats};
 use serde_json::{Value, json};
@@ -156,9 +155,10 @@ pub(super) fn convert(input: &VerifiedFacts, args: &super::CodecArgs) -> Result<
             reasons.push("prepared display is not one nonempty trimmed line".into());
         }
         if let [stat] = stats.as_slice()
-            && let Err(error) = passive_stats::map_stat(stat)
+            && let Err(error) = policy.qualification.native_stats.admit(stat)
         {
-            reasons.push(format!("shared mapper rejected complete stat: {error:?}"));
+            // Wording kept from the engine mapper so this path's receipt is unchanged.
+            reasons.push(format!("shared mapper rejected complete stat: {error}"));
         }
         let packet = if reasons.is_empty() {
             native_count += 1;

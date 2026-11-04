@@ -7,7 +7,7 @@ use serde::{Deserialize, Serialize};
 
 use super::super::skill_stat_map::policy::{Source, identity};
 use super::super::stat_set_codec::policy::hex;
-use crate::native_facts::reader::VerifiedFacts;
+use crate::facts::reader::VerifiedFacts;
 use crate::raw_source::sha256_hex;
 
 pub(super) const RETAINED_STATS: [&str; 4] = [

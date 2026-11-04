@@ -5,7 +5,7 @@ use std::fs;
 use serde_json::{Map, Value, json};
 
 use super::{FORMAT, POLICY};
-use crate::native_facts::reader;
+use crate::facts::reader;
 use crate::ordinary_facts::BranchCodecArgs;
 use crate::ordinary_facts::stat_set_codec::read_pinned;
 use crate::raw_source::sha256_hex;

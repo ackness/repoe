@@ -743,6 +743,22 @@ fn policy_context_source_pins_and_embedded_metadata_guards_precede_reserve() {
             "/qualification/variable_fields",
             json!(["Id", "Name", "Stats"]),
         ),
+        ("/qualification/native_stats/schema", json!("future")),
+        ("/qualification/native_stats/value", json!("any-i64")),
+        ("/qualification/native_stats/role", json!(" ")),
+        ("/qualification/native_stats/stat_ids", json!([])),
+        (
+            "/qualification/native_stats/stat_ids",
+            json!(["fire_damage_+%", "cold_damage_+%"]),
+        ),
+        (
+            "/qualification/native_stats/stat_ids",
+            json!(["fire_damage_+%", "fire_damage_+%"]),
+        ),
+        (
+            "/qualification/native_stats/stat_ids",
+            json!([" fire_damage_+%"]),
+        ),
         ("/legacy_metadata/value/tree", json!("Other")),
         ("/legacy_metadata/value/classes/1/name", json!("Witch")),
         (
@@ -1102,4 +1118,100 @@ fn empty_stats_and_changed_nonfirst_slots_never_create_partial_native_packets() 
         assert!(output(&f)[1].get("native_stats").is_none());
         assert_eq!(output(&f)[1]["stats"], doc(&f, SOURCE)[1]["stats"]);
     }
+}
+
+/// Drift check for the native-stat allowlist (decision D9). Until PoBR's loader
+/// decides on its own which stats it maps (roadmap 2.4), the policy must admit
+/// exactly what `pobr_core::rules::passive_stats::map_stat` maps, with the same
+/// rejection reason, for every stat a candidate node can carry. Both shipped
+/// policies must carry the same list.
+#[test]
+fn native_stat_allowlist_matches_pobr_map_stat() {
+    use pobr_core::rules::passive_stats::map_stat;
+    use pobr_data::native_stat::{NativeStat, NativeStatProvenance};
+    let prepared: Value = serde_json::from_slice(include_bytes!(
+        "../../../policies/passive-tree/0.5.5.5-prepared-compat-policy.json"
+    ))
+    .unwrap();
+    let template: Value = serde_json::from_slice(include_bytes!(
+        "../../../policies/passive-tree/0.5.5.5-tree-policy.template.json"
+    ))
+    .unwrap();
+    let declared = &prepared["qualification"]["native_stats"];
+    assert_eq!(
+        &template["base_policy"]["qualification"]["native_stats"],
+        declared
+    );
+    let allowlist: super::policy::NativeStats = serde_json::from_value(declared.clone()).unwrap();
+    let listed: Vec<String> = serde_json::from_value(declared["stat_ids"].clone()).unwrap();
+    // Candidate IDs: the listed ones and their neighbours in the client's naming
+    // (other damage types and scopes, other resistances, conditional variants).
+    let mut ids = listed.clone();
+    for kind in [
+        "physical",
+        "fire",
+        "cold",
+        "lightning",
+        "chaos",
+        "elemental",
+        "spell",
+        "projectile",
+        "attack",
+        "area",
+        "melee",
+        "minion",
+        "global",
+        "",
+    ] {
+        let damage = if kind.is_empty() {
+            "damage_+%".to_owned()
+        } else {
+            format!("{kind}_damage_+%")
+        };
+        ids.push(format!("{damage}_while_using_a_flask"));
+        ids.push(format!("local_{damage}"));
+        ids.push(format!("base_{kind}_damage_resistance_%"));
+        ids.push(format!("{kind}_damage_resistance_%"));
+        ids.push(damage);
+    }
+    ids.extend(["maximum_fire_damage_resistance_%", "", "FIRE_DAMAGE_+%"].map(String::from));
+    ids.sort();
+    ids.dedup();
+    let values = [
+        0,
+        1,
+        -10,
+        13,
+        1 << 53,
+        (1 << 53) + 1,
+        (1 << 53) + 2,
+        -(1 << 53) - 1,
+        i64::MAX,
+        i64::MIN,
+    ];
+    let mut admitted = Vec::new();
+    for id in &ids {
+        for value in values {
+            let stat = NativeStat {
+                id: id.clone(),
+                value,
+                provenance: NativeStatProvenance {
+                    game_patch: "0.5.5.5".into(),
+                    source_manifest_sha256: "0".repeat(64),
+                    passive_id: "candidate".into(),
+                    passive_row: 0,
+                    stat_row: 0,
+                    references: vec![],
+                },
+            };
+            let engine = map_stat(&stat).map(|_| ()).map_err(|e| format!("{e:?}"));
+            let policy = allowlist.admit(&stat).map_err(String::from);
+            assert_eq!(policy, engine, "{id} = {value}");
+            if policy.is_ok() && value == 13 {
+                admitted.push(id.clone());
+            }
+        }
+    }
+    // Every listed ID is admitted, so the list holds no stat PoBR does not map.
+    assert_eq!(admitted, listed);
 }

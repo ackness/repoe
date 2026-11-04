@@ -1,4 +1,4 @@
-//! Pinned supplemental physical tables; never a full native runtime profile.
+//! Pinned supplemental physical tables, checked like the facts tables they extend.
 
 use std::collections::BTreeMap;
 use std::path::Path;

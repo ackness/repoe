@@ -4,7 +4,7 @@ use serde_json::{Value, json};
 use std::{collections::BTreeMap, fs, path::Path};
 
 fn write(path: &Path, value: &Value) -> String {
-    let raw = crate::native_facts::reader::json_bytes(value).unwrap();
+    let raw = crate::facts::reader::json_bytes(value).unwrap();
     fs::write(path, &raw).unwrap();
     crate::raw_source::sha256_hex(&raw)
 }

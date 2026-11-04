@@ -189,8 +189,13 @@ node and variant fields retain their original JSON value/presence.
 For the fixed inputs, 4803 nodes use target CSD text (including empty-text layout
 icons), 1228 of those are multi-stat nodes, and 110 use guarded complete text.
 These counts are production observations, not calculation-accuracy percentages.
-The existing mapper still produces 177 eligible single-stat native packets as
-an optimization. Multi-stat nodes use the same ordinary parser as other text;
+177 eligible single-stat nodes still carry a native packet as an optimization.
+Which stats qualify is the policy's allowlist (`qualification.native_stats`: nine
+stat IDs, and a value an `f64` holds exactly). It copies what PoBR's
+`passive_stats::map_stat` maps at the pinned engine tag, so the producer does
+not call the engine; the test `native_stat_allowlist_matches_pobr_map_stat`
+compares the two. A stat PoBR maps but the list lacks only keeps its node on
+the text path. Multi-stat nodes use the same ordinary parser as other text;
 there is no new calculation engine, per-node rule table or profile expansion.
 
 ## Pins, receipts and future updates
@@ -227,7 +232,7 @@ fixture, not a newly acquired official source.
 
 Omitting both tree options selects the original prepared-preserving producer
 with `0.5.5.5-prepared-compat-policy.json` (SHA256
-`93078d21dbe2e894061f5e1b9330535adfd7ddf2c0679fd8b7957595c872e260`).
+`2eebc4f0b7b6d60c1f1a054bd45ceae4aba106dfab5a832488e73034b8a51c2d`).
 That path reads the original four tables, preserves complete prepared entries
 and its 15 exact outside-connection exceptions, and only updates qualified
 native packets plus base class attributes. Its source/policy and frozen results

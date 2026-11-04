@@ -13,7 +13,7 @@ mod supported {
 
     use rustix::fs::{self, AtFlags, FileType, Mode, OFlags};
 
-    use super::super::{Args, trust::require};
+    use super::super::trust::require;
 
     const DIRECTORY: OFlags = OFlags::RDONLY
         .union(OFlags::DIRECTORY)
@@ -112,10 +112,6 @@ mod supported {
     }
 
     impl Output {
-        pub(crate) fn prepare(args: &Args) -> Result<Self, String> {
-            Self::prepare_paths(&args.input, &args.out)
-        }
-
         pub(crate) fn prepare_paths(input: &Path, out: &Path) -> Result<Self, String> {
             let path = std::path::absolute(out).map_err(|e| e.to_string())?;
             let parent = path.parent().ok_or("output has no parent")?;
@@ -297,18 +293,15 @@ mod supported {
     }
 }
 
-// Native output needs openat/mkdirat semantics. Other adapter modes still compile
-// and run on unsupported platforms; this mode fails before reading or writing data.
+// Guarded output needs openat/mkdirat semantics. The adapter still compiles on
+// unsupported platforms; the guarded modes fail before reading or writing data.
 #[cfg(not(any(target_os = "linux", target_os = "macos")))]
 pub(crate) struct Output;
 
 #[cfg(not(any(target_os = "linux", target_os = "macos")))]
 impl Output {
-    pub(crate) fn prepare(_: &super::Args) -> Result<Self, String> {
-        Err("native-facts output requires Linux or macOS directory handles".into())
-    }
     pub(crate) fn prepare_paths(_: &std::path::Path, _: &std::path::Path) -> Result<Self, String> {
-        Err("native-facts output requires Linux or macOS directory handles".into())
+        Err("guarded output requires Linux or macOS directory handles".into())
     }
     pub(crate) fn reserve(&mut self) -> Result<(), String> {
         Self::prepare_unavailable()
@@ -341,6 +334,6 @@ impl Output {
         Self::prepare_unavailable()
     }
     fn prepare_unavailable() -> Result<(), String> {
-        Err("native-facts output requires Linux or macOS directory handles".into())
+        Err("guarded output requires Linux or macOS directory handles".into())
     }
 }
