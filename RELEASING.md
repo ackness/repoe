@@ -1,5 +1,14 @@
 # Releasing the PoBR game package
 
+A new package goes out in three commands:
+
+```sh
+mise run release:build                    # rebuild and classify the package (below)
+mise run release:publish -- --yes         # tag game/<patch>-<n> and create its GitHub Release
+# in pobr:
+mise run data:bump ackness/repoe game/<patch>-<n>
+```
+
 `mise run release:build` rebuilds the complete game part that PoBR pins
 (`game-build-part.zip`) from pinned inputs, and tells you, member by member,
 which bytes the code in this repository derived, which a producer only carried
@@ -58,8 +67,14 @@ The adapter's PoBR crates are pinned to one data-contract tag of
 `tools/pobr-data-adapter/Cargo.toml`; the receipt's `producer.code` pins
 `Cargo.lock`, which fixes the PoBR commit. A pin bump changes the receipt but
 must not change the zip: check it with `release:build -- --check` like any
-adapter change. The root manifest does not yet record the contract version;
-that is a package change for the next published release.
+adapter change. `receipt.json` records the contract under
+`producer.contract`: the `pobr_data::CONTRACT_VERSION` compiled into the
+adapter (`pobr-data-adapter --contract-version`) and the `ackness/pobr` tag
+and commit of `Cargo.lock`; the build fails unless the tag is
+`contract/<version>.<m>`. The root manifest does not yet record the contract
+version: adding `contract_version` changes the package bytes, so it waits for
+the next data change. The first GitHub Release is the current package byte for
+byte, to prove the pipeline.
 
 ## Declarations
 
@@ -159,8 +174,8 @@ supplement or the player context archive is pinned only by hash), `pob2-derived`
    `*-different` member:
    it should be explained by the new facts, not by a changed policy you did
    not intend.
-4. Publish `game-build-part.zip` with `receipt.json`, `package.json` and `SHA256SUMS` from a
-   tagged commit; PoBR then pins that tag and hash.
+4. Merge to master and publish it (see [Publishing](#publishing)); PoBR then
+   pins the tag with `mise run data:bump ackness/repoe game/<patch>-<n>`.
 
 CI (`.github/workflows/release-build.yml`) runs
 `release:build -- --config release/<patch> --fetch --check` for every patch
@@ -173,3 +188,45 @@ longer needs to (for example after an intended adapter change), delete its
 directory: Git history keeps it. When a
 release is meant to differ (a new patch), publish it first and then move
 `reference` to it, so CI checks the package that PoBR actually pins.
+
+## Publishing
+
+`mise run release:publish` turns the release:build output of a master commit
+into the GitHub Release PoBR pins:
+
+```sh
+mise run release:publish                       # dry run: build, stage, print the plan
+mise run release:publish -- --reuse            # stage the existing release:build output of HEAD
+mise run release:publish -- --config release/0.5.5.5 --yes   # tag, push and release
+```
+
+| Item | Value |
+| --- | --- |
+| Tag | `game/<patch>-<n>`, annotated, on the master commit that built the package; `<n>` starts at 1 per patch and is one above the highest `game/<patch>-*` tag on `origin` |
+| Assets | `pobr-game-<patch>.zip` (the release:build zip, byte for byte), `receipt.json`, `SHA256SUMS` (GNU `sha256sum` lines for the other two, sorted by name) |
+| Body | Generated from the receipt: patch, sequence, contract version and tag, producer commit, zip size and SHA-256, member and class counts |
+
+It refuses unless HEAD is clean (no tracked change, no untracked file that
+is not ignored), HEAD is on `origin/master` after fetching it, the build was
+made from that clean HEAD, the zip equals the lock's `reference` package
+(pass `--allow-different` for a new patch or an intended data change), HEAD
+does not already carry a `game/<patch>-*` tag, and the remote's tags could be
+listed. `--reuse` accepts `.cache/release/<target>/` only when its receipt's
+producer (commit, declarations, code pins, adapter binary, contract) equals
+the current checkout's; otherwise the build is rerun.
+
+Without `--yes` (or with `--dry-run`) nothing is tagged, pushed or released:
+the assets, `release-notes.md` and `tag-message.txt` are staged under
+`.cache/release/publish/<target>/` and the exact commands are printed. A
+problem is reported and exits 1, but staging still happens; a failed fetch of
+`origin/master` is only a warning (the local ref is used), and with `--yes`
+any problem or warning refuses before anything is built. With `--yes` they run in order: `git tag --annotate`, `git push
+origin refs/tags/<tag>` and `gh release create <tag> --verify-tag`. If a step
+fails, the remaining commands are printed; run them by hand rather than
+rerunning `release:publish`, which would pick the next `<n>`. The maintainer
+needs push access to `origin` and an authenticated `gh`.
+
+Existing `handoff/*` tags stay: PoBR's lock already references them, and
+release:build still reads its inputs from them. `publication/index.json`, the
+`releases/<n>.json` chain and the handoff directory convention are no longer
+part of publishing a game package; they are removed separately (roadmap 3.5).
