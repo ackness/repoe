@@ -1,0 +1,379 @@
+{
+  "schema": "repoe-release-frozen-inputs/v1",
+  "target": {
+    "game": "poe2",
+    "game_patch": "0.5.5.5",
+    "realm": "international"
+  },
+  "source": "previous",
+  "members": {
+    "data/0.5.5.5/base/base_player_mods.json": {
+      "bytes": 2035,
+      "sha256": "5f93bf335cd2dd71ae1ce8bf137a7a0dfe621ee6e3778d0fc6c9f83befc85687",
+      "origin": "unknown (no _meta)",
+      "unchanged_since_0.5.5.4.2": true,
+      "reason": "TODO",
+      "exit": "TODO"
+    },
+    "data/0.5.5.5/base/character_constants.json": {
+      "bytes": 430,
+      "sha256": "66c4c54ff85f937d44580ee0bfad5488415f68eb2f6709679483a6c98cbf50af",
+      "origin": "unknown (no _meta)",
+      "unchanged_since_0.5.5.4.2": false,
+      "reason": "TODO",
+      "exit": "TODO"
+    },
+    "data/0.5.5.5/base/cost_types.json": {
+      "bytes": 1125,
+      "sha256": "5dac3a7f08d63b8512f1d24870d50f876cf7907c6cc2a405473a4c65926fb88a",
+      "origin": "unknown (no _meta)",
+      "unchanged_since_0.5.5.4.2": true,
+      "reason": "TODO",
+      "exit": "TODO"
+    },
+    "data/0.5.5.5/base/enemy_presets.json": {
+      "bytes": 7973,
+      "sha256": "d8504ef38860682d03872e9b006493cecb91f078650c3f7580d056d34d3cb861",
+      "origin": "unknown (no _meta)",
+      "unchanged_since_0.5.5.4.2": true,
+      "reason": "TODO",
+      "exit": "TODO"
+    },
+    "data/0.5.5.5/base/game_constants.json": {
+      "bytes": 2610,
+      "sha256": "5a06b87ffec6776d4623b372ccd050f2a103c7720b2be5b88242630856cc9323",
+      "origin": "unknown (no _meta)",
+      "unchanged_since_0.5.5.4.2": false,
+      "reason": "TODO",
+      "exit": "TODO"
+    },
+    "data/0.5.5.5/base/granted_effect_levels.json": {
+      "bytes": 2927324,
+      "sha256": "3a66d591def23772ff43b3b63ec96e9a12fc4f3c88be40f741681914926f51da",
+      "origin": "unknown (no _meta)",
+      "unchanged_since_0.5.5.4.2": true,
+      "reason": "TODO",
+      "exit": "TODO"
+    },
+    "data/0.5.5.5/base/granted_effect_stat_sets.json": {
+      "bytes": 15306716,
+      "sha256": "f2a58ba510a388108c73dac55c10dc6743d35e7ee4d5ef7343bfbcd0e45de7c7",
+      "origin": "unknown (no _meta)",
+      "unchanged_since_0.5.5.4.2": false,
+      "reason": "TODO",
+      "exit": "TODO"
+    },
+    "data/0.5.5.5/base/granted_effects.json": {
+      "bytes": 2419331,
+      "sha256": "1ec310c6878a644c4390592d31c4a294ef84bbfee3d7375a85b183ccb8d10994",
+      "origin": "unknown (no _meta)",
+      "unchanged_since_0.5.5.4.2": false,
+      "reason": "TODO",
+      "exit": "TODO"
+    },
+    "data/0.5.5.5/base/jewel_radii.json": {
+      "bytes": 1507,
+      "sha256": "4ac9e16361d48897350464dd967a2d16ae690bddecd6a7498c827385a2a5b6c9",
+      "origin": "unknown (no _meta)",
+      "unchanged_since_0.5.5.4.2": false,
+      "reason": "TODO",
+      "exit": "TODO"
+    },
+    "data/0.5.5.5/base/mods.json": {
+      "bytes": 8811358,
+      "sha256": "ef56f044022e1750c19777dccb9e9a6f32dda5fbdf393db9f062c9217f345c10",
+      "origin": "unknown (no _meta)",
+      "unchanged_since_0.5.5.4.2": false,
+      "reason": "TODO",
+      "exit": "TODO"
+    },
+    "data/0.5.5.5/base/monster_resistances.json": {
+      "bytes": 437456,
+      "sha256": "3085f5b99c05518651efd2a6337d0492436d7bcc242e2a7715b11017286c1ed3",
+      "origin": "pobr-data-adapter ordinary-facts monster-resistances",
+      "unchanged_since_0.5.5.4.2": false,
+      "reason": "TODO",
+      "exit": "TODO"
+    },
+    "data/0.5.5.5/base/non_damaging_ailments.json": {
+      "bytes": 1385,
+      "sha256": "9dfe31a4a218088bcc32b30f5fb3deec142ad61cf9924430756e2ff2bec0be8b",
+      "origin": "unknown (no _meta)",
+      "unchanged_since_0.5.5.4.2": false,
+      "reason": "TODO",
+      "exit": "TODO"
+    },
+    "data/0.5.5.5/base/skill_gems.json": {
+      "bytes": 631856,
+      "sha256": "2a65df5da5144d88046f3fb9eab302ebf93293bc0bb29c88d8930ca5eb8f31b7",
+      "origin": "unknown (no _meta)",
+      "unchanged_since_0.5.5.4.2": true,
+      "reason": "TODO",
+      "exit": "TODO"
+    },
+    "data/0.5.5.5/base/stats.json": {
+      "bytes": 2911521,
+      "sha256": "c006461cf0997b96d24f4aa5112dd03979c3a377ff8a8d4c1d308adad00a8f8d",
+      "origin": "unknown (no _meta)",
+      "unchanged_since_0.5.5.4.2": true,
+      "reason": "TODO",
+      "exit": "TODO"
+    },
+    "data/0.5.5.5/base/unarmed_data.json": {
+      "bytes": 2547,
+      "sha256": "d224263fde5b621da26573bb1d6316ebf6fd09e54d3e7bce302867da2bd406c9",
+      "origin": "unknown (no _meta)",
+      "unchanged_since_0.5.5.4.2": false,
+      "reason": "TODO",
+      "exit": "TODO"
+    },
+    "data/0.5.5.5/base/weapon_types.json": {
+      "bytes": 1848,
+      "sha256": "5b15e7302f73422664fee33dde6d24e4868a731510991b7709c4b274a162f214",
+      "origin": "unknown (no _meta)",
+      "unchanged_since_0.5.5.4.2": true,
+      "reason": "TODO",
+      "exit": "TODO"
+    },
+    "data/0.5.5.5/generated/special_vendor.json": {
+      "bytes": 1466053,
+      "sha256": "12d91522257bfb57b5cdfc63073bd3a5df8c7a87d2b1c13c3ba3f959c936d4a5",
+      "origin": "sync-pob-catalog extract-lua; vendor PathOfBuilding-PoE2 bb52d6b368307457eb9c54bb13f1829993d390b1",
+      "unchanged_since_0.5.5.4.2": true,
+      "reason": "TODO",
+      "exit": "TODO"
+    },
+    "data/0.5.5.5/overlay/boss_poise_thresholds.json": {
+      "bytes": 831,
+      "sha256": "7d6ff365fd3369a7aaf9a34591a720da48f792caf63826d5002510ff14efaa6d",
+      "origin": "pobr-data-adapter ordinary boss-poise",
+      "unchanged_since_0.5.5.4.2": false,
+      "reason": "TODO",
+      "exit": "TODO"
+    },
+    "data/0.5.5.5/overlay/catalysts.json": {
+      "bytes": 2005,
+      "sha256": "b8f80cda954d1f92e13310dd56f48daffca0567f09d39a074b236bf2a45c85f1",
+      "origin": "pobr-data-adapter ordinary catalysts",
+      "unchanged_since_0.5.5.4.2": false,
+      "reason": "TODO",
+      "exit": "TODO"
+    },
+    "data/0.5.5.5/overlay/config_options.json": {
+      "bytes": 414791,
+      "sha256": "5eec7db8f2dfe39caaa02e5d69ea03b9d5aede46b8640bc77e2731dfe152444b",
+      "origin": "sync-pob-catalog extract-lua --what config-options; vendor PathOfBuilding-PoE2 bb52d6b368307457eb9c54bb13f1829993d390b1",
+      "unchanged_since_0.5.5.4.2": true,
+      "reason": "TODO",
+      "exit": "TODO"
+    },
+    "data/0.5.5.5/overlay/curse_priority.json": {
+      "bytes": 1197,
+      "sha256": "0767ba472ecaa863557a0988556000b44183c45a82f7726fa898aae916df721a",
+      "origin": "sync-pob-catalog extract-lua --what curse-priority; vendor PathOfBuilding-PoE2 bb52d6b368307457eb9c54bb13f1829993d390b1",
+      "unchanged_since_0.5.5.4.2": true,
+      "reason": "TODO",
+      "exit": "TODO"
+    },
+    "data/0.5.5.5/overlay/gem_effects.json": {
+      "bytes": 233820,
+      "sha256": "63bb4d8d0fe0ecee85dff7a35b629901b4ebf5360a9917f1311b273959ecda1c",
+      "origin": "pobr-data-adapter ordinary-facts gem-effects",
+      "unchanged_since_0.5.5.4.2": false,
+      "reason": "TODO",
+      "exit": "TODO"
+    },
+    "data/0.5.5.5/overlay/gem_quality_stats.json": {
+      "bytes": 163299,
+      "sha256": "67c3adfbec11bf787280f5524c2ff117d0eddd57b9874af7ebe8b4cbf1a603be",
+      "origin": "pobr-data-adapter --ordinary-domain gem-quality",
+      "unchanged_since_0.5.5.4.2": false,
+      "reason": "TODO",
+      "exit": "TODO"
+    },
+    "data/0.5.5.5/overlay/granted_effect_minions.json": {
+      "bytes": 38380,
+      "sha256": "0d9701e2e00b274b6ef5e89c4e6d961ac978da2384724933347f4a9693622057",
+      "origin": "sync-pob-catalog extract-lua; vendor PathOfBuilding-PoE2 bb52d6b368307457eb9c54bb13f1829993d390b1",
+      "unchanged_since_0.5.5.4.2": false,
+      "reason": "TODO",
+      "exit": "TODO"
+    },
+    "data/0.5.5.5/overlay/item_granted_skills.json": {
+      "bytes": 4217,
+      "sha256": "fc1f874a99372d86d6ec30fba0f42bd099d74643e3adb76265a3e0b4785815dd",
+      "origin": "pobr-data-adapter ordinary item-grants",
+      "unchanged_since_0.5.5.4.2": false,
+      "reason": "TODO",
+      "exit": "TODO"
+    },
+    "data/0.5.5.5/overlay/mirage_configs.json": {
+      "bytes": 3501,
+      "sha256": "57a0b855062e1ec1a62461c634900fcb0b97e8b634ad0db9e09cc88a70c104c9",
+      "origin": "sync-pob-catalog gen-mirage-configs（数据内嵌于工具源码）; vendor PathOfBuilding-PoE2 bb52d6b368307457eb9c54bb13f1829993d390b1",
+      "unchanged_since_0.5.5.4.2": true,
+      "reason": "TODO",
+      "exit": "TODO"
+    },
+    "data/0.5.5.5/overlay/mod_parser_rules.json": {
+      "bytes": 399196,
+      "sha256": "c719c7c3eeed65048067f264fd0a62f81cc20d89b917f05e2aa53753166242af",
+      "origin": "sync-pob-catalog extract-lua; vendor PathOfBuilding-PoE2 bb52d6b368307457eb9c54bb13f1829993d390b1",
+      "unchanged_since_0.5.5.4.2": true,
+      "reason": "TODO",
+      "exit": "TODO"
+    },
+    "data/0.5.5.5/overlay/mod_scalability.json": {
+      "bytes": 2496835,
+      "sha256": "4713a22c2f32dc21fe0c017f6fed792cb799ac449171187fbb2d2b7acd814fc8",
+      "origin": "sync-pob-catalog extract-lua; vendor PathOfBuilding-PoE2 bb52d6b368307457eb9c54bb13f1829993d390b1",
+      "unchanged_since_0.5.5.4.2": true,
+      "reason": "TODO",
+      "exit": "TODO"
+    },
+    "data/0.5.5.5/overlay/passive_jewel_slots.json": {
+      "bytes": 5012,
+      "sha256": "26bf7ad0d96fb2fe84392da141b2cf8c63d8313aeb620be165f33c65746439e2",
+      "origin": "pobr-data-adapter ordinary passive-jewel-slots",
+      "unchanged_since_0.5.5.4.2": false,
+      "reason": "TODO",
+      "exit": "TODO"
+    },
+    "data/0.5.5.5/overlay/passive_jewels.json": {
+      "bytes": 14663,
+      "sha256": "a93b2729bb015f8902a909367e62a1a2abc2787cde0f6d929191222283c33690",
+      "origin": "luajit pipeline/extract-passive-jewels.lua <vendor_src> <output.json>",
+      "unchanged_since_0.5.5.4.2": true,
+      "reason": "TODO",
+      "exit": "TODO"
+    },
+    "data/0.5.5.5/overlay/runes.json": {
+      "bytes": 314790,
+      "sha256": "9fb6561f34a795ed92ec9cce6e55f900de55ce3af250283f8a4f2085ece5e322",
+      "origin": "pobr-data-adapter ordinary socketables",
+      "unchanged_since_0.5.5.4.2": false,
+      "reason": "TODO",
+      "exit": "TODO"
+    },
+    "data/0.5.5.5/overlay/skill_stat_map.json": {
+      "bytes": 559713,
+      "sha256": "944e86eb729899a547daedc8eab6741d773eb40ec1f64a380a9acd2c20054661",
+      "origin": "sync-pob-catalog extract-lua; vendor PathOfBuilding-PoE2 bb52d6b368307457eb9c54bb13f1829993d390b1",
+      "unchanged_since_0.5.5.4.2": true,
+      "reason": "TODO",
+      "exit": "TODO"
+    },
+    "data/0.5.5.5/overlay/special_mods.json": {
+      "bytes": 10725,
+      "sha256": "1d4ea323c6a980865119dad5e86c05d7097097a055bc026fa16eb52f483f097e",
+      "origin": "hand-curated（S0 = parse_keystone_special 搬迁；S1/S2 = vendor specialModList 探针求值转写，详见各 source_note）; vendor PathOfBuilding-PoE2 2df5a7433dd2f1609e2fad8a6c3c917f923fe34f",
+      "unchanged_since_0.5.5.4.2": true,
+      "reason": "TODO",
+      "exit": "TODO"
+    },
+    "data/0.5.5.5/overlay/stat_set_labels.json": {
+      "bytes": 207388,
+      "sha256": "825e594f43f07a4115ee29e57622670688e5d1c099f7e11a30ba66b3b80cca06",
+      "origin": "sync-pob-catalog extract-lua; vendor PathOfBuilding-PoE2 bb52d6b368307457eb9c54bb13f1829993d390b1",
+      "unchanged_since_0.5.5.4.2": true,
+      "reason": "TODO",
+      "exit": "TODO"
+    },
+    "data/0.5.5.5/overlay/totem_varieties.json": {
+      "bytes": 19731,
+      "sha256": "24973936b7fd2bb035cd2a1175477acdf490e416764c6fb86ba80752335c3791",
+      "origin": "pobr-data-adapter ordinary-facts totem-varieties",
+      "unchanged_since_0.5.5.4.2": false,
+      "reason": "TODO",
+      "exit": "TODO"
+    },
+    "data/0.5.5.5/overlay/trade_catalog.json": {
+      "bytes": 3104568,
+      "sha256": "de57e010c8bf93f18bf557c650d6cdc06d98bc3fbde58049227b31feda9deea6",
+      "origin": "luajit pipeline/extract-trade-catalog.lua vendor/PathOfBuilding-PoE2/src <out> <crafting_sources>",
+      "unchanged_since_0.5.5.4.2": true,
+      "reason": "TODO",
+      "exit": "TODO"
+    },
+    "data/0.5.5.5/overlay/trade_stat_map.json": {
+      "bytes": 124884,
+      "sha256": "b4fcaca76ed5c653e06d3bb2d9e7f146fca4643417d508159de48d9c910ce839",
+      "origin": "luajit pipeline/extract-trade-map.lua vendor/PathOfBuilding-PoE2/src <out>",
+      "unchanged_since_0.5.5.4.2": true,
+      "reason": "TODO",
+      "exit": "TODO"
+    },
+    "data/0.5.5.5/overlay/trigger_configs.json": {
+      "bytes": 21125,
+      "sha256": "89634d02d0f25b5c2214e639c3217058e3ad8c0c4f973b242aa05194633a8646",
+      "origin": "sync-pob-catalog gen-trigger-configs（数据内嵌于工具源码 + vendor key 对账）; vendor PathOfBuilding-PoE2 bb52d6b368307457eb9c54bb13f1829993d390b1",
+      "unchanged_since_0.5.5.4.2": true,
+      "reason": "TODO",
+      "exit": "TODO"
+    },
+    "data/0.5.5.5/overlay/uniques.json": {
+      "bytes": 241759,
+      "sha256": "06dbd5055882cf8d883c94dd56b989fc847d19e9f8da023494178deac7066600",
+      "origin": "sync-pob-catalog extract-lua; vendor PathOfBuilding-PoE2 bb52d6b368307457eb9c54bb13f1829993d390b1",
+      "unchanged_since_0.5.5.4.2": true,
+      "reason": "TODO",
+      "exit": "TODO"
+    },
+    "data/overlay-common/boss_poise_thresholds.json": {
+      "bytes": 1475,
+      "sha256": "a2b7c35f8fd02c5e3c8997e0d0634faa6b17385b8c201620d941c5f7ecf27a10",
+      "origin": "manual",
+      "unchanged_since_0.5.5.4.2": true,
+      "reason": "TODO",
+      "exit": "TODO"
+    },
+    "data/overlay-common/buff_definitions.json": {
+      "bytes": 14694,
+      "sha256": "0fd267716e0e4d1bee9dadf76c2a794b28f0941c1dd301b5c6b2ec3bf9009026",
+      "origin": "manual-curation (00-index 裁决 §4.2-4 批准的 overlay 通道例外); vendor PathOfBuilding-PoE2 ce8bffaba31f8e68cfce70579e1c96465e7c133c",
+      "unchanged_since_0.5.5.4.2": true,
+      "reason": "TODO",
+      "exit": "TODO"
+    },
+    "data/overlay-common/high_precision_mods.json": {
+      "bytes": 2849,
+      "sha256": "e7d310b8d7729acec6cefefc4309c3d29407a78f3ce1526754d40c03d3aa64bf",
+      "origin": "manual transcription (M0-W4d); vendor PathOfBuilding-PoE2 2df5a7433dd2f1609e2fad8a6c3c917f923fe34f",
+      "unchanged_since_0.5.5.4.2": true,
+      "reason": "TODO",
+      "exit": "TODO"
+    },
+    "data/overlay-common/item_granted_skills.json": {
+      "bytes": 3240,
+      "sha256": "0cfd12f28ef7261c01bb270db033ad31ca959e618ac274355a657bd495d8b087",
+      "origin": "manual",
+      "unchanged_since_0.5.5.4.2": true,
+      "reason": "TODO",
+      "exit": "TODO"
+    },
+    "data/overlay-common/passive_jewel_slots.json": {
+      "bytes": 5786,
+      "sha256": "b196f9b3582a21fe1c26626d64a3449a1c83dab16044e970a0edd2b9215ca06b",
+      "origin": "manual",
+      "unchanged_since_0.5.5.4.2": true,
+      "reason": "TODO",
+      "exit": "TODO"
+    },
+    "data/overlay-common/totem_varieties.json": {
+      "bytes": 4583,
+      "sha256": "a9fce28d816e07432fd810d6c95a1567f5cb0a6007acd42e88089f728bfa0cca",
+      "origin": "manual",
+      "unchanged_since_0.5.5.4.2": true,
+      "reason": "TODO",
+      "exit": "TODO"
+    },
+    "data/overlay-common/vendor_name_aliases.json": {
+      "bytes": 14378,
+      "sha256": "af40f1f97ff893b076225fbc5778884d83450f70aa7b99e3fda7461eeb047ba4",
+      "origin": "",
+      "unchanged_since_0.5.5.4.2": true,
+      "reason": "TODO",
+      "exit": "TODO"
+    }
+  }
+}
