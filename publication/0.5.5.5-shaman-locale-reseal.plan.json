@@ -1,0 +1,49 @@
+{
+  "changes": {
+    "i18n/zh-CN/stat_lines.json": {
+      "after": "5c151fe654359203c350548bdc27ebe89e830918f96d9c4b18de0db5e069bf95",
+      "before": "1d51e0a2e58bb0fe46dfde331bd004140250eeed70d4e16f683b180c06eba301"
+    }
+  },
+  "evidence": {
+    "language_owner_descriptor": {
+      "bytes": 6569,
+      "path": "publication/releases/poe2-international/3.json",
+      "revision": "40d1b2858e274ada52a3ec014be80a827672c8a6",
+      "sha256": "317ff30b3b4fd4ffdf9433d24cd54339af686f42828553cab29223707bb15028"
+    },
+    "language_owner_index": {
+      "bytes": 375,
+      "path": "publication/index.json",
+      "revision": "d53afe51a733de51569811d134558e5fe9ea50d0",
+      "sha256": "11684b76c026c548548f02ce36eee48f786e7cff5027e467fdb2f500512654fd"
+    },
+    "scope": "Reseal the historical full snapshot locale binding after the owner four-alias publication; no new game facts or current client freshness."
+  },
+  "game_input": {
+    "bytes": 4415275,
+    "expanded_bytes": 64578696,
+    "manifest": {
+      "bytes": 33083,
+      "sha256": "8bfeaefeceb30eb70245e9b6735b2fd02a8e32cb16850b05058e04fa3527d59b"
+    },
+    "path": "handoff/historical-tree-attributes-20261103/game-build-part.zip",
+    "publication": "published",
+    "repository": "ackness/repoe",
+    "revision": "f909f917809699ac7a8e8f9c1eadfd45fd98297a",
+    "sha256": "cafd8e0ec5c9300dd2eefb2f9743c793b7e4ff2849d48d4e886e9e6f80521c1a"
+  },
+  "language_manifest": {
+    "bytes": 4088,
+    "path": "handoff/locale-shaman-mantle-20261103/manifest.json",
+    "repository": "ackness/poe2-zh-cn-stats",
+    "revision": "9aba3687e6366597bc69a0795c63a20090cb02f5",
+    "sha256": "730222f0cb7a777534243f3b4aff480ae31b2756c8e4ece574b0c4f44f0693a3"
+  },
+  "schema": "repoe-locale-reseal-plan/v1",
+  "target": {
+    "game": "poe2",
+    "game_patch": "0.5.5.5",
+    "realm": "international"
+  }
+}

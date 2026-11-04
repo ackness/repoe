@@ -122,6 +122,10 @@ exact owner game part. It emits the same local package/handoff contract, with
 original provenance and before/after tree pins, without Lua, consumer snapshot
 inputs, accepted-index changes or automatic publication.
 
+The [locale reseal helper](pobr_locale_reseal.md) updates explicitly declared
+i18n hashes in the full snapshot after a separate language-owner publication.
+All other game members and original source ownership stay unchanged.
+
 ## Historical v1 package surfaces
 
 The ordinary package has root `manifest.json`, schema
