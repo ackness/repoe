@@ -55,14 +55,14 @@ pub(super) struct Applicability {
     statement: String,
 }
 
-pub(super) struct Pinned {
-    pub policy: Policy,
-    pub bytes: Vec<u8>,
-    pub sha256: String,
-    pub parent: PathBuf,
+pub(in crate::ordinary_facts) struct Pinned {
+    pub(super) policy: Policy,
+    pub(super) bytes: Vec<u8>,
+    pub(super) sha256: String,
+    pub(super) parent: PathBuf,
 }
 
-pub(super) fn read(args: &Args, input: &VerifiedFacts) -> Result<Pinned, String> {
+pub(in crate::ordinary_facts) fn read(args: &Args) -> Result<Pinned, String> {
     hex(&args.expected_sha256, 64, "expected quality policy SHA256")?;
     let path = args
         .path
@@ -75,7 +75,10 @@ pub(super) fn read(args: &Args, input: &VerifiedFacts) -> Result<Pinned, String>
     }
     let policy: Policy = serde_json::from_value(reader::strict_json(&bytes)?)
         .map_err(|e| format!("quality policy: {e}"))?;
-    if policy.schema != "pobr-ordinary-quality-policy/v1" {
+    if !matches!(
+        policy.schema.as_str(),
+        "pobr-ordinary-quality-policy/v1" | "pobr-ordinary-quality-policy/v2"
+    ) {
         return Err("unsupported quality policy schema".into());
     }
     hex(
@@ -83,12 +86,6 @@ pub(super) fn read(args: &Args, input: &VerifiedFacts) -> Result<Pinned, String>
         64,
         "target facts manifest SHA256",
     )?;
-    if input.manifest["source_identity"]["game_patch"].as_str()
-        != Some(policy.target.game_patch.as_str())
-        || policy.target.facts_manifest_sha256 != sha256_hex(&input.manifest_bytes)
-    {
-        return Err("quality policy target patch / facts manifest mismatch".into());
-    }
     validate_compatibility(&policy.compatibility)?;
     hex(
         &policy.compatibility.reference_vendor_commit,
@@ -131,7 +128,12 @@ pub(super) fn read(args: &Args, input: &VerifiedFacts) -> Result<Pinned, String>
     for (name, digest) in &reference.inputs {
         hex(digest, 64, name)?;
     }
-    if policy.target_applicability.kind != "unchanged-owned-values-and-scopes"
+    if policy.target_applicability.kind
+        != if policy.schema == "pobr-ordinary-quality-policy/v2" {
+            "complete-quality-owners-except-dnt-only-gems"
+        } else {
+            "unchanged-owned-values-and-scopes"
+        }
         || policy.target_applicability.baseline_sha256 != reference.quality_sha256
         || policy.target_applicability.statement.trim().is_empty()
     {
@@ -156,4 +158,24 @@ fn hex(value: &str, length: usize, field: &str) -> Result<(), String> {
         ));
     }
     Ok(())
+}
+
+impl Pinned {
+    pub(in crate::ordinary_facts) fn tables(&self) -> &'static [&'static str] {
+        if self.policy.schema == "pobr-ordinary-quality-policy/v2" {
+            &super::publication::TABLES
+        } else {
+            &super::TABLES
+        }
+    }
+
+    pub(super) fn validate_target(&self, input: &VerifiedFacts) -> Result<(), String> {
+        if input.manifest["source_identity"]["game_patch"].as_str()
+            != Some(self.policy.target.game_patch.as_str())
+            || self.policy.target.facts_manifest_sha256 != sha256_hex(&input.manifest_bytes)
+        {
+            return Err("quality policy target patch / facts manifest mismatch".into());
+        }
+        Ok(())
+    }
 }

@@ -9,6 +9,8 @@ use super::super::{Args, Domain, parse_args, run};
 use crate::native_facts::Output;
 use crate::raw_source::sha256_hex;
 
+mod publication;
+
 fn table(name: &str, columns: &[(&str, &str, bool, Option<&str>)], values: Value) -> Value {
     let rows: Vec<_> = values
         .as_array()

@@ -425,11 +425,18 @@ pub(crate) fn parse_args(args: impl Iterator<Item = String>) -> Result<Args, Str
 pub(crate) fn run(args: Args) -> Result<String, String> {
     reader::require_absent(&args.out)?;
     let mut output = Output::prepare_paths(&args.input, &args.out)?;
+    let quality_policy = args
+        .quality_policy
+        .as_ref()
+        .map(quality::read_policy)
+        .transpose()?;
     let mut input = reader::open(
         &args.input,
         &args.expected_manifest_sha256,
         &args.version,
-        if args.tree_refresh.is_some() {
+        if let Some(policy) = &quality_policy {
+            policy.tables()
+        } else if args.tree_refresh.is_some() {
             &passive_tree::REFRESH_TABLES
         } else if args.domain == Domain::RuntimeConstants && args.player_context.is_some() {
             &runtime_constants::PLAYER_TABLES
@@ -761,10 +768,7 @@ pub(crate) fn run(args: Args) -> Result<String, String> {
             )
         }
         Domain::GemQuality => {
-            let policy = args
-                .quality_policy
-                .as_ref()
-                .ok_or("missing quality policy arguments")?;
+            let policy = quality_policy.ok_or("missing quality policy arguments")?;
             let converted = quality::convert(&input, policy)?;
             output.protect(&converted.policy_parent)?;
             overlay = converted.overlay;
@@ -1393,6 +1397,10 @@ fn implementation_sha256() -> String {
         (
             "ordinary_facts/quality.rs",
             include_bytes!("ordinary_facts/quality.rs").as_slice(),
+        ),
+        (
+            "ordinary_facts/quality/publication.rs",
+            include_bytes!("ordinary_facts/quality/publication.rs").as_slice(),
         ),
         (
             "ordinary_facts/quality/policy.rs",

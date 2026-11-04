@@ -1,127 +1,96 @@
 # Ordinary quality from target facts
 
-`--ordinary-domain gem-quality` extends [ordinary facts](ordinary-facts.md) with
-one overlay file in the original `GemQualityStatsDef` shape. The existing
-quality converter supplies the effect-wide model, ordered main/alt vectors and
-permille-to-rate conversion. The runtime consumer, alt/Gemling gating and
-`trunc(rate * quality)` remain unchanged.
+`--ordinary-domain gem-quality` publishes ordered ordinary and additional quality
+vectors and native stat-set scopes from authenticated physical facts. The producer
+preserves signed permille/1000 rates, channel, order and multiplicity. Calculation,
+Gemling gating and `trunc(rate * quality)` belong to PoBR.
 
 ```sh
 mise run adapter -- \
   --ordinary-facts /absolute/path/to/F \
   --ordinary-domain gem-quality \
   --facts-manifest-sha256 56e71e00a72c8079d100b64861fc030206b12aaeb5ad655ccb4ab4e6726332d0 \
-  --quality-policy tools/pobr-data-adapter/policies/gem-quality/0.5.5.5-facts-policy.json \
-  --quality-policy-sha256 334907c02b15e2303f9a6f550dfedaf80d889046048fe97d309ceba2182848da \
+  --quality-policy tools/pobr-data-adapter/policies/gem-quality/0.5.5.5-publication-policy.json \
+  --quality-policy-sha256 d800070b942d671c9b3deb7cf3b455b35b1712659b61a86cf7784ae528d4214f \
   --version 0.5.5.5 \
   --out /absolute/path/to/existing-parent/fresh-quality-candidate
 ```
 
-Both policy arguments are required for this domain and rejected for every other
-domain. Unknown/repeated options, missing values, a wrong external manifest or
-policy pin, and target patch/manifest disagreement fail before output reservation.
-The policy hash is checked before JSON parsing; the shared strict JSON decoder
-also rejects duplicate object keys, including repeated exclusion IDs. The policy
-and nested target/reference/applicability/compatibility records reject unknown
-fields; opaque archival `reference.provenance` retains the previous receipt's
-source description. Policy fingerprints are lowercase hexadecimal, and the
-existing enabled/excluded classification must be nonempty, disjoint and complete
-for the target's quality owners. New or disappeared owners require a corresponding
-explicit policy input. No effect list is embedded in Rust.
+Both policy arguments are required for this domain and rejected for others.
+The policy hash is checked before strict JSON parsing. Duplicate keys, unknown
+policy fields, malformed fingerprints, target patch/manifest mismatches and
+incomplete or overlapping owner decisions fail before output reservation.
 
-## Numeric source and model reference
+## Publication membership
 
-Only `tables/GrantedEffects.json`, `tables/Stats.json` and
-`tables/GrantedEffectQualityStats.json` are selected through `reader::open` and
-`Tables::selected`, alongside the existing envelope/lock validation. No gem table,
-vendor, old numeric output, language pack or download is consulted.
+The v2 policy publishes **every raw quality owner except verified DNT-only gem
+owners**. It reads `GrantedEffects`, `Stats`, `GrantedEffectQualityStats`,
+`BaseItemTypes`, `SkillGems` and `GemEffects` through the existing authenticated
+reader. Every selected payload has an exact byte/hash pin; physical `_row` keys
+supply references, never imported `_index`, display names or sorted IDs.
 
-The new policy schema is `pobr-ordinary-quality-policy/v1`. Its `target` binds the
-exact F manifest and `0.5.5.5`; `compatibility` carries the previous effect-wide
-scope decision, enabled IDs and explicit exclusion reasons. `reference` retains
-the original `0.5.5.4.2` source receipt identity, provenance, raw input fingerprints
-and baseline hash. Those paths/hashes are evidence labels and are never opened
-by this producer. The vendor reference remains
-`ce566eac45ea8a86477f513c7ee65a1ebe60014e` /
-`583415d9d5a49699c2581f3092dcb45ebb81b9fa0c9ad695b207a7f58f5fa85d`.
+Both primary and additional gem-effect relationships are checked. An excluded
+owner must have at least one relationship, and every related gem must have a
+base name containing `[DNT`. A real/mixed relationship, missing base, OLD/UNUSED
+name or no gem relationship cannot justify exclusion. Supports and unlinked
+quality owners remain publishable. All consumed references, including unused
+variants and excluded owners' stats, are validated before filtering.
 
-`target_applicability` records the coordinator's independent source comparison
-(`cbf23c7ae7161f46435884c701e398f460b98d2bc377f173ee22b372adac5039`):
-429 target owners match 410 enabled and 19 excluded IDs, enabled ordered
-stat/rate vectors and all main/alt scope arrays match the previous baseline.
-That evidence supports reuse of this existing model policy for this F; it is
-not producer validation, independent game-rule proof, applicability of other
-assets or acquisition approval. All newly produced numbers come from target F.
+The explicit enabled/excluded lists must partition all source owners, and each
+decision must satisfy this fact-based rule. The current 429 rows partition into
+424 published owners and five explicit DNT-only exclusions. This restores the
+14 real gem-linked owners absent from the historical PoB templates. Historical
+vendor membership is archival evidence, never the v2 membership criterion.
 
-## Consumed fields and pending facts
+The receipt records the complete owner partition, physical gem relationships,
+excluded raw fields, selected input hashes and policy bytes. Runtime metadata
+keeps `compatibility.excluded_effects`, native scope arrays and a compact
+publication summary. Existing serialized metadata is compatible with PoBR's typed
+reader; no producer dependency upgrade is required.
 
-| Source | Existing output / handling |
+## Preserved facts and limits
+
+| Source | Handling |
 | --- | --- |
-| `GrantedEffects.Id`, `Stats.Id` | Stable IDs joined through verified physical `_row`; neither an imported `_index`, a name nor ID sorting supplies the reference key |
-| `GrantedEffectQualityStats.GrantedEffect` | Required owner reference, unique per quality table; every owner must have a policy decision |
-| `Stats` / `StatsValuesPermille` | Equal-length arrays; stat FK resolves to `Stats.Id`; signed i32 value divided by 1000.0 |
-| `AltStats` / `AltStatValuesPermille` | Same conversion, appended after main entries with `alt: true` |
-| `ApplyToStatSets` / `AltApplyToStatSets` | Original ordered arrays retained under `_meta.unapplied_stat_set_scopes` and in the receipt; no set application or FK lookup |
+| `GrantedEffect`, `Stats`, `AltStats` | Resolve stable IDs through verified physical references; duplicate owners and unresolved IDs fail |
+| `StatsValuesPermille`, `AltStatValuesPermille` | Signed i32 / 1000.0; ordinary then additional, preserving zero, negative rates, order and duplicates |
+| `ApplyToStatSets`, `AltApplyToStatSets` | Preserve arrays under the historical `_meta.unapplied_stat_set_scopes` spelling, including excluded rows; zero is valid, null/negative positions fail |
+| `AddTypes`, `AddMinionTypes`, remaining columns | Retain source-column inventory and original pinned payloads; do not invent runtime semantics |
 
-Repeated stat references, repeated scope positions, zero and negative rates are
-preserved. `IsSupport` and gem membership do not filter owners, so enabled
-non-gem supports remain. Required metadata, physical/stable keys, consumed value
-types and FKs are checked even for excluded rows; filtering cannot hide errors.
-The fixed F has integer scopes (including zero), with no null array/element.
-The source scopes are declared i32 and the existing quality metadata uses u32
-positions: invalid null, negative or out-of-i32-range positions are rejected,
-never changed to zero. Empty scope arrays retain the existing representation:
-an owner is omitted from the scope map only when both arrays are empty; its
-original arrays remain in F, identified by `conversion.owners`.
+The producer does not interpret or repair native scope positions. Snipe's ordinary
+`[1,2,3]` and additional `[0]` remain exact; native position 3 has no corresponding
+set and must remain diagnosable by the consumer. Publication does not certify
+calculation support, independent game rules, source acquisition or complete
+runtime adoption. The domain output never writes a full runtime manifest or
+`CURRENT` and never reads vendor Lua, language files or old numeric output.
 
-Excluded owners retain reason, quality row, effect row and the seven consumed
-raw fields in `conversion.excluded_effects`; this is a compatibility gap, not a
-claim of no effect. `conversion.owners` maps every quality row to its stable
-effect ID and effect source row. `unmapped_source_columns` lists unconsumed
-column metadata, pinned payload, row range and identity lookup. In particular,
-`AddTypes` and `AddMinionTypes` remain unapplied and traceable in F; their foreign
-keys are not certified by this three-table conversion. No second mechanism or
-new consumer model is introduced.
+## Historical replay
 
-## Candidate and implementation boundary
+`0.5.5.5-facts-policy.json` remains byte-for-byte unchanged with schema v1 and
+SHA-256 `334907c02b15e2303f9a6f550dfedaf80d889046048fe97d309ceba2182848da`.
+It retains the historical 410/19 partition and reads only the original three
+quality tables. Its quality overlay replays byte-identically. Historical policy
+references and applicability evidence are validated with their original contract;
+v2 uses `complete-quality-owners-except-dnt-only-gems` applicability.
 
-```text
-fresh-quality-candidate/
-  _domain_candidate.json
-  overlay/gem_quality_stats.json
-  source-manifest.json
-  source-lock.json
-  quality-policy.json
-  producer-receipt.json
-```
+The retained ordinary input archive contains the original F manifest and source
+lock in `provenance/original-manifest.json` and
+`provenance/original-source-lock.json`. Its `facts/tables/` members for the six
+selected tables match those original pins. Reconstructing these selected inputs
+permits exact historical-envelope replay; it does not equate the prepared archive's
+`050fcf93…` manifest with the original `56e71e00…` manifest or certify unselected
+payloads.
 
-`quality-policy.json` is the supplied byte sequence unchanged. Runtime `_meta`
-separates target source/payload identities from old model references. The receipt
-hashes the actual selected payloads, source sidecars, policy and overlay, and
-binds the compiled implementation revision. The marker is written first and
-receipt last. The existing directory-handle writer protects both base and
-overlay layers and detects replacement; output must be fresh and outside F,
-production `data/` and the policy's canonical parent directory. The output
-parent must already exist. No complete `manifest.json`, adoption, CURRENT change
-or source promotion occurs: acquisition remains draft, `complete_runtime: false`,
-`adoption: "not-adopted"`.
-
-The conversion uses the shared
-`skills::quality::{validate_compatibility,index,convert_rows}` helpers; the
-physical input adds column/source representation checks. Other ordinary domains
-emit their original files and receipt fields; their compiled revision changes
-because it fingerprints the shared implementation.
-
-Coordinator verification (worker authored the regressions but did not execute
-Cargo or any producer):
+## Verification
 
 ```sh
-mise exec -- cargo test --locked --manifest-path tools/pobr-data-adapter/Cargo.toml ordinary_facts::quality::tests
-mise exec -- cargo test --locked --manifest-path tools/pobr-data-adapter/Cargo.toml skills::quality::tests
-# Coordinator may combine these and prior-domain checks in the adapter's one warm-target suite.
+CARGO_TARGET_DIR=/absolute/exclusive/target cargo test --locked \
+  --manifest-path tools/pobr-data-adapter/Cargo.toml quality -- --test-threads=1
 ```
 
-The synthetic fixture asserts original DTO values, ordered duplicates, exclusions,
-metadata, source/policy/CLI failure boundaries, directory replacement,
-deterministic replay and isolation of the three previous domains. Actual F output vectors, excluded records, scope arrays and prior-domain
-byte compatibility remain for the coordinator to verify with a fixed binary.
+Tests cover primary/additional/mixed/unlinked relationships, strict DNT exclusions,
+malformed references before filtering, missing/extra policy owners, legacy behavior,
+and the 429 real source vectors, channel ordering and scopes. Fixture provenance
+is documented in `tests/fixtures/ordinary-facts/README.md`. Real publication replay
+also compares the complete generated overlay against the source and old immutable
+package, preserving all unrelated game and language bytes.
