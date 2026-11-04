@@ -499,6 +499,12 @@ class ReleaseBuildTest(unittest.TestCase):
         lock.write_text(lock.read_text() + f'[[package]]\nname = "pobr-core"\nsource = "{source[:-40]}{"2" * 40}"\n')
         with self.assertRaisesRegex(ValueError, "exactly one"):
             build.pobr_contract(self.adapter, lock)
+        dotgit = "git+https://github.com/ackness/pobr.git?tag=contract%2F1.3#" + "e" * 40
+        lock.write_text(f'[[package]]\nname = "pobr-data"\nsource = "{dotgit}"\n')
+        self.assertEqual(build.pobr_contract(self.adapter, lock)["tag"], "contract/1.3")
+        lock.write_text(f'[[package]]\nname = "pobr-data"\nsource = "{dotgit[:-1]}X"\n')
+        with self.assertRaisesRegex(ValueError, "pinned by tag and commit"):
+            build.pobr_contract(self.adapter, lock)
 
     def test_template_expansion(self):
         bindings = {"a.b": [1], "nested": {"c": 2}}

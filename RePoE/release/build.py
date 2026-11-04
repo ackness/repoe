@@ -28,7 +28,7 @@ import stat
 import subprocess
 import sys
 import tomllib
-from urllib.parse import parse_qs, unquote, urlsplit
+from urllib.parse import parse_qs, urlsplit
 import zipfile
 
 from RePoE import pobr_crafting_catalog, pobr_historical_trees, source_rebinding
@@ -635,16 +635,19 @@ def pobr_contract(adapter, cargo_lock=CARGO_LOCK):
     sources = {
         package["source"]
         for package in tomllib.loads(Path(cargo_lock).read_text())["package"]
-        if package.get("source", "").startswith(POBR_SOURCE + "?")
+        if package.get("source", "").startswith((POBR_SOURCE + "?", POBR_SOURCE + ".git?"))
     }
     require(len(sources) == 1, f"Cargo.lock must pin exactly one {POBR_SOURCE} source, found {sorted(sources)}")
     url = urlsplit(sources.pop())
     tags = parse_qs(url.query).get("tag", [])
-    require(len(tags) == 1 and len(url.fragment) == 40, f"PoBR crates must be pinned by tag and commit: {url.geturl()}")
+    require(
+        len(tags) == 1 and re.fullmatch(r"[0-9a-f]{40}", url.fragment),
+        f"PoBR crates must be pinned by tag and commit: {url.geturl()}",
+    )
     result = subprocess.run([str(adapter), "--contract-version"], capture_output=True, check=False)
     output = result.stdout.decode().strip()
     require(result.returncode == 0 and output.isdigit(), f"{adapter} --contract-version failed: {result.stderr!r}")
-    version, tag = int(output), unquote(tags[0])
+    version, tag = int(output), tags[0]
     require(
         re.fullmatch(rf"contract/{version}\.\d+", tag),
         f"The adapter is built for contract version {version}, but Cargo.lock pins {tag}",
