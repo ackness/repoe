@@ -429,14 +429,34 @@ def run_adapter_job(ctx, job, out):
         if PAIRED[flag]:
             command += [PAIRED[flag], file_pin(path / "manifest.json" if directory else path)["sha256"]]
     execute(command, ctx.work / "logs" / job["id"])
-    receipt_raw = (out / "producer-receipt.json").read_bytes()
-    receipt = decode(receipt_raw)
+    receipt = decode((out / "producer-receipt.json").read_bytes())
     files = receipt["files"]
     business = {name for name in files if name.startswith(BUSINESS)}
     require(business == set(job["outputs"]), f"{job['id']}: adapter outputs {sorted(business)} != declared")
     for name in business:
         require(file_pin(out / name) == files[name], f"{job['id']}: output differs from its receipt: {name}")
-    return {name: out / name for name in business}, {"receipt": pin(receipt_raw), "adapter": receipt.get("adapter")}
+    portable = portable_receipt(ctx, job, receipt, facts_root)
+    return {name: out / name for name in business}, {"receipt": portable, "adapter": receipt.get("adapter")}
+
+
+def portable_receipt(ctx, job, receipt, facts_root):
+    """Pin the adapter receipt with its absolute facts root replaced by the facts identity.
+
+    The adapter records the canonical path of ``--ordinary-facts``; that path
+    depends on the checkout, so the release receipt pins a copy that names
+    the identity (``facts:<identity>``, whose manifest pin the receipt holds)
+    instead. The adapter's own file stays next to its outputs.
+    """
+    require(
+        receipt.get("input", {}).get("root") == str(Path(facts_root).resolve()),
+        f"{job['id']}: adapter receipt names another facts root",
+    )
+    portable = copy.deepcopy(receipt)
+    portable["input"]["root"] = f"facts:{job['facts']}"
+    raw = encoded(portable)
+    path = ctx.work / "receipts" / f"{job['id']}.json"
+    write_new(path, raw)
+    return {"path": path.relative_to(ctx.work.parent).as_posix(), **pin(raw)}
 
 
 def run_special_derived(ctx, job, out):

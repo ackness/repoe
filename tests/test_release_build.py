@@ -50,7 +50,11 @@ FAKE_ADAPTER = textwrap.dedent(
         (out / name).parent.mkdir(parents=True, exist_ok=True)
         (out / name).write_bytes(source)
         files[name] = {"bytes": len(source), "sha256": hashlib.sha256(source).hexdigest()}
-    receipt = {"files": files, "adapter": {"implementation_revision": "sha256:test"}}
+    receipt = {
+        "files": files,
+        "adapter": {"implementation_revision": "sha256:test"},
+        "input": {"root": str(Path(values["--ordinary-facts"]).resolve()), "manifest_sha256": "m"},
+    }
     (out / "producer-receipt.json").write_text(json.dumps(receipt))
     """
 )
@@ -254,6 +258,13 @@ class ReleaseBuildTest(unittest.TestCase):
         self.assertEqual(outcome["package"]["sha256"], build.file_pin(out / "game-build-part.zip")["sha256"])
         self.assertIn("inputs:codec/a.json", receipt["inputs"]["files"])
         self.assertEqual(receipt["jobs"]["snapshot"]["retained_external_pins"], {"i18n/zh-CN/x.json": "c" * 64})
+        # The adapter's absolute facts root is replaced by the facts identity in the pinned copy.
+        self.assertIn(str(self.facts.resolve()), (out / "work/jobs/a/producer-receipt.json").read_text())
+        portable = receipt["jobs"]["a"]["receipt"]
+        self.assertEqual(portable["path"], "work/receipts/a.json")
+        self.assertEqual(build.file_pin(out / portable["path"]), {k: portable[k] for k in ("bytes", "sha256")})
+        self.assertEqual(json.loads((out / portable["path"]).read_text())["input"]["root"], "facts:rebound")
+        self.assertNotIn(str(self.root), json.dumps(receipt["jobs"]))
         policy = out / "work" / "policies" / "a" / "p.json"
         self.assertEqual(json.loads(policy.read_bytes())["target"]["facts_manifest_sha256"], REBOUND)
 

@@ -27,7 +27,16 @@ Output (under `.cache/release/<game>-<realm>-<patch>/`, replaced on each run):
 | `receipt.json` | How it was built: producer commit, code and adapter pins, every input package and file pin, every job's evidence and the class of every member |
 | `package.json` | What was built: the `receipt.json`, root manifest and zip pins, and whether the zip equals the reference package |
 | `manifest.json`, `SHA256SUMS` | Copies of the root manifest and the zip/receipt/package hashes |
-| `work/` | Adapter outputs, materialized policies and per-job logs |
+| `work/` | Adapter outputs, materialized policies, per-job logs and the portable adapter receipts the receipt pins |
+
+Paths in `receipt.json` are relative to the repository (sources, declarations)
+or to the output directory (portable adapter receipts), so the same checkout
+gives the same receipt in any location and cache directory. The adapter
+writes the absolute path of its facts input into its own
+`work/jobs/<job>/producer-receipt.json`; the receipt pins a copy under
+`work/receipts/` with that path replaced by `facts:<identity>`. The one pin
+that still depends on the machine is `producer.adapter_binary` (a compiled
+binary); a declaration outside the repository is recorded by absolute path.
 
 Pinned inputs are extracted once into `.cache/release/inputs/`, keyed by
 SHA-256, and re-verified on every run. Nothing is read from a checkout's data
