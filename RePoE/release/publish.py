@@ -15,6 +15,7 @@ refuse. See RELEASING.md.
 """
 
 import argparse
+import json
 from pathlib import Path
 import re
 import shlex
@@ -265,12 +266,17 @@ def gh_problem(run):
     return None if result.returncode == 0 else f"gh is not authenticated: {result.stderr.decode().strip()}"
 
 
-def release_exists(run, tag, repository=REPOSITORY):
-    result = run(["gh", "release", "view", tag, "--repo", repository, "--json", "tagName"], capture=True)
+def release_state(run, tag, repository=REPOSITORY):
+    """``None`` (no Release), ``"draft"`` or ``"published"``.
+
+    ``gh release create`` uploads into a draft first; a run killed mid-upload
+    leaves one behind, and a draft is not downloadable anonymously.
+    """
+    result = run(["gh", "release", "view", tag, "--repo", repository, "--json", "tagName,isDraft"], capture=True)
     if result.returncode == 0:
-        return True
+        return "draft" if json.loads(result.stdout or b"{}").get("isDraft") is True else "published"
     require(b"not found" in result.stderr.lower(), f"gh release view {tag} failed: {result.stderr.decode().strip()}")
-    return False
+    return None
 
 
 def published_assets(run, tag, directory, repository=REPOSITORY):
@@ -355,17 +361,29 @@ def main(argv=None, runner=None):
         if action == "resume-push":
             steps = steps[1:]
         elif action == "remote-tag":
-            if release_exists(run, tag):
+            state = release_state(run, tag)
+            if state is None:
+                steps = steps[2:]
+            else:
                 published = published_assets(run, tag, directory / "published")
                 expected = staged["assets"]
-                require(
-                    published == expected,
-                    f"{tag} is already released with other assets: {sorted(published)} differ from the staged "
-                    f"{sorted(expected)} (or their SHA-256)",
-                )
-                print(f"already published: {tag} names HEAD and its Release assets equal the staged ones")
-                return
-            steps = steps[2:]
+                if state == "draft":
+                    # An interrupted create: finish it only if every asset arrived intact.
+                    require(
+                        published == expected,
+                        f"{tag} has an unfinished draft Release with other assets: {sorted(published)}; delete it "
+                        f"(gh release delete {tag} --repo {REPOSITORY} --yes keeps the tag) and rerun",
+                    )
+                    steps = [["gh", "release", "edit", tag, "--repo", REPOSITORY, "--draft=false"]]
+                    action = "draft"
+                else:
+                    require(
+                        published == expected,
+                        f"{tag} is already released with other assets: {sorted(published)} differ from the staged "
+                        f"{sorted(expected)} (or their SHA-256)",
+                    )
+                    print(f"already published: {tag} names HEAD and its Release assets equal the staged ones")
+                    return
     except (ValueError, KeyError, TypeError, OSError, zipfile.BadZipFile) as error:
         parser.exit(1, f"release:publish: {error}\n")
 
@@ -374,7 +392,11 @@ def main(argv=None, runner=None):
         print(f"  {name}  {value['bytes']} bytes  sha256 {value['sha256']}")
     sums = (directory / "assets/SHA256SUMS").read_text().splitlines()
     print("SHA256SUMS:\n" + "".join(f"  {line}\n" for line in sums))
-    resumed = {"resume-push": " (tagged locally; resuming from the push)", "remote-tag": " (pushed; resuming)"}
+    resumed = {
+        "resume-push": " (tagged locally; resuming from the push)",
+        "remote-tag": " (pushed; resuming)",
+        "draft": " (draft Release has every asset; publishing it)",
+    }
     print(f"tag: {tag} -> {commit}{resumed.get(action, '')}")
     print(f"release body: {build.display(directory / 'release-notes.md')}")
     print("commands:\n" + "".join(f"  {shlex.join(step)}\n" for step in steps))

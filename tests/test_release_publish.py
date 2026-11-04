@@ -259,7 +259,8 @@ class Runner:
         answer = self.gh.get(command[1] if command[1] == "auth" else command[2], (0, b""))
         if callable(answer):
             answer = answer(command)
-        return subprocess.CompletedProcess(command, answer[0], b"", answer[1])
+        # (returncode, stderr[, stdout])
+        return subprocess.CompletedProcess(command, answer[0], answer[2] if len(answer) > 2 else b"", answer[1])
 
     def commands(self):
         return [" ".join(c[:3]) for c in self.calls]
@@ -409,6 +410,35 @@ class MainTest(GitRepoCase):
         code, output, _ = self.main(runner=Runner(self.repo, {"download": download(change=True)}))
         self.assertEqual(code, 1)
         self.assertIn("already released with other assets", output)
+
+    def published_tag_with_draft(self, change=False):
+        git(self.repo, "tag", "-a", "-m", "one", "game/9.9-1")
+        git(self.repo, "push", "-q", "origin", "refs/tags/game/9.9-1")
+        staged_assets = Path(self.temporary.name) / "stage/poe2-international-9.9/assets"
+
+        def download(command):
+            out = Path(command[command.index("--dir") + 1])
+            for path in staged_assets.iterdir():
+                if not (change and path.name == "receipt.json"):
+                    shutil.copyfile(path, out / path.name)
+            return 0, b""
+
+        return Runner(self.repo, {"view": (0, b"", b'{"tagName":"game/9.9-1","isDraft":true}'), "download": download})
+
+    def test_a_complete_draft_release_is_finished_not_reported_as_published(self):
+        code, output, runner = self.main("--yes", runner=self.published_tag_with_draft())
+        self.assertEqual(code, 0, output)
+        self.assertNotIn("already published", output)
+        self.assertEqual(runner.commands()[-1], "gh release edit")
+        self.assertIn("--draft=false", runner.calls[-1])
+        self.assertNotIn("gh release create", runner.commands())
+
+    def test_an_incomplete_draft_release_asks_to_delete_it(self):
+        code, output, runner = self.main("--yes", runner=self.published_tag_with_draft(change=True))
+        self.assertEqual(code, 1)
+        self.assertIn("unfinished draft Release", output)
+        self.assertIn("gh release delete game/9.9-1", output)
+        self.assertNotIn("gh release edit", runner.commands())
 
     def test_reuse_requires_the_build_of_this_checkout(self):
         cache = Path(self.temporary.name) / "cache"
