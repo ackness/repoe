@@ -88,8 +88,9 @@ silently. To replace a frozen member:
 2. Delete the member's entry from `frozen-inputs.json`.
 3. Run `release:build`. A `generated-identical` member is a pure provenance
    change and the zip still reproduces. A `generated-different` member is a
-   data change: review the diff, publish with `--allow-different`, bump PoBR,
-   then move `reference` to the new package.
+   data change: review the diff, publish with `--allow-different` and bump
+   PoBR; moving `reference` to the new package needs phase 5 (see the last
+   step of [A new game patch](#a-new-game-patch)).
 
 Other frozen bytes: the published package's PoB2-derived parser and
 special-rule files stay frozen (new parser capability goes into PoBR's Rust
@@ -113,8 +114,16 @@ change like any other.
    every `*-different` member by the new facts, not by an unintended policy
    change.
 4. Merge to master, `release:publish -- --allow-different --yes`, then
-   `data:bump` in PoBR. Afterwards set `reference` to the new package so CI
-   checks what PoBR pins.
+   `data:bump` in PoBR.
+5. **Not possible yet (roadmap phase 5):** moving `reference` to the new
+   package. `reference` must be an input package read as a Git blob at a
+   commit kept by a `handoff/*` tag (`build.py` `open_package`/`git_blob`
+   read it with `git cat-file`; `adapter:keystones` `check_tag` requires its
+   path under that tag), and a Release-only package is neither. Until
+   `release:build` can read Release assets, a build that differs from its
+   reference cannot pass `--check`, so CI's per-directory check fails for
+   that patch; plan the phase-5 change before the first data-changing
+   release.
 
 ## Troubleshooting
 
