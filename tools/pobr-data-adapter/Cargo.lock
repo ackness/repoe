@@ -106,6 +106,7 @@ checksum = "6b947ae49db0d222b1dbc6b113ce7248a3fc3a6ca21b696717bfc000ba4484d8"
 [[package]]
 name = "pobr-core"
 version = "0.0.29"
+source = "git+https://github.com/ackness/pobr?tag=contract%2F1.1#ac3c5c922014e03bb6b915f1414b1b06ab20635a"
 dependencies = [
  "aho-corasick",
  "pobr-data",
@@ -117,6 +118,7 @@ dependencies = [
 [[package]]
 name = "pobr-data"
 version = "0.0.29"
+source = "git+https://github.com/ackness/pobr?tag=contract%2F1.1#ac3c5c922014e03bb6b915f1414b1b06ab20635a"
 dependencies = [
  "serde",
  "serde_json",
@@ -140,6 +142,7 @@ dependencies = [
 [[package]]
 name = "pobr-gamedata"
 version = "0.0.29"
+source = "git+https://github.com/ackness/pobr?tag=contract%2F1.1#ac3c5c922014e03bb6b915f1414b1b06ab20635a"
 dependencies = [
  "pobr-data",
  "serde",
@@ -150,6 +153,7 @@ dependencies = [
 [[package]]
 name = "pobr-item"
 version = "0.0.29"
+source = "git+https://github.com/ackness/pobr?tag=contract%2F1.1#ac3c5c922014e03bb6b915f1414b1b06ab20635a"
 dependencies = [
  "pobr-data",
 ]
@@ -157,6 +161,7 @@ dependencies = [
 [[package]]
 name = "pobr-tree"
 version = "0.0.29"
+source = "git+https://github.com/ackness/pobr?tag=contract%2F1.1#ac3c5c922014e03bb6b915f1414b1b06ab20635a"
 dependencies = [
  "pobr-data",
  "serde",
