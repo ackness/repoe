@@ -71,24 +71,18 @@ from the edit.
 
 Tags are never moved or deleted: `handoff/*`, `game/*` and `inputs/*` here
 (PoBR locks and `inputs.lock.json` read pinned commits and assets through
-them) and PoBR's `contract/*` (the adapter's `Cargo.toml` pins one).
+them) and PoBR's `contract/*` (the adapter's `Cargo.toml` pins one). A moved
+tag silently changes what a lock resolves to; a mistake is fixed by a new tag
+or a new declaration, never by rewriting the old one.
 
 ### Producer identity and re-validation
 
-A facts package names each producing file by its repository path at export
-time. The pinned 0.5.5.5 envelope was produced at `e4140122`, retained as
-`ebcfa93be668109e576c80c2bdf2c44b23d523c6`, when the exporters were
-`RePoE/native_*.py`. `facts:validate` requires the replayed producer to equal
-the package's, so re-validating that envelope (or a package derived from it)
-runs at the producer commit, in its own worktree:
-
-```sh
-git worktree add ../repoe-ebcfa93 ebcfa93be668109e576c80c2bdf2c44b23d523c6
-```
-
-Details: [native facts](RePoE/docs/native/native_facts.md#producer-identity-and-re-validation).
-The first export from the current tree must add its identity to the consumers
-above ([a new game patch](RELEASING.md#a-new-game-patch)).
+A facts package keeps the producer identity it was sealed with, so
+re-validating a historical package runs at its producer commit, in its own
+worktree, and the first export from the current tree must add its identity to
+the consumers in the table above. The rule and the procedure are in
+[native facts](RePoE/docs/native/native_facts.md#producer-identity-and-re-validation);
+the new-patch work is in [RELEASING.md](RELEASING.md#a-new-game-patch).
 
 ## Commands
 
@@ -121,7 +115,7 @@ pushes or creates a Release without `--yes`.
 | Adapter comments or docs inside `src/` | As above: `implementation_sha256` includes the sources, so the receipt's `implementation_revision` moves while the zip must not |
 | `schema/` | `mise run schema:check`, then the procedure in [schema/README.md](schema/README.md) |
 | `RePoE/schema/*.json` | `mise run models:generate -- <paths>`, then `mise run check` |
-| `mise.toml`, workflows, `build.CODE` | `mise run check` (`tests/release/test_build.py` ties the release workflow's paths to the build's imports) |
+| `mise.toml`, workflows, `build.CODE` | `mise run check` (`test_release_workflow_paths_cover_the_build_code` in `tests/release/test_build.py` guards the `release-build.yml` paths list against `build.CODE`) |
 
 Say what you ran and what you did not; never present a review as a passing
 test. Real-data steps (`facts:validate` on a client export, Windows-only
@@ -133,7 +127,10 @@ tests) are not run by CI; state when they were skipped.
 | --- | --- | --- |
 | `verify.yml` (every PR and master push) | `verify` | `mise run check` |
 | | `adapter` | `mise run adapter:check`, `mise run adapter:keystones` |
-| `release-build.yml` (only when a path the build reads changes: `RePoE/release/**`, the `RePoE/client` modules it imports, `release/**`, `tools/pobr-data-adapter/**`, mise and toolchain files) | `release` | `release:build -- --config release/<dir> --fetch --check` for every declaration |
+| `release-build.yml` (only when a path the build reads changes; the workflow's `paths` list is guarded by `tests/release/test_build.py`, which compares it with `build.CODE`) | `release` | `release:build -- --config release/<dir> --fetch --check` for every declaration |
+
+`release-build.yml` does not run for changes outside what the build reads, so
+documentation-only changes skip it.
 
 ## Commits and pull requests
 

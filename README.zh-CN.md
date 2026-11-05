@@ -37,7 +37,7 @@ RePoE 负责客户端事实与游戏包；[poe2-zh-cn-stats](https://github.com/
 
 每个游戏包是一个 GitHub Release `game/<patch>-<n>`，带三个附件：`pobr-game-<patch>.zip`、它的 `receipt.json`（生产者提交、契约、每个输入的 pin 和每个成员的来源类别）以及 `SHA256SUMS`。PoBR 在 `pipeline/data.lock.json` 中 pin 一个游戏 Release 和配套的语言 Release（`mise run data:bump`，见 PoBR 的 [RELEASING.md](https://github.com/ackness/pobr/blob/master/RELEASING.md)）。使用者不需要 Python、Rust、客户端安装或本仓库的 checkout。
 
-使用 Release 之前发布的包（以及 `release:build` 读取的较早输入）位于由 `handoff/*` tag 保持可达的孤立提交上。这些 tag 从不移动或删除：`release/<patch>[-<n>]/inputs.lock.json` 通过提交、路径和 SHA-256 定位它们。新的输入是 GitHub Release `inputs/<patch>-<n>`（`mise run release:inputs`），与游戏包一样按仓库、tag、附件和 SHA-256 定位。
+使用 Release 之前发布的包（以及 `release:build` 读取的较早输入）位于由 `handoff/*` tag 保持可达的孤立提交上。这些 tag 从不移动或删除（[原因](AGENTS.md#never-move-or-rewrite)）：`release/<patch>[-<n>]/inputs.lock.json` 通过提交、路径和 SHA-256 定位它们。新的输入是 GitHub Release `inputs/<patch>-<n>`（`mise run release:inputs`），与游戏包一样按仓库、tag、附件和 SHA-256 定位。
 
 ## 开发
 
@@ -63,9 +63,9 @@ mise run adapter:check
 mise run adapter:keystones
 ```
 
-`adapter:keystones` 从最高的 `release/<patch>[-<n>]/` 声明的 `reference` 包（目前是 `game/0.5.5.5-1`）的天赋树重建基石规则，并逐字节比较。生成的 `RePoE/model/` 文件用 `mise run models:generate -- [schema 路径]` 显式维护。
+`adapter:keystones` 从最高的 `release/<patch>[-<n>]/` 声明的 `reference` 包的天赋树重建基石规则，并逐字节比较。生成的 `RePoE/model/` 文件用 `mise run models:generate -- [schema 路径]` 显式维护。
 
-CI 有两个 workflow。`verify.yml`（每个 PR 和 master push）运行 `mise run check`，另一个作业运行 `adapter:check` 和 `adapter:keystones`。`release-build.yml` 只在发布构建读取的内容改变时运行（`RePoE/release/`、它导入的 client 模块、`release/`、适配器、mise 与工具链文件），用 `release:build -- --config release/<dir> --fetch --check` 重建每个声明。
+CI 对每个 PR 运行 `verify.yml`，在发布构建的输入改变时运行 `release-build.yml`；各自运行什么见 [AGENTS.md](AGENTS.md#ci)。
 
 ## 导出数据
 

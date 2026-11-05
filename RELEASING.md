@@ -5,16 +5,11 @@ A game package goes from this repository to PoBR in three steps:
 ```sh
 mise run release:build -- --fetch --check  # rebuild from pinned inputs, compare with the expect pin
 mise run release:publish -- --yes          # tag game/<patch>-<n> on master, create its GitHub Release
-# then, in ackness/pobr (a new patch names both owners; see below):
-mise run data:bump ackness/repoe game/<patch>-<n> ackness/poe2-zh-cn-stats locale/<patch>-<m>
+# then pin the tag in ackness/pobr with `mise run data:bump` (step 6)
 ```
 
-`data:bump` verifies the Releases, rewrites PoBR's data lock and prepares the
-data. It does not commit, push or open a PR: the PoBR maintainer does that. A
-new patch needs both owners in one call; a same-patch game-only package is
-bumped alone (`mise run data:bump ackness/repoe game/<patch>-<n>`). The PoBR
-side is described in PoBR's
-[RELEASING.md](https://github.com/ackness/pobr/blob/master/RELEASING.md), and
+The `data:bump` command is in [step 6](#6-language-owner-and-pobr). The PoBR
+side is described in PoBR's [RELEASING.md](https://github.com/ackness/pobr/blob/master/RELEASING.md), and
 who owns what across RePoE, the translation repository and PoBR in its
 [data architecture](https://github.com/ackness/pobr/blob/master/docs/data-architecture.md#5-更新采用与发布).
 
@@ -95,11 +90,10 @@ fields another owner declares: the game snapshot does not list the language
 owner's `i18n/` files or `languages`. PoBR composes the runtime manifest from
 both packages, so a language release does not need a game re-release.
 
-CI (`.github/workflows/release-build.yml`) runs
-`release:build -- --config release/<dir> --fetch --check` for every
-directory whenever something the build reads changes. Every directory under
-`release/` is a claim that the current code still produces its `expect` pin
-(or its reference); when a code or policy change moves a published package's
+CI (`.github/workflows/release-build.yml`, described in
+[AGENTS.md](AGENTS.md#ci)) rebuilds and checks every declaration directory.
+Every directory under `release/` is a claim that the current code still
+produces its `expect` pin (or its reference); when a code or policy change moves a published package's
 bytes on purpose, add the next `release/<patch>-<n>/` and delete the
 superseded directory in the same change rather than let it fail (Git history
 and the Release receipt keep it).
@@ -127,10 +121,9 @@ stages, then lists every refusal and exits 1, so on a branch
 `mise run release:publish -- --fetch` is the one command that builds, checks
 the pin and the sequence number, and shows what would be published.
 
-Then pin the tag in PoBR: `mise run data:bump ackness/repoe game/<patch>-<n>
-ackness/poe2-zh-cn-stats locale/<patch>-<m>` for a new patch, or
-`mise run data:bump ackness/repoe game/<patch>-<n>` for another package of
-the same patch.
+Then pin the tag in PoBR with `data:bump` (command in
+[step 6](#6-language-owner-and-pobr); another package of an already pinned
+patch is bumped alone).
 
 ## Input packages
 
@@ -183,8 +176,9 @@ change like any other.
 ## A new game patch
 
 Several checks still name 0.5.5.5 or the identity of the exporter that
-produced its facts, so the first new patch starts with code changes. Below, `<new>` is the new patch and `game/0.5.5.5-2` the last
-published package. The work lands as separate PRs, each merged before the
+produced its facts, so the first new patch starts with code changes. Below,
+`<new>` is the new patch and `game/0.5.5.5-2` the last published package. The
+work lands as separate PRs, each merged before the
 next step:
 
 1. **Exporter and trust PR** (step 0): the code changes below, with tests.
@@ -195,6 +189,10 @@ next step:
    `locale/<new>-<m>`.
 
 ### 0. Code changes
+
+This table lists only the checks that gate accepting a new patch. Other
+`0.5.5.5` mentions (comments, tests such as `RePoE/client/sources.py:36` or
+`schema_id.rs:107`) do not block it.
 
 | What | Where | Change |
 | --- | --- | --- |
@@ -287,8 +285,16 @@ The translation repository publishes `locale/<new>-<m>` for the same target,
 with its display texts and a support-display publication bound to the new
 trade catalog
 ([its RELEASING.md](https://github.com/ackness/poe2-zh-cn-stats/blob/main/RELEASING.md)).
-Then in PoBR: `mise run data:bump ackness/repoe game/<new>-1
-ackness/poe2-zh-cn-stats locale/<new>-<m>` and the PR described in PoBR's
+Then in `ackness/pobr`:
+
+```sh
+mise run data:bump ackness/repoe game/<new>-1 ackness/poe2-zh-cn-stats locale/<new>-<m>
+```
+
+A game-only package of an already pinned patch is bumped alone
+(`mise run data:bump ackness/repoe game/<patch>-<n>`). `data:bump` verifies the
+Releases, rewrites PoBR's data lock and prepares the data; it does not commit,
+push or open a PR. The PoBR maintainer does that, as described in PoBR's
 [RELEASING.md](https://github.com/ackness/pobr/blob/master/RELEASING.md).
 
 A patch without exported client facts can still be replayed: omit `facts`
@@ -328,7 +334,5 @@ rerunning it resumes:
   `release/`, `tools/pobr-data-adapter/` or the toolchain pins marks the
   receipt `dirty`, and publish refuses it.
 
-Tags are never moved or deleted: this repository's `handoff/*`, `game/*` and
-`inputs/*` (PoBR locks and `release/<dir>/inputs.lock.json` read pinned
-commits and Release assets through them) and PoBR's `contract/*` (the
-adapter's `Cargo.toml` pins one).
+Tags are never moved or deleted; see
+[AGENTS.md](AGENTS.md#never-move-or-rewrite).

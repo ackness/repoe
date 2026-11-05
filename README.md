@@ -37,7 +37,7 @@ Packages have different scopes. A successful facts export does not establish com
 
 Each game package is a GitHub Release `game/<patch>-<n>` with three assets: `pobr-game-<patch>.zip`, its `receipt.json` (producer commit, contract, every input pin and the provenance class of every member) and `SHA256SUMS`. PoBR pins one Release, with the matching language Release, in `pipeline/data.lock.json` (`mise run data:bump`, see PoBR's [RELEASING.md](https://github.com/ackness/pobr/blob/master/RELEASING.md)). Consumers need no Python, Rust, client installation or checkout of this repository.
 
-Packages published before Releases (and the older inputs `release:build` reads) live on orphan commits kept reachable by `handoff/*` tags. Those tags are never moved or deleted: `release/<patch>[-<n>]/inputs.lock.json` addresses them by commit, path and SHA-256. New inputs are GitHub Releases `inputs/<patch>-<n>` (`mise run release:inputs`), addressed like game packages by repository, tag, asset and SHA-256.
+Packages published before Releases (and the older inputs `release:build` reads) live on orphan commits kept reachable by `handoff/*` tags. Those tags are never moved or deleted ([why](AGENTS.md#never-move-or-rewrite)): `release/<patch>[-<n>]/inputs.lock.json` addresses them by commit, path and SHA-256. New inputs are GitHub Releases `inputs/<patch>-<n>` (`mise run release:inputs`), addressed like game packages by repository, tag, asset and SHA-256.
 
 ## Development
 
@@ -63,9 +63,9 @@ mise run adapter:check
 mise run adapter:keystones
 ```
 
-`adapter:keystones` rebuilds the keystone rules of the `reference` package of the highest `release/<patch>[-<n>]/` declaration (today `game/0.5.5.5-1`) from its passive tree and compares bytes. Generated `RePoE/model/` files are maintained explicitly with `mise run models:generate -- [schema paths]`.
+`adapter:keystones` rebuilds the keystone rules of the `reference` package of the highest `release/<patch>[-<n>]/` declaration from its passive tree and compares bytes. Generated `RePoE/model/` files are maintained explicitly with `mise run models:generate -- [schema paths]`.
 
-CI runs two workflows. `verify.yml` (every pull request and master push) runs `mise run check` and, in a second job, `adapter:check` and `adapter:keystones`. `release-build.yml` runs only when something the release build reads changes (`RePoE/release/`, the client modules it imports, `release/`, the adapter, the mise and toolchain files) and rebuilds every declaration with `release:build -- --config release/<dir> --fetch --check`.
+CI runs `verify.yml` on every pull request and `release-build.yml` when the release build's inputs change; what each runs is described in [AGENTS.md](AGENTS.md#ci).
 
 ## Exporting data
 
