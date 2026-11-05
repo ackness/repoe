@@ -159,9 +159,10 @@ class ReleaseBuildTest(unittest.TestCase):
         passthrough=None,
         snapshot_passthrough=True,
         snapshot_fields=None,
+        extra_inputs=None,
     ):
         """Commit an input and a reference package; write a release declaration."""
-        inputs = {"codec/a.json": self.codec}
+        inputs = {"codec/a.json": self.codec, **(extra_inputs or {})}
         inputs_raw = zip_bytes({**inputs, "manifest.json": encoded({"files": {k: pin(v) for k, v in inputs.items()}})})
         published_a = self.derived if published_a is None else published_a
         members = {"data/9.9/overlay/a.json": published_a, "data/9.9/overlay/frozen.json": self.frozen}
@@ -433,6 +434,56 @@ class ReleaseBuildTest(unittest.TestCase):
         self.assertEqual(receipt["members"]["data/9.9/overlay/b.json"]["class"], "generated-new")
         carried = receipt["jobs"]["snapshot"]["passthrough"]["data/9.9/manifest.json"]
         self.assertNotIn("contract_version", json.dumps(carried))
+
+    def test_gem_descriptions_job_reads_the_facts_and_adds_its_member(self):
+        gem_effects = {"gems": [{"gem_id": "G", "granted_effect_id": "SupportX", "variant_id": "XSupport"}]}
+        granted = [{"id": "SupportX", "is_support": True, "active_skill": "x_skill"}]
+        config = self.fixture(
+            extra_inputs={"gem/gem_effects.json": runtime(gem_effects), "gem/granted_effects.json": runtime(granted)}
+        )
+        gems = {"effects": [{"gem_effect": {"id": "XSupport", "row": 0}, "support_text": "Supports [Hit|Hits]. "}]}
+        table = {"table": "ActiveSkills", "rows": [{"_row": 0, "values": {"Id": "x_skill", "Description": "Does X."}}]}
+        (self.facts / "tables").mkdir()
+        (self.facts / "gems.json").write_bytes(runtime(gems))
+        (self.facts / "tables/ActiveSkills.json").write_bytes(runtime(table))
+        domains = json.loads((config / "domains.json").read_text())
+        job = {
+            "id": "gem-descriptions",
+            "kind": "gem-descriptions",
+            "facts": "rebound",
+            "gem_effects": "inputs:gem/gem_effects.json",
+            "granted_effects": "inputs:gem/granted_effects.json",
+            "outputs": {"overlay/gem_descriptions.json": "data/9.9/overlay/gem_descriptions.json"},
+        }
+        domains["jobs"].insert(1, job)
+        domains["jobs"][2]["add"] = {"overlay/gem_descriptions.json": "overlay"}
+        (config / "domains.json").write_text(json.dumps(domains))
+        out, receipt, _ = self.run_build(config)
+        with zipfile.ZipFile(out / "game-build-part.zip") as archive:
+            member = json.loads(archive.read("data/9.9/overlay/gem_descriptions.json"))
+            snapshot = json.loads(archive.read("data/9.9/manifest.json"))
+        self.assertEqual(
+            member["scopes"],
+            {
+                "ActiveSkills.Description": {"x_skill": "Does X."},
+                "GemEffects.SupportText": {"XSupport": "Supports [Hit|Hits]. "},
+            },
+        )
+        self.assertEqual(member["_meta"]["facts_manifest_sha256"], REBOUND)
+        self.assertEqual(snapshot["domains"]["overlay"], ["a", "frozen", "gem_descriptions"])
+        self.assertEqual(receipt["members"]["data/9.9/overlay/gem_descriptions.json"]["class"], "generated-new")
+        self.assertIn("facts:rebound:gems.json", receipt["inputs"]["files"])
+        self.assertEqual(
+            receipt["jobs"]["gem-descriptions"]["summary"],
+            {"gem_effects": 1, "ActiveSkills.Description": 1, "GemEffects.SupportText": 1},
+        )
+        lock = json.loads((config / "inputs.lock.json").read_text())
+        del lock["facts"]
+        (config / "inputs.lock.json").write_text(json.dumps(lock))
+        del domains["jobs"][0]
+        (config / "domains.json").write_text(json.dumps(domains))
+        with self.assertRaisesRegex(ValueError, "so do gem-descriptions jobs"):
+            build.load_config(config)
 
     def test_snapshot_omits_the_language_owners_entries_and_fields(self):
         config = self.fixture(snapshot_fields={"languages": ["zh-CN"]})

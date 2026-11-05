@@ -46,7 +46,9 @@ then the highest `<n>`. Each directory holds three files:
   pin.
 - `domains.json`: the jobs in order: one `adapter` job per
   `pobr-data-adapter --ordinary-facts` domain, plus `special-derived`,
-  `historical-trees`, `crafting-catalog` and the final `snapshot-manifest`.
+  `historical-trees`, `crafting-catalog`, `gem-descriptions` (from
+  `release/0.5.5.5-3/` on; [English gem descriptions](RePoE/docs/release/pobr_gem_descriptions.md))
+  and the final `snapshot-manifest`.
 - `frozen-inputs.json`: every member not generated yet (see below).
 
 An input package is pinned by `bytes`, `sha256`, its embedded `manifest` pin
@@ -243,7 +245,9 @@ entries into the new declaration's `packages`.
 ### 3. Declare the package
 
 Copy `release/0.5.5.5-2/` to `release/<new>/` and change what names the patch,
-and only that:
+and only that. Once `game/0.5.5.5-3` is published, copy `release/0.5.5.5-3/`
+instead: it is -2 plus the `gem-descriptions` job, with `game/0.5.5.5-2` as its
+`previous`, so read the table below with -3 and its `previous` in place of -2:
 
 | Occurrence | In `release/<new>/` |
 | --- | --- |
