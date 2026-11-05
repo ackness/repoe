@@ -101,10 +101,6 @@ def stage(build_dir, out):
     require(receipt.get("schema") == build.RECEIPT, f"{build_dir}/receipt.json: unexpected schema")
     require(package["target"] == receipt["target"], "package.json and receipt.json name different targets")
     require("contract" in receipt["producer"], "receipt.json does not record the PoBR contract; rebuild it")
-    require(
-        receipt["producer"]["contract"].get("tag") is not None,
-        "the adapter was built against a local PoBR checkout; pin tools/pobr-data-adapter to a contract/<n>.<m> tag",
-    )
     zip_path = build_dir / package["package"]["path"]
     zip_pin = build.file_pin(zip_path)
     require(zip_pin == {k: package["package"][k] for k in ("bytes", "sha256")}, f"{zip_path} differs from package.json")
@@ -451,6 +447,12 @@ def main(argv=None, runner=None):
         receipt, package = staged["receipt"], staged["package"]
         if receipt["producer"]["commit"] != commit or receipt["producer"]["dirty"]:
             problems.append("the package was not built from a clean HEAD")
+        if receipt["producer"]["contract"].get("tag") is None:
+            # Reported, not raised: a dry run still stages the assets (a rehearsal can serve them).
+            problems.append(
+                "the adapter was built against a local PoBR checkout; pin tools/pobr-data-adapter to a "
+                "contract/<n>.<m> tag"
+            )
         if "expect" in package["package"]:
             # The reviewed declaration pins the bytes; --allow-different is not needed (or enough).
             if not package["package"]["matches_expect"]:

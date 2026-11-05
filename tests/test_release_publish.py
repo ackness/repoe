@@ -105,10 +105,10 @@ class StageTest(unittest.TestCase):
         self.write_build({**self.receipt, "producer": producer})
         with self.assertRaisesRegex(ValueError, "PoBR contract"):
             publish.stage(self.build_dir, self.root / "stage")
+        # A local PoBR checkout still stages (a dry run shows the assets); main() refuses to publish it.
         local = {**CONTRACT, "tag": None, "commit": None, "local": ["pobr-data"]}
         self.write_build({**self.receipt, "producer": {**self.receipt["producer"], "contract": local}})
-        with self.assertRaisesRegex(ValueError, "local PoBR checkout"):
-            publish.stage(self.build_dir, self.root / "stage")
+        self.assertIn("pobr-game-9.9.zip", publish.stage(self.build_dir, self.root / "stage")["assets"])
 
     def test_staging_replaces_only_its_own_directory(self):
         foreign = self.root / "foreign"
@@ -382,6 +382,17 @@ class MainTest(GitRepoCase):
         self.assertIn("9.9-2 declares game/9.9-2, but HEAD would be published as game/9.9-1", output)
         self.assertIsNone(publish.sequence_problem(Path("9.9"), TARGET, 4))
         self.assertIsNone(publish.sequence_problem(Path("9.9-4"), TARGET, None))
+
+    def test_refuses_an_adapter_built_against_a_local_pobr_checkout(self):
+        self.fixture.receipt["producer"]["contract"] = {**CONTRACT, "tag": None, "commit": None, "local": ["pobr-data"]}
+        self.fixture.write_build()
+        code, output, runner = self.main()
+        self.assertEqual(code, 1)
+        self.assertIn("staged: ", output)
+        self.assertIn("local PoBR checkout", output)
+        code, output, runner = self.main("--yes")
+        self.assertEqual(code, 1)
+        self.assertNotIn("git tag --annotate", runner.commands())
 
     def test_refuses_a_package_not_built_from_clean_head(self):
         self.fixture.receipt["producer"]["commit"] = "f" * 40
