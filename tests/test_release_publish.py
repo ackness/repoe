@@ -105,6 +105,10 @@ class StageTest(unittest.TestCase):
         self.write_build({**self.receipt, "producer": producer})
         with self.assertRaisesRegex(ValueError, "PoBR contract"):
             publish.stage(self.build_dir, self.root / "stage")
+        local = {**CONTRACT, "tag": None, "commit": None, "local": ["pobr-data"]}
+        self.write_build({**self.receipt, "producer": {**self.receipt["producer"], "contract": local}})
+        with self.assertRaisesRegex(ValueError, "local PoBR checkout"):
+            publish.stage(self.build_dir, self.root / "stage")
 
     def test_staging_replaces_only_its_own_directory(self):
         foreign = self.root / "foreign"

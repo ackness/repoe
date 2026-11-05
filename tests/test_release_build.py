@@ -138,6 +138,7 @@ class ReleaseBuildTest(unittest.TestCase):
         snapshot = {
             "schema_version": 3,
             "poe_version": "9.9",
+            "domains": {"overlay": ["a", "frozen"]},
             "files": {
                 "overlay/a.json": hashlib.sha256(published_a).hexdigest(),
                 "overlay/frozen.json": hashlib.sha256(self.frozen).hexdigest(),
@@ -249,7 +250,7 @@ class ReleaseBuildTest(unittest.TestCase):
             {
                 "input": "previous:data/9.9/manifest.json",
                 "carried": "template",
-                "fields": ["schema_version"],
+                "fields": ["domains", "schema_version"],
                 "retained_pins": 1,
                 "regenerated_pins": 2,
             },
@@ -334,6 +335,62 @@ class ReleaseBuildTest(unittest.TestCase):
         adapter = self.adapter.read_text().replace('["overlay/a.json"]', '["overlay/a.json", "overlay/b.json"]')
         self.adapter.write_text(adapter)
         with self.assertRaisesRegex(ValueError, r"members missing from the snapshot template: \['overlay/b.json'\]"):
+            self.run_build(config)
+
+    def test_snapshot_adds_new_members_and_records_the_adapter_contract(self):
+        config = self.fixture()
+        domains = json.loads((config / "domains.json").read_text())
+        domains["jobs"][0]["outputs"]["overlay/b.json"] = "data/9.9/overlay/b.json"
+        snapshot = domains["jobs"][1]
+        snapshot["add"] = {"overlay/b.json": "overlay"}
+        snapshot["contract_version"] = "adapter"
+        (config / "domains.json").write_text(json.dumps(domains))
+        adapter = self.adapter.read_text().replace('["overlay/a.json"]', '["overlay/a.json", "overlay/b.json"]')
+        self.adapter.write_text(adapter)
+        out, receipt, _ = self.run_build(config)
+        with zipfile.ZipFile(out / "game-build-part.zip") as archive:
+            snapshot = json.loads(archive.read("data/9.9/manifest.json"))
+            added = archive.read("data/9.9/overlay/b.json")
+        self.assertEqual(snapshot["contract_version"], 1)
+        self.assertEqual(snapshot["domains"], {"overlay": ["a", "b", "frozen"]})
+        self.assertEqual(list(snapshot["files"]), sorted(snapshot["files"]))
+        self.assertEqual(snapshot["files"]["overlay/b.json"], hashlib.sha256(added).hexdigest())
+        self.assertEqual(receipt["members"]["data/9.9/overlay/b.json"]["class"], "generated-new")
+        carried = receipt["jobs"]["snapshot"]["passthrough"]["data/9.9/manifest.json"]
+        self.assertNotIn("contract_version", json.dumps(carried))
+
+    def test_snapshot_omits_the_language_owners_entries_and_fields(self):
+        config = self.fixture()
+        domains = json.loads((config / "domains.json").read_text())
+        snapshot = domains["jobs"][1]
+        del snapshot["external"]
+        snapshot["omit"] = {"entries": ["i18n/"], "fields": ["domains"]}
+        (config / "domains.json").write_text(json.dumps(domains))
+        out, receipt, _ = self.run_build(config)
+        with zipfile.ZipFile(out / "game-build-part.zip") as archive:
+            manifest = json.loads(archive.read("data/9.9/manifest.json"))
+        self.assertEqual(list(manifest["files"]), ["overlay/a.json", "overlay/frozen.json"])
+        self.assertNotIn("domains", manifest)
+        carried = receipt["jobs"]["snapshot"]["passthrough"]["data/9.9/manifest.json"]
+        self.assertEqual((carried["omitted_pins"], carried["omitted_fields"]), (1, ["domains"]))
+        self.assertEqual(carried["retained_pins"], 0)
+        for omit, message in (
+            ({"entries": ["overlay/"]}, "a member of this package is omitted: overlay/a.json"),
+            ({"fields": ["files"]}, "cannot omit files"),
+            ({"prefixes": []}, "unknown omit keys"),
+        ):
+            with self.subTest(omit=omit):
+                snapshot["omit"] = omit
+                (config / "domains.json").write_text(json.dumps(domains))
+                with self.assertRaisesRegex(ValueError, message):
+                    self.run_build(config)
+
+    def test_snapshot_add_rejects_an_existing_member(self):
+        config = self.fixture()
+        domains = json.loads((config / "domains.json").read_text())
+        domains["jobs"][1]["add"] = {"overlay/a.json": "overlay"}
+        (config / "domains.json").write_text(json.dumps(domains))
+        with self.assertRaisesRegex(ValueError, "added entry is not a new member: overlay/a.json"):
             self.run_build(config)
 
     def test_frozen_pin_drift_rejects(self):
@@ -489,9 +546,19 @@ class ReleaseBuildTest(unittest.TestCase):
         _, receipt, _ = self.run_build(self.fixture())
         contract = receipt["producer"]["contract"]
         self.assertEqual(contract["version"], 1)
-        self.assertRegex(contract["tag"], r"^contract/1\.\d+$")
-        self.assertRegex(contract["commit"], r"^[0-9a-f]{40}$")
+        if contract["tag"] is None:
+            # TODO(contract/1.1): the adapter is patched to a local PoBR
+            # checkout until the tag exists; release:publish refuses this.
+            self.assertEqual(contract["local"], sorted(build.POBR_CRATES))
+        else:
+            self.assertRegex(contract["tag"], r"^contract/1\.\d+$")
+            self.assertRegex(contract["commit"], r"^[0-9a-f]{40}$")
         lock = self.root / "Cargo.lock"
+        lock.write_text('[[package]]\nname = "pobr-data"\nversion = "0.0.1"\n')
+        self.assertEqual(
+            build.pobr_contract(self.adapter, lock),
+            {"repository": "ackness/pobr", "version": 1, "tag": None, "commit": None, "local": ["pobr-data"]},
+        )
         source = "git+https://github.com/ackness/pobr?tag=contract%2F2.0#" + "1" * 40
         lock.write_text(f'[[package]]\nname = "pobr-data"\nsource = "{source}"\n')
         with self.assertRaisesRegex(ValueError, "contract version 1, but Cargo.lock pins contract/2.0"):

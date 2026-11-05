@@ -40,3 +40,14 @@ incremental = false
 
 [profile.dev.package."*"]
 opt-level = 3
+
+# TODO(before merge): remove this patch and bump every PoBR entry above to
+# `tag = "contract/1.1"` once ackness/pobr tags it. Local development of game
+# 0.5.5.5-2 builds the adapter against the unpublished contract revision in a
+# sibling PoBR worktree (branch feat/data-batch-contract).
+[patch."https://github.com/ackness/pobr"]
+pobr-data = { path = "../../../pobr-w5/crates/pobr-data" }
+pobr-core = { path = "../../../pobr-w5/crates/pobr-core" }
+pobr-gamedata = { path = "../../../pobr-w5/crates/pobr-gamedata" }
+pobr-item = { path = "../../../pobr-w5/crates/pobr-item" }
+pobr-tree = { path = "../../../pobr-w5/crates/pobr-tree" }

@@ -47,8 +47,19 @@ one of its own inputs; undeclared pass-through fails the build) or `frozen`,
 and each produced member is `*-identical`, `*-different` or `*-new` against the
 reference. The root manifest is retained from the reference only when every
 other member is identical, so an unchanged rebuild reproduces the published
-zip byte for byte. 0.5.5.5: 32 generated, 4 pass-through, 26 frozen, zip
-`3edc9b1e…` identical to `game/0.5.5.5-1`.
+zip byte for byte. 0.5.5.5 at `game/0.5.5.5-1`: 32 generated, 4 pass-through,
+26 frozen, zip `3edc9b1e…`. The 0.5.5.5-2 data batch (new
+`base/active_skill_types.json`, `game_constants.base_maximum_rage`, native
+packets for every eligible passive node) is 33 generated, 4 pass-through, 26
+frozen and differs from that reference.
+
+The `snapshot-manifest` job re-pins the members over the reference's own
+snapshot. `add` declares a new member (path → domain section),
+`contract_version: "adapter"` records the adapter's contract version, and
+`omit` drops entries and fields another owner declares: from 0.5.5.5-2 the
+game snapshot no longer lists the language owner's `i18n/` files or
+`languages`. PoBR composes the runtime manifest from both packages, so a
+language release no longer needs a game re-release.
 
 CI (`.github/workflows/release-build.yml`) runs
 `release:build -- --config release/<patch> --fetch --check` for every patch
@@ -146,7 +157,9 @@ rerunning it resumes:
 - **Contract tag:** the adapter's PoBR crates must be pinned to an
   `ackness/pobr` tag `contract/<CONTRACT_VERSION>.<m>` in
   `tools/pobr-data-adapter/Cargo.toml`; a pin bump changes the receipt, not
-  the zip, so check it with `--check`.
+  the zip, so check it with `--check`. A `[patch]` to a local PoBR checkout
+  builds (the receipt records `tag: null` and the `local` crates) but
+  `release:publish` refuses it.
 - **Dirty producer:** any tracked change or untracked file under `RePoE/`,
   `release/`, `tools/pobr-data-adapter/` or the toolchain pins marks the
   receipt `dirty`, and publish refuses it.

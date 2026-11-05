@@ -407,7 +407,9 @@ def materialize_policy(ctx, spec, job):
         parent[field] = ctx.facts["roots"][job["facts"]][1]["sha256"]
         raw = runtime_encoded(document)
     if "expect" in spec:
-        require(pin(raw) == spec["expect"], f"{job['id']}: materialized policy differs from its declared pin")
+        require(
+            pin(raw) == spec["expect"], f"{job['id']}: materialized policy {pin(raw)} differs from its declared pin"
+        )
     path = ctx.work / "policies" / job["id"] / PurePosixPath(spec["policy"].partition(":")[2]).name
     write_new(path, raw)
     return path
@@ -581,23 +583,53 @@ def snapshot_manifest(ctx, job, members):
     Entries naming package members get the assembled bytes' SHA-256. Entries
     for files another owner ships (locale) keep the template's pins; they are
     reported as retained external pins. Every other top-level field is the
-    template's, so the member is a pass-through of the template.
+    template's, so the member is a pass-through of the template, except that
+    ``add`` declares new members (path -> domain section),
+    ``contract_version: "adapter"`` records the adapter's data contract and
+    ``omit`` drops the entries (path prefixes) and top-level fields another
+    owner declares itself: the language owner's ``i18n/`` files and
+    ``languages``, which PoBR composes from the language package.
     """
     template = decode(ctx.resolve(job["template"], job).read_bytes())
     prefix = f"data/{ctx.target['game_patch']}/"
     require(template.get("poe_version") == ctx.target["game_patch"], f"{job['id']}: template version mismatch")
     own = {m[len(prefix) :] for m in members if m.startswith(prefix)}
-    files, retained = {}, {}
+    omit = job.get("omit", {})
+    require(set(omit) <= {"entries", "fields"}, f"{job['id']}: unknown omit keys {sorted(set(omit))}")
+    omitted_entries, omitted_fields = tuple(omit.get("entries", ())), omit.get("fields", [])
+    for field in omitted_fields:
+        require(field in template and field not in ("files", "poe_version"), f"{job['id']}: cannot omit {field}")
+        del template[field]
+    files, retained, dropped = {}, {}, 0
     for name, digest in template["files"].items():
         if name in own:
+            require(not name.startswith(omitted_entries), f"{job['id']}: a member of this package is omitted: {name}")
             files[name] = sha256(members[prefix + name][0])
+        elif omitted_entries and name.startswith(omitted_entries):
+            dropped += 1
         else:
-            require(name.startswith(tuple(job["external"])), f"{job['id']}: snapshot entry without a member: {name}")
+            require(
+                name.startswith(tuple(job.get("external", ()))), f"{job['id']}: snapshot entry without a member: {name}"
+            )
             files[name] = retained[name] = digest
-    missing = own - set(template["files"])
+    added = job.get("add", {})
+    for name, section in added.items():
+        require(name in own and name not in template["files"], f"{job['id']}: added entry is not a new member: {name}")
+        require(name.startswith(section + "/") and name.endswith(".json"), f"{job['id']}: {name} is not in {section}/")
+        files[name] = sha256(members[prefix + name][0])
+        domain = Path(name).stem
+        names = template["domains"][section]
+        require(domain not in names, f"{job['id']}: domain {domain} already declared")
+        template["domains"][section] = sorted([*names, domain])
+    missing = own - set(files)
     require(not missing, f"{job['id']}: members missing from the snapshot template: {sorted(missing)}")
-    template["files"] = files
-    fields = sorted(set(template) - {"files", "poe_version"})
+    # An added entry goes in path order; otherwise the template order stands.
+    template["files"] = dict(sorted(files.items())) if added or dropped else files
+    if job.get("contract_version") == "adapter":
+        # The data contract the members were built for, read from the adapter
+        # (pobr_data::CONTRACT_VERSION it was compiled against), never hand-written.
+        template["contract_version"] = adapter_contract_version(ctx.adapter)
+    fields = sorted(set(template) - {"files", "poe_version", "contract_version"})
     carried = {}
     if fields or retained:
         carried[job["member"]] = {
@@ -606,6 +638,7 @@ def snapshot_manifest(ctx, job, members):
             "fields": fields,
             "retained_pins": len(retained),
             "regenerated_pins": len(files) - len(retained),
+            **({"omitted_pins": dropped, "omitted_fields": sorted(omitted_fields)} if omit else {}),
         }
     return runtime_encoded(template), {"retained_external_pins": retained}, carried
 
@@ -623,6 +656,16 @@ def write_zip(path, members):
             archive.writestr(info, members[member], compress_type=zipfile.ZIP_DEFLATED, compresslevel=9)
 
 
+POBR_CRATES = {"pobr-data", "pobr-core", "pobr-gamedata", "pobr-item", "pobr-tree"}
+
+
+def adapter_contract_version(adapter):
+    result = subprocess.run([str(adapter), "--contract-version"], capture_output=True, check=False)
+    output = result.stdout.decode().strip()
+    require(result.returncode == 0 and output.isdigit(), f"{adapter} --contract-version failed: {result.stderr!r}")
+    return int(output)
+
+
 def pobr_contract(adapter, cargo_lock=CARGO_LOCK):
     """The PoBR data contract the adapter was built against.
 
@@ -631,11 +674,19 @@ def pobr_contract(adapter, cargo_lock=CARGO_LOCK):
     ``ackness/pobr`` source Cargo.lock resolves every PoBR crate to. The tag
     must be ``contract/<version>.<m>``.
     """
+    packages = tomllib.loads(Path(cargo_lock).read_text())["package"]
     sources = {
         package["source"]
-        for package in tomllib.loads(Path(cargo_lock).read_text())["package"]
+        for package in packages
         if package.get("source", "").startswith((POBR_SOURCE + "?", POBR_SOURCE + ".git?"))
     }
+    local = sorted(p["name"] for p in packages if p["name"] in POBR_CRATES and "source" not in p)
+    if local and not sources:
+        # A `[patch]` to a local PoBR checkout, for developing against an
+        # unpublished contract revision. The build is reproducible only on that
+        # machine: the receipt says so and release:publish refuses it.
+        version = adapter_contract_version(adapter)
+        return {"repository": "ackness/pobr", "version": version, "tag": None, "commit": None, "local": local}
     require(len(sources) == 1, f"Cargo.lock must pin exactly one {POBR_SOURCE} source, found {sorted(sources)}")
     url = urlsplit(sources.pop())
     tags = parse_qs(url.query).get("tag", [])
@@ -643,10 +694,7 @@ def pobr_contract(adapter, cargo_lock=CARGO_LOCK):
         len(tags) == 1 and re.fullmatch(r"[0-9a-f]{40}", url.fragment),
         f"PoBR crates must be pinned by tag and commit: {url.geturl()}",
     )
-    result = subprocess.run([str(adapter), "--contract-version"], capture_output=True, check=False)
-    output = result.stdout.decode().strip()
-    require(result.returncode == 0 and output.isdigit(), f"{adapter} --contract-version failed: {result.stderr!r}")
-    version, tag = int(output), tags[0]
+    version, tag = adapter_contract_version(adapter), tags[0]
     require(
         re.fullmatch(rf"contract/{version}\.\d+", tag),
         f"The adapter is built for contract version {version}, but Cargo.lock pins {tag}",

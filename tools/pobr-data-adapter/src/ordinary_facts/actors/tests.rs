@@ -1279,7 +1279,7 @@ fn eleven_previous_domains_keep_shapes_without_actor_sidecars() {
                 include_bytes!("../../../tests/fixtures/ordinary-facts/skill-tables.json")
                     .as_slice(),
             ),
-            8,
+            9,
         ),
         (Domain::StatSetCodec, None, 5),
         (Domain::GemEffects, None, 6),

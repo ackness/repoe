@@ -185,7 +185,7 @@ fn ailment_fixture() -> Fixture {
     write(&f, "snapshot/base/non_damaging_ailments.json", &old);
     let mut p = doc(&f, POLICY);
     p["source_files"].as_array_mut().unwrap().push(json!({"file":"non_damaging_ailments.json","relative_path":"base/non_damaging_ailments.json",
-        "schema":"pobr_data::catalog::non_damaging_ailments::NonDamagingAilmentsDef","sha256":"0".repeat(64)}));
+        "schema":"non_damaging_ailments/v1","sha256":"0".repeat(64)}));
     let actual: Value = serde_json::from_slice(include_bytes!(
         "../../../policies/runtime-constants/0.5.5.5-with-ailments-policy.json"
     ))
@@ -956,7 +956,7 @@ fn prior_domains_keep_files_and_receipts_without_runtime_constants_archives() {
                 include_bytes!("../../../tests/fixtures/ordinary-facts/skill-tables.json")
                     .as_slice(),
             ),
-            8,
+            9,
         ),
         (Domain::StatSetCodec, None, 5),
         (Domain::GemEffects, None, 6),

@@ -100,6 +100,10 @@ def stage(build_dir, out):
     require(receipt.get("schema") == build.RECEIPT, f"{build_dir}/receipt.json: unexpected schema")
     require(package["target"] == receipt["target"], "package.json and receipt.json name different targets")
     require("contract" in receipt["producer"], "receipt.json does not record the PoBR contract; rebuild it")
+    require(
+        receipt["producer"]["contract"].get("tag") is not None,
+        "the adapter was built against a local PoBR checkout; pin tools/pobr-data-adapter to a contract/<n>.<m> tag",
+    )
     zip_path = build_dir / package["package"]["path"]
     zip_pin = build.file_pin(zip_path)
     require(zip_pin == {k: package["package"][k] for k in ("bytes", "sha256")}, f"{zip_path} differs from package.json")

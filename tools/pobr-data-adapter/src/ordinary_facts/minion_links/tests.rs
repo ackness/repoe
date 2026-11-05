@@ -674,7 +674,7 @@ fn prior_domains_keep_files_and_receipts_without_minion_links_sidecars() {
                 include_bytes!("../../../tests/fixtures/ordinary-facts/skill-tables.json")
                     .as_slice(),
             ),
-            8,
+            9,
         ),
         (Domain::StatSetCodec, None, 5),
         (Domain::GemEffects, None, 6),

@@ -8,6 +8,10 @@ published packages through its `pipeline/data.lock.json`.
 
 It is a standalone Cargo workspace inside this Python repository. PoBR's data
 types come from the immutable contract tag `contract/1.0` of `ackness/pobr`
+(**temporarily**, on the game 0.5.5.5-2 branch, a `[patch]` to a local PoBR
+checkout carrying the unpublished contract 1.1 fields; `release:build` then
+records `tag: null` and the local crates in the receipt, and `release:publish`
+refuses the build until `Cargo.toml` names `tag = "contract/1.1"`)
 (`contract/<n>.<m>`, where n is `pobr_data::CONTRACT_VERSION`); `Cargo.lock`
 pins the resolved commit `95d71c6f`. Production code depends on `pobr-data`
 only. The engine crates `pobr-core`, `pobr-gamedata`, `pobr-item` and
@@ -21,8 +25,8 @@ locked PoBR crates resolve to more than one commit.
 
 Changing the pin does not change the published bytes by itself: `contract/1.0`
 (from `engine-crates/20261102`, `174ca6fb`) reproduced the published game part
-exactly. The sealed manifest does not record a contract version yet; adding
-one changes package bytes, so it waits for the next published release.
+exactly. From game 0.5.5.5-2 the snapshot manifest records the
+`contract_version` the adapter was compiled against (`--contract-version`).
 
 ## Configuration ownership
 
@@ -82,8 +86,9 @@ registry in `src/schema_id.rs` (`adapter.output_schema`, for example
 never as a `pobr_data` Rust type path. Where a member declares its own
 `_meta.schema`, the converter writes it from the same constant, so the two
 agree (spellings are kept as published, e.g. `monster-resistances/v1`).
-Policies pinned before the registry still spell selected-file schemas as type
-paths; the adapter accepts those as legacy aliases.
+Policies name selected input files by the same IDs (`game_constants/v1`,
+`passive_tree/v1`, …); the type-path spellings older policies used were
+rewritten for game 0.5.5.5-2 and are no longer accepted.
 
 The schema-4 (native runtime) modes `--native-facts` and `--native-runtime` were
 removed on 2026-11-04, after PoBR deleted its schema-4 loader; Git history keeps

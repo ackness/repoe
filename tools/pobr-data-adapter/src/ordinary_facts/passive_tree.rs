@@ -154,12 +154,6 @@ pub(super) fn convert(input: &VerifiedFacts, args: &super::CodecArgs) -> Result<
         {
             reasons.push("prepared display is not one nonempty trimmed line".into());
         }
-        if let [stat] = stats.as_slice()
-            && let Err(error) = policy.qualification.native_stats.admit(stat)
-        {
-            // Wording kept from the engine mapper so this path's receipt is unchanged.
-            reasons.push(format!("shared mapper rejected complete stat: {error}"));
-        }
         let packet = if reasons.is_empty() {
             native_count += 1;
             Some(NativePassiveStats {
