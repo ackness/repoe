@@ -38,17 +38,28 @@ def asset_name(name, patch):
     return f"repoe-input-{name}-{patch}.zip"
 
 
+def raise_error(error):
+    raise error
+
+
 def collect(directory):
-    """``{relative path: Path}`` of every regular file under ``directory``; symlinks and specials refuse."""
+    """``{relative path: Path}`` of every regular file under ``directory``.
+
+    Symlinks, special files, dot files and directories (e.g. a cache's
+    ``.complete`` marker) and an unreadable directory refuse rather than
+    silently changing the package.
+    """
     root = Path(directory).absolute()
     require(root.is_dir() and not root.is_symlink(), f"{directory}: not a directory")
     files = {}
-    for current, folders, names in os.walk(root, followlinks=False):
+    for current, folders, names in os.walk(root, onerror=raise_error, followlinks=False):
         base = Path(current)
         for folder in folders:
             require(not (base / folder).is_symlink(), f"Symlinked directory in an input: {base / folder}")
+            require(not folder.startswith("."), f"Dot directory in an input: {base / folder}")
         for item in names:
             path = base / item
+            require(not item.startswith("."), f"Dot file in an input: {path}")
             require(stat.S_ISREG(path.lstat().st_mode), f"Not a regular file: {path}")
             name = path.relative_to(root).as_posix()
             relative(name)
@@ -84,7 +95,9 @@ def stage(packages, target, out):
     """Package every ``{name: directory}`` into ``out/assets`` with ``SHA256SUMS``; no network or Git."""
     out = Path(out)
     for directory in packages.values():
-        require(not out.absolute().is_relative_to(Path(directory).absolute()), "The stage is inside an input")
+        source, target_dir = Path(directory).resolve(), out.resolve()
+        require(not target_dir.is_relative_to(source), f"The stage {out} is inside the input {directory}")
+        require(not source.is_relative_to(target_dir), f"The input {directory} is inside the stage {out}")
     if out.exists():
         require((out / publish.MARKER).is_file(), f"Refusing to replace a non-publish directory: {out}")
         shutil.rmtree(out)

@@ -45,8 +45,10 @@ class StageTest(unittest.TestCase):
     def tearDown(self):
         self.temporary.cleanup()
 
-    def write_build(self, receipt=None):
-        receipt_raw = encoded(receipt or self.receipt)
+    def write_build(self, receipt=None, described=None):
+        receipt = dict(receipt or self.receipt)
+        receipt.setdefault("package", described or build.file_pin(self.build_dir / "game-build-part.zip"))
+        receipt_raw = encoded(receipt)
         (self.build_dir / "receipt.json").write_bytes(receipt_raw)
         package = {
             "schema": build.PACKAGE,
@@ -98,6 +100,10 @@ class StageTest(unittest.TestCase):
         with zipfile.ZipFile(self.build_dir / "game-build-part.zip", "a") as archive:
             archive.writestr("extra.json", b"{}")
         with self.assertRaisesRegex(ValueError, "differs from package.json"):
+            publish.stage(self.build_dir, self.root / "stage")
+        # package.json repinned to the new zip, but the receipt still describes the old one (a stale --reuse).
+        self.write_build(described={"bytes": 1, "sha256": "0" * 64})
+        with self.assertRaisesRegex(ValueError, "receipt.json does not pin this zip"):
             publish.stage(self.build_dir, self.root / "stage")
 
     def test_staging_requires_the_contract_in_the_receipt(self):
@@ -380,7 +386,10 @@ class MainTest(GitRepoCase):
         code, output = run("9.9-2")
         self.assertEqual(code, 1)
         self.assertIn("9.9-2 declares game/9.9-2, but HEAD would be published as game/9.9-1", output)
-        self.assertIsNone(publish.sequence_problem(Path("9.9"), TARGET, 4))
+        # A bare release/<patch> is the patch's first package.
+        self.assertIsNone(publish.sequence_problem(Path("9.9"), TARGET, 1))
+        self.assertIn("declares game/9.9-1, but", publish.sequence_problem(Path("9.9"), TARGET, 4))
+        self.assertIsNone(publish.sequence_problem(Path("unused"), TARGET, 4))
         self.assertIsNone(publish.sequence_problem(Path("9.9-4"), TARGET, None))
 
     def test_refuses_an_adapter_built_against_a_local_pobr_checkout(self):

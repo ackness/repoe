@@ -49,7 +49,9 @@ SCHEMAS = {
     "domains.json": "repoe-release-domains/v1",
     "frozen-inputs.json": "repoe-release-frozen-inputs/v1",
 }
-RECEIPT = "repoe-release-receipt/v1"
+# v2: the receipt pins the zip and its root manifest (``package``); v1 receipts were
+# written before the zip and pinned by a fresh manifest instead.
+RECEIPT = "repoe-release-receipt/v2"
 PACKAGE = "repoe-release-package/v1"
 PART_SCHEMA = "pobr-build-data-part/v1"
 FACTS_IDENTITIES = ("rebound", "original")
@@ -140,6 +142,14 @@ def config_sequence(config, target):
     match = CONFIG_NAME.fullmatch(Path(config).name)
     if match and match["patch"] == target["game_patch"] and match["sequence"]:
         return int(match["sequence"])
+    return None
+
+
+def declared_sequence(config, target):
+    """The ``n`` a declaration must be published as: its ``-<n>``, 1 for a bare ``<patch>``, else None."""
+    match = CONFIG_NAME.fullmatch(Path(config).name)
+    if match and match["patch"] == target["game_patch"]:
+        return int(match["sequence"] or 1)
     return None
 
 

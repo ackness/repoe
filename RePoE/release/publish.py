@@ -104,6 +104,12 @@ def stage(build_dir, out):
     zip_path = build_dir / package["package"]["path"]
     zip_pin = build.file_pin(zip_path)
     require(zip_pin == {k: package["package"][k] for k in ("bytes", "sha256")}, f"{zip_path} differs from package.json")
+    # The receipt describes this zip (a stale --reuse output or a hand-copied zip does not match).
+    described = receipt.get("package")
+    require(
+        isinstance(described, dict) and {k: described.get(k) for k in ("bytes", "sha256")} == zip_pin,
+        "receipt.json does not pin this zip; rebuild it",
+    )
     with zipfile.ZipFile(zip_path) as archive:
         require(archive.testzip() is None, f"{zip_path}: corrupt member")
     patch = receipt["target"]["game_patch"]
@@ -372,8 +378,8 @@ def carry_out(parser, run, staged, tag, commit, steps, action, problems, warning
 
 
 def sequence_problem(config, target, sequence, prefix=TAG_PREFIX):
-    """A ``release/<patch>-<n>`` declaration is the package ``<prefix><patch>-<n>`` and no other."""
-    declared = build.config_sequence(config, target)
+    """``release/<patch>-<n>`` is the package ``<prefix><patch>-<n>`` and ``release/<patch>`` is ``-1``; no other."""
+    declared = build.declared_sequence(config, target)
     if declared is None or sequence is None or declared == sequence:
         return None
     patch = target["game_patch"]

@@ -27,14 +27,15 @@ the highest; `--config release/<dir>` picks another).
 Output, replaced on each run, is `.cache/release/<game>-<realm>-<dir>/`:
 `game-build-part.zip`, `receipt.json` (producer commit and code pins,
 contract, every input pin, per-job evidence, the class of every member and
-the zip's pin), `package.json`, `manifest.json`, `SHA256SUMS` and `work/`
-(adapter outputs and logs). Nothing is read from the game CDN, a vendor tree
-or a checkout's data directories.
+the pin of the zip and its root manifest; `repoe-release-receipt/v2`),
+`package.json`, `manifest.json`, `SHA256SUMS` and `work/` (adapter outputs
+and logs). Nothing is read from the game CDN, a vendor tree or a checkout's
+data directories.
 
 ### Declarations: one directory per package
 
-`release/<patch>/` declares the first package of a patch and
-`release/<patch>-<n>/` the package published as `game/<patch>-<n>`
+`release/<patch>/` declares the first package of a patch (`game/<patch>-1`)
+and `release/<patch>-<n>/` the package published as `game/<patch>-<n>`
 (`release:publish` refuses any other `<n>`); the default is the highest patch,
 then the highest `<n>`. Each directory holds three files:
 
@@ -86,10 +87,11 @@ Declarations today:
 
 `game/0.5.5.5-1` itself (32 generated, 4 pass-through, 26 frozen, zip
 `3edc9b1e…`) was declared by `release/0.5.5.5/` until the 0.5.5.5-2 batch
-changed the passive-tree policy and adapter in place; that declaration is in
-Git history at `66c8c96`, where it still reproduces the Release byte for byte
-(with `reference` read from the Release asset as well as from the handoff
-blob). Its receipt names the producer commit.
+changed the passive-tree policy and adapter in place. The declaration is in
+Git history at `407ed52`, the commit `game/0.5.5.5-1` tags and its receipt
+names as producer; it is unchanged up to `66c8c96`, where it still
+reproduces the Release byte for byte with `reference` read from the Release
+asset as well as from the handoff blob.
 
 The `snapshot-manifest` job re-pins the members over the reference's own
 snapshot. `add` declares a new member (path → domain section),

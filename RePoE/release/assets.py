@@ -72,7 +72,10 @@ def https(spec, max_bytes, timeout):
         if error.code == 429 or error.code >= 500:
             raise Transient(error) from error
         # 404 and other client errors are answers, not outages.
-        raise ValueError(f"Cannot download {label(spec)}: {error}") from error
+        hint = ""
+        if error.code == 404:
+            hint = f" (a draft Release or a private repository is not public: set {TRANSPORT}=gh to use gh's login)"
+        raise ValueError(f"Cannot download {label(spec)}: {error}{hint}") from error
     except (OSError, http.client.HTTPException) as error:
         raise Transient(error) from error
     require(len(raw) <= max_bytes, f"{label(spec)} is larger than its pin")
@@ -84,9 +87,14 @@ def https(spec, max_bytes, timeout):
 def gh(spec, max_bytes, timeout):
     command = ["gh", "release", "download", spec["tag"], "--repo", spec["repository"]]
     command += ["--pattern", spec["asset"], "--output", "-"]
-    result = subprocess.run(
-        command, capture_output=True, check=False, timeout=timeout, env={**os.environ, "GH_PROMPT_DISABLED": "1"}
-    )
+    try:
+        result = subprocess.run(
+            command, capture_output=True, check=False, timeout=timeout, env={**os.environ, "GH_PROMPT_DISABLED": "1"}
+        )
+    except subprocess.TimeoutExpired as error:
+        raise ValueError(f"gh release download {label(spec)} did not finish within {timeout} s") from error
+    except OSError as error:
+        raise ValueError(f"gh is not available for {TRANSPORT}=gh: {error}") from error
     require(result.returncode == 0, f"gh release download {label(spec)} failed: {result.stderr.decode().strip()}")
     require(len(result.stdout) <= max_bytes, f"{label(spec)} is larger than its pin")
     return result.stdout

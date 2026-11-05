@@ -274,6 +274,8 @@ class ReleaseBuildTest(unittest.TestCase):
 
     def test_reproduces_reference_package(self):
         out, receipt, outcome = self.run_build(self.fixture())
+        self.assertEqual(receipt["schema"], "repoe-release-receipt/v2")
+        self.assertEqual(receipt["package"]["sha256"], build.file_pin(out / "game-build-part.zip")["sha256"])
         self.assertEqual(receipt["summary"], {"generated-identical": 1, "passthrough-identical": 1, "frozen": 1})
         self.assertEqual(receipt["provenance"], {"generated": 1, "passthrough": 1, "frozen": 1})
         self.assertEqual(
@@ -749,7 +751,7 @@ class ReleaseBuildTest(unittest.TestCase):
         downloads = self.root / "cache/inputs/downloads"
         self.assertEqual(list(downloads.iterdir()) if downloads.exists() else [], [])
         with mock.patch.dict(os.environ, {"REPOE_RELEASE_BASE_URL": base + "/missing"}):
-            with self.assertRaisesRegex(ValueError, "Cannot download .*404"):
+            with self.assertRaisesRegex(ValueError, "Cannot download .*404.*REPOE_RELEASE_TRANSPORT=gh"):
                 self.run_build(config, fetch=True)
         lock = json.loads((config / "inputs.lock.json").read_text())
         lock["packages"]["previous"]["path"] = "handoff/prev/game.zip"
@@ -765,6 +767,12 @@ class ReleaseBuildTest(unittest.TestCase):
         self.assertEqual(run.call_args[0][0][:4], ["gh", "release", "download", "game/9.9-1"])
         with self.assertRaisesRegex(ValueError, "must be https or gh"):
             build.assets.download(spec, transport="ftp")
+        with mock.patch.object(subprocess, "run", side_effect=subprocess.TimeoutExpired(["gh"], 5)):
+            with self.assertRaisesRegex(ValueError, "did not finish within 5 s"):
+                build.assets.download(spec, transport="gh", timeout=5)
+        with mock.patch.object(subprocess, "run", side_effect=FileNotFoundError("gh")):
+            with self.assertRaisesRegex(ValueError, "gh is not available"):
+                build.assets.download(spec, transport="gh")
 
     def test_a_replay_without_facts_runs_only_package_derived_jobs(self):
         config = self.fixture()

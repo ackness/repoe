@@ -67,6 +67,27 @@ class PackageTest(unittest.TestCase):
         # open_package downloaded through assets.fetch; the cache holds the verified bytes.
         self.assertEqual((self.root / "cache/downloads" / entry["sha256"]).read_bytes(), raw)
 
+    def test_refuses_dot_files_unreadable_directories_and_overlapping_stages(self):
+        (self.source / ".complete").write_text("x")
+        with self.assertRaisesRegex(ValueError, "Dot file in an input"):
+            inputs.collect(self.source)
+        (self.source / ".complete").unlink()
+        (self.source / ".git").mkdir()
+        with self.assertRaisesRegex(ValueError, "Dot directory in an input"):
+            inputs.collect(self.source)
+        (self.source / ".git").rmdir()
+        with mock.patch.object(os, "scandir", side_effect=PermissionError("denied")):
+            with self.assertRaises(PermissionError):
+                inputs.collect(self.source)
+        with self.assertRaisesRegex(ValueError, "is inside the input"):
+            inputs.stage({"ordinary": self.source}, TARGET, self.source / "stage")
+        with self.assertRaisesRegex(ValueError, "is inside the stage"):
+            inputs.stage({"ordinary": self.root / "stage/source"}, TARGET, self.root / "stage")
+        # Through a symlink too (resolved paths).
+        (self.root / "alias").symlink_to(self.source)
+        with self.assertRaisesRegex(ValueError, "is inside the input"):
+            inputs.stage({"ordinary": self.root / "alias"}, TARGET, self.source / "stage")
+
     def test_refuses_symlinks_and_a_reserved_manifest(self):
         (self.source / "link.json").symlink_to(self.source / "facts/a.json")
         with self.assertRaisesRegex(ValueError, "Not a regular file"):
@@ -121,8 +142,12 @@ class MainTest(GitRepoCase):
         self.assertIn("inputs/9.9-2", runner.calls[-1])
         notes = (self.stage / "inputs-poe2-international-9.9/release-notes.md").read_text()
         self.assertIn('"tag": "inputs/9.9-2"', notes)
-        # The game tags are another sequence.
-        self.assertEqual(publish.plan(self.repo, "9.9", git(self.repo, "rev-parse", "HEAD").strip(), {})["sequence"], 1)
+        # The game tags are another sequence: the remote's inputs/9.9-* tags do not advance game/9.9-<n>.
+        tags = publish.list_remote_tags(self.repo, prefix="")
+        self.assertIn("inputs/9.9-1", tags)
+        self.assertIn("inputs/9.9-2", tags)
+        head = git(self.repo, "rev-parse", "HEAD").strip()
+        self.assertEqual(publish.plan(self.repo, "9.9", head, tags)["sequence"], 1)
 
     def test_yes_refuses_a_dirty_tree(self):
         (self.repo / "a.txt").write_text("changed")
