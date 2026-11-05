@@ -110,6 +110,32 @@ class GemDescriptionsTest(unittest.TestCase):
         self.assertTrue(first.endswith(b"}\n"))
         self.assertEqual(list(json.loads(first)["scopes"]), ["ActiveSkills.Description", "GemEffects.SupportText"])
 
+    def test_ids_are_emitted_in_sorted_order(self):
+        # Two entries per scope, fed in reverse lexical order.
+        gems = {"effects": [effect("ZetaSupport", "Supports z."), effect("AlphaSupport", "Supports a.")]}
+        skills = active_skills([{"Id": "zeta_skill", "Description": "Z."}, {"Id": "alpha_skill", "Description": "A."}])
+        gem_effects = {
+            "gems": [
+                {"gem_id": "G/Z", "granted_effect_id": "SupportZeta", "variant_id": "ZetaSupport"},
+                {"gem_id": "G/A", "granted_effect_id": "SupportAlpha", "variant_id": "AlphaSupport"},
+                {"gem_id": "G/ZS", "granted_effect_id": "ZetaPlayer", "variant_id": "ZetaSupport"},
+                {"gem_id": "G/AS", "granted_effect_id": "AlphaPlayer", "variant_id": "AlphaSupport"},
+            ]
+        }
+        granted = [
+            {"id": "SupportZeta", "is_support": True},
+            {"id": "SupportAlpha", "is_support": True},
+            {"id": "ZetaPlayer", "is_support": False, "active_skill": "zeta_skill"},
+            {"id": "AlphaPlayer", "is_support": False, "active_skill": "alpha_skill"},
+        ]
+        document = json.loads(
+            gd.runtime_encoded(
+                self.project(gems=gems, active_skills=skills, gem_effects=gem_effects, granted_effects=granted)[0]
+            )
+        )
+        self.assertEqual(list(document["scopes"]["GemEffects.SupportText"]), ["AlphaSupport", "ZetaSupport"])
+        self.assertEqual(list(document["scopes"]["ActiveSkills.Description"]), ["alpha_skill", "zeta_skill"])
+
     def test_unknown_markup_refuses(self):
         for text in (
             "An [unmatched tag",
