@@ -14,7 +14,7 @@ import time
 import unittest
 from unittest.mock import MagicMock, patch
 
-from RePoE import client_version as client
+from RePoE.client import version as client
 
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -303,7 +303,7 @@ class ObservationTests(unittest.TestCase):
         self.assertEqual(receipt["producer"]["code_sha256"], client._producer_pins())
         self.assertEqual(
             set(receipt["producer"]["code_sha256"]),
-            {"RePoE/__init__.py", "RePoE/client_version.py", "RePoE/source_io.py"},
+            {"RePoE/__init__.py", "RePoE/client/__init__.py", "RePoE/client/version.py", "RePoE/client/source_io.py"},
         )
         self.assertNotIn("language", receipt)
         self.assertNotIn("realm", receipt)
@@ -369,7 +369,7 @@ class ObservationTests(unittest.TestCase):
 class CLITests(unittest.TestCase):
     def cli(self, *args):
         return subprocess.run(
-            [sys.executable, "-B", "-S", "-m", "RePoE.client_version", *args],
+            [sys.executable, "-B", "-S", "-m", "RePoE.client.version", *args],
             cwd=ROOT,
             text=True,
             capture_output=True,

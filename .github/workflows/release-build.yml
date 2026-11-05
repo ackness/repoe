@@ -14,8 +14,9 @@ on:
       - RePoE/pobr_crafting_catalog.py
       - RePoE/pobr_historical_trees.py
       - RePoE/pins.py
-      - RePoE/source_io.py
-      - RePoE/source_rebinding.py
+      - RePoE/client/__init__.py
+      - RePoE/client/source_io.py
+      - RePoE/client/source_rebinding.py
       - release/**
       - tools/pobr-data-adapter/**
       - mise.toml

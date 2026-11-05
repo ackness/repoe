@@ -34,7 +34,8 @@ import tomllib
 from urllib.parse import parse_qs, urlsplit
 import zipfile
 
-from RePoE import pobr_crafting_catalog, pobr_historical_trees, source_rebinding
+from RePoE import pobr_crafting_catalog, pobr_historical_trees
+from RePoE.client import source_rebinding
 from RePoE.pins import archive_manifest, byte_pin, decode, encoded, pin, pinned, relative, require
 from RePoE.release import assets
 
@@ -77,8 +78,8 @@ KINDS = {"adapter", "special-derived", "historical-trees", "crafting-catalog", "
 CODE = (
     "RePoE/release/build.py",
     "RePoE/release/assets.py",
-    "RePoE/source_rebinding.py",
-    "RePoE/source_io.py",
+    "RePoE/client/source_rebinding.py",
+    "RePoE/client/source_io.py",
     "RePoE/pins.py",
     "RePoE/pobr_historical_trees.py",
     "RePoE/pobr_crafting_catalog.py",

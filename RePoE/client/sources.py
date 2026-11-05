@@ -592,10 +592,10 @@ def acquire(source_lock, source_key, cache_root, output, python, decoder_lock, m
     if output.exists():
         raise FileExistsError(f"Refusing to replace existing output: {output}")
     # Keep candidates away from active production data and all orchestration inputs.
-    published = Path(__file__).resolve().parent.parent / "data"
+    published = Path(__file__).resolve().parents[2] / "data"
     inputs = [
         published,
-        Path(__file__).resolve().parent / "data",
+        Path(__file__).resolve().parents[1] / "data",
         safe_path(cache_root),
         safe_path(source_lock),
         safe_path(decoder_lock),

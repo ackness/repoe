@@ -9,7 +9,7 @@ import re
 import struct
 import subprocess
 
-from . import client_source_draft as draft
+from . import source_draft as draft
 
 client = draft.client
 REQUEST = "pobr-client-index-request/v1"
@@ -217,7 +217,7 @@ def locations(bundle, paths):
 
 def tools():
     return {
-        path.name: client.sha256(client.read_file(path, 2 * client.MIB))
+        path.resolve().relative_to(draft.ROOT).as_posix(): client.sha256(client.read_file(path, 2 * client.MIB))
         for path in (Path(__file__), Path(client.__file__), Path(draft.__file__), Path(client.source_io.__file__))
     }
 
@@ -288,8 +288,8 @@ def _discover(
     if output.exists():
         raise FileExistsError("Refusing to replace existing discovery output")
     inputs = [
-        Path(__file__).resolve().parent.parent / "data",
-        Path(__file__).resolve().parent / "data",
+        draft.ROOT / "data",
+        draft.ROOT / "RePoE" / "data",
         cache_root,
         client.safe_path(request_path),
         client.safe_path(decoder_lock),

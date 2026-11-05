@@ -10,7 +10,7 @@ import tempfile
 import unittest
 from unittest.mock import Mock, patch
 
-from RePoE import client_sources as client
+from RePoE.client import sources as client
 
 # Original observed header/table fixture from the same fixed migration commit.
 # Inline so acquisition tests need no PoBR fixture directory or production data.
@@ -718,7 +718,7 @@ source = {git = "https://github.com/repoe-fork/pypoe.git#aaaaaaaaaaaaaaaaaaaaaaa
                     decoder.decompress(raw, size)
 
     def test_repoe_data_output_is_rejected_before_decoder(self):
-        published = Path(client.__file__).resolve().parent / "data"
+        published = Path(client.__file__).resolve().parents[1] / "data"
         with (
             patch.object(client, "ExternalDecoder", side_effect=AssertionError("decoder")),
             self.assertRaisesRegex(ValueError, "separate"),

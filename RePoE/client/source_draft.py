@@ -13,7 +13,9 @@ import struct
 import subprocess
 import sys
 
-from . import client_sources as client
+from . import sources as client
+
+ROOT = Path(__file__).resolve().parents[2]
 
 
 SELECTION_SCHEMA = "pobr-client-source-selection/v1"
@@ -137,7 +139,7 @@ def load_selection(path):
 
 def tool_identity():
     return {
-        path.name: client.sha256(client.read_file(path, 2 * client.MIB))
+        path.resolve().relative_to(ROOT).as_posix(): client.sha256(client.read_file(path, 2 * client.MIB))
         for path in (Path(__file__), Path(client.__file__), Path(client.source_io.__file__))
     }
 
@@ -147,8 +149,8 @@ def collect(selection_path, cache_root, output, python, decoder_lock, mode, budg
     if output.exists():
         raise FileExistsError(f"Refusing to replace existing output: {output}")
     inputs = [
-        Path(__file__).resolve().parent.parent / "data",
-        Path(__file__).resolve().parent / "data",
+        ROOT / "data",
+        ROOT / "RePoE" / "data",
         cache_root,
         client.safe_path(selection_path),
         client.safe_path(decoder_lock),

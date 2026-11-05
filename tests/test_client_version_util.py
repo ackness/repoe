@@ -7,7 +7,8 @@ from types import SimpleNamespace
 import unittest
 from unittest.mock import patch
 
-from RePoE import client_version, run_parser
+from RePoE import run_parser
+from RePoE.client import version as client_version
 from RePoE.parser import util
 
 

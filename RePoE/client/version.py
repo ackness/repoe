@@ -20,6 +20,9 @@ import time
 
 from . import source_io
 
+PACKAGE = Path(__file__).absolute().parent
+ROOT = PACKAGE.parents[1]
+SOURCE_IO = Path(source_io.__file__).absolute()
 
 HOST = "patch.pathofexile2.com"
 PORT = 13060
@@ -135,10 +138,10 @@ class Observation:
 
 
 def _producer_pins():
-    package = Path(__file__).absolute().parent
+    # Every file this standard-library module executes, keyed by repository path.
     return {
-        "RePoE/" + path.name: source_io.sha256(source_io.read_file(path, source_io.MIB))
-        for path in (package / "__init__.py", Path(__file__), Path(source_io.__file__))
+        path.relative_to(ROOT).as_posix(): source_io.sha256(source_io.read_file(path, source_io.MIB))
+        for path in (PACKAGE.parent / "__init__.py", PACKAGE / "__init__.py", Path(__file__).absolute(), SOURCE_IO)
     }
 
 
@@ -156,8 +159,7 @@ def observe(*, host=HOST, port=PORT, timeout=TIMEOUT, out=None) -> Observation:
     output = None
     if out is not None:
         output = source_io.safe_path(out)
-        package = Path(__file__).absolute().parent
-        protected = [package.parent / "data", package / "data", *(package.parent / p for p in pins)]
+        protected = [ROOT / "data", ROOT / "RePoE" / "data", *(ROOT / p for p in pins)]
         if any(output == p or output.is_relative_to(p) or p.is_relative_to(output) for p in protected):
             raise ValueError("Observation output must be separate from data and producer files")
         output.parent.mkdir(parents=True, exist_ok=True)
@@ -177,7 +179,7 @@ def observe(*, host=HOST, port=PORT, timeout=TIMEOUT, out=None) -> Observation:
         "response_cap_bytes": MAX_RESPONSE,
         **result,
         "response": {"path": "response.bin", "bytes": len(raw), "sha256": source_io.sha256(raw)},
-        "producer": {"module": "RePoE.client_version", "code_sha256": pins, "python": sys.version},
+        "producer": {"module": "RePoE.client.version", "code_sha256": pins, "python": sys.version},
         "scope": "Endpoint-advertised version at observation time only; received prefix, not a complete message. "
         "Does not authenticate client build, realm, language, all raw resources or semantics; "
         "does not accept a source, select a target or adopt active data.",

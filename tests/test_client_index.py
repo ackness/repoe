@@ -12,7 +12,7 @@ import tempfile
 import unittest
 from unittest.mock import patch
 
-from RePoE import client_index as index
+from RePoE.client import index
 
 SPEC = importlib.util.spec_from_file_location("draft_fixtures", Path(__file__).with_name("test_client_source_draft.py"))
 fixtures = importlib.util.module_from_spec(SPEC)
@@ -377,8 +377,8 @@ class IndexTests(unittest.TestCase):
             ):
                 index.inspect_index(**arguments)
         for data in [
-            Path(index.__file__).resolve().parent / "data",
-            Path(index.__file__).resolve().parent.parent / "data",
+            Path(index.__file__).resolve().parents[1] / "data",
+            Path(index.__file__).resolve().parents[2] / "data",
         ]:
             with (
                 self.assertRaisesRegex(ValueError, "separate"),
@@ -448,7 +448,7 @@ class IndexTests(unittest.TestCase):
         self.assertFalse((self.root / "cli-strict").exists())
 
     def test_source_io_is_fingerprinted_and_drift_prevents_both_output_modes(self):
-        self.assertIn("source_io.py", index.tools())
+        self.assertIn("RePoE/client/source_io.py", index.tools())
         read = client.read_file
         for diagnostic in (False, True):
             calls = 0

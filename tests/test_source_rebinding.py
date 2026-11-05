@@ -13,7 +13,7 @@ from unittest.mock import patch
 import warnings
 import zipfile
 
-from RePoE import source_rebinding as s
+from RePoE.client import source_rebinding as s
 
 
 class Fixture:
@@ -351,9 +351,9 @@ class RebindingTests(unittest.TestCase):
     def test_envelope_verification_import_does_not_load_acquisition_or_http(self):
         code = """
 import sys
-from RePoE.source_rebinding import absent, inventory, paths, pin, portable, verify
-assert 'RePoE.source_io' in sys.modules
-assert 'RePoE.client_sources' not in sys.modules
+from RePoE.client.source_rebinding import absent, inventory, paths, pin, portable, verify
+assert 'RePoE.client.source_io' in sys.modules
+assert 'RePoE.client.sources' not in sys.modules
 assert 'urllib.request' not in sys.modules
 """
         result = subprocess.run(

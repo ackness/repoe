@@ -9,7 +9,7 @@ import tempfile
 import unittest
 from unittest.mock import patch
 
-from RePoE import client_source_draft as draft
+from RePoE.client import source_draft as draft
 
 
 # Reuse the strict collector's synthetic framing/HTTP fixtures, not a second
@@ -396,7 +396,7 @@ class DraftTests(unittest.TestCase):
                 draft.collect(**args)
 
     def test_production_cache_and_input_output_overlap_refused(self):
-        published = Path(draft.__file__).resolve().parent.parent / "data"
+        published = Path(draft.__file__).resolve().parents[2] / "data"
         for output in [
             published / "draft-must-not-exist",
             self.cache / "raw",
@@ -493,7 +493,7 @@ class DraftTests(unittest.TestCase):
         self.assertEqual((self.out / "Metadata/Z.psg").read_bytes(), b"bcdefgh")
 
     def test_source_io_fingerprint_drift_cannot_complete(self):
-        self.assertIn("source_io.py", draft.tool_identity())
+        self.assertIn("RePoE/client/source_io.py", draft.tool_identity())
         read = client.read_file
         calls = 0
 
@@ -514,7 +514,7 @@ class DraftTests(unittest.TestCase):
         self.assertFalse((self.out / draft.RECEIPT).exists())
 
     def test_repoe_data_output_is_rejected_before_decoder(self):
-        published = Path(draft.__file__).resolve().parent / "data"
+        published = Path(draft.__file__).resolve().parents[1] / "data"
         with (
             patch.object(client, "ExternalDecoder", side_effect=AssertionError("decoder")),
             self.assertRaisesRegex(ValueError, "separate"),

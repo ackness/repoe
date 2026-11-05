@@ -7,7 +7,7 @@ import http.server
 import io
 import json
 import os
-from pathlib import Path
+from pathlib import Path, PurePosixPath
 import re
 import subprocess
 import sys
@@ -655,22 +655,30 @@ class ReleaseBuildTest(unittest.TestCase):
         while pending:
             module = pending.pop()
             for node in ast.walk(ast.parse((root / module).read_text())):
-                if isinstance(node, ast.ImportFrom) and node.level == 1:
-                    names = [f"RePoE/{node.module}.py"] if node.module else [f"RePoE/{a.name}.py" for a in node.names]
-                elif isinstance(node, ast.ImportFrom) and node.module == "RePoE":
-                    names = [f"RePoE/{alias.name}.py" for alias in node.names]
-                elif isinstance(node, ast.ImportFrom) and (node.module or "").startswith("RePoE."):
-                    names = [node.module.replace(".", "/") + ".py"]
+                if not isinstance(node, ast.ImportFrom):
+                    continue
+                if node.level:
+                    # ``from . import x`` / ``from .x import y`` inside the module's own package.
+                    package = PurePosixPath(module).parents[node.level - 1].as_posix().replace("/", ".")
+                    base = f"{package}.{node.module}" if node.module else package
+                elif (node.module or "").split(".")[0] == "RePoE":
+                    base = node.module
                 else:
                     continue
-                for name in names:
+                # ``from RePoE.a import b`` imports module ``RePoE/a/b.py`` or a name of ``RePoE/a.py``.
+                for name in [f"{base}.{a.name}".replace(".", "/") + ".py" for a in node.names] + [
+                    base.replace(".", "/") + ".py"
+                ]:
                     if name not in imported and (root / name).is_file():
                         imported.add(name)
                         pending.append(name)
-        self.assertLessEqual(imported, set(build.CODE))
+        # Equality, not a subset: a stale CODE path or a walker that misses an import fails here.
+        self.assertEqual(imported | {"RePoE/release/build.py"}, {name for name in build.CODE if name.endswith(".py")})
+        # Every package the build imports from runs its __init__.py, so the paths filter must cover those too.
+        packages = {str(PurePosixPath(name).parent / "__init__.py") for name in imported}
         workflow = (root / ".github/workflows/release-build.yml").read_text()
         patterns = re.findall(r"^ +- ([^\s:]+)$", workflow.split("pull_request:")[0], re.MULTILINE)
-        for name in build.CODE:
+        for name in sorted(set(build.CODE) | packages):
             covered = any(name == p or (p.endswith("/**") and name.startswith(p[:-2])) for p in patterns)
             self.assertTrue(covered, f"{name} is not in the release workflow's paths filter")
 
