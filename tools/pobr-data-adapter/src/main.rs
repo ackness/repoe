@@ -6,9 +6,9 @@
 //!
 //! Usage:
 //! ```text
-//! # Ordinary domains from pinned physical facts (see ordinary-facts.md)
+//! # Ordinary domains from pinned physical facts (see docs/ordinary-facts.md)
 //! mise run adapter -- --ordinary-facts <F> --facts-manifest-sha256 <HEX> --version <patch> --out <fresh-directory>
-//! # Passive tree domain candidate from the pinned official tree export (see ordinary-passive-tree.md)
+//! # Passive tree domain candidate from the pinned official tree export (see docs/ordinary-passive-tree.md)
 //! mise run adapter -- --tree <data.json> --out <dir> --patch <patch>
 //! # Keystone-derived special rules from a prepared passive_tree.json (mise run adapter:keystones)
 //! mise run adapter -- --emit-special-derived <passive_tree.json> --out <dir> --patch <patch>

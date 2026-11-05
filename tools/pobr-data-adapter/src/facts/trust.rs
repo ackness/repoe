@@ -310,8 +310,14 @@ fn verify_manifest(m: &Value) -> Result<(), String> {
     for key in ["source_lock_sha256", "selected_source_sha256"] {
         check_sha(string(&identity[key])?)?;
     }
-    // Fixed SHA-256 values of the producer's source files (RePoE e4140122), never
-    // derived from caller-supplied manifest producer claims.
+    // Fixed SHA-256 values of the producer's source files (RePoE e4140122, retained
+    // as ebcfa93b), never derived from caller-supplied manifest producer claims.
+    // This is the historical identity sealed into the pinned 0.5.5.5 facts
+    // envelope: its keys are the paths of that commit (the exporters now live in
+    // RePoE/native/) and must not follow a rename or edit of the current files.
+    // A new export names the current paths and hashes; accepting it means adding
+    // its identity next to this one, together with the `game_patch` above (see
+    // RELEASING.md, "A new game patch").
     let expected_producer = serde_json::json!({
         "RePoE/native_actor_facts.py": "a0845e3866c5dd0fb21a8edb42f68fc9eec3affef19b426631c0066bd5e51f58",
         "RePoE/native_dat.py": "824f561af6e4b83243b459d726d6bad6821663061ac840d39c2854145707ff86",

@@ -52,6 +52,8 @@ pub(crate) fn open(path: &Path, pin: &str, parent: &Value) -> Result<Input, Stri
             && manifest["production_ready"] == false,
         "invalid selected-table envelope",
     )?;
+    // The historical producer identities of the pinned selected-table packages
+    // (the second from RePoE 21ace02); never edited to follow current paths.
     let producer = trust::strict_json(include_bytes!(
         "../../../tests/fixtures/ordinary-facts/selected-tables-producer.json"
     ))?;
