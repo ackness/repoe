@@ -35,7 +35,7 @@ from urllib.parse import parse_qs, urlsplit
 import zipfile
 
 from RePoE.client import source_rebinding
-from RePoE.release import assets, crafting_catalog, historical_trees
+from RePoE.release import assets, crafting_catalog, gem_descriptions, historical_trees
 from RePoE.release.pins import archive_manifest, byte_pin, decode, encoded, pin, pinned, relative, require
 
 ROOT = Path(__file__).resolve().parents[2]
@@ -73,7 +73,9 @@ DIRECTORY_OPTIONS = {"--supplement", "--player-context"}
 BUSINESS = ("base/", "overlay/", "generated/")
 PROVENANCE = ("generated", "passthrough", "frozen")
 CLASSES = tuple(f"{p}-{c}" for p in PROVENANCE[:2] for c in ("identical", "different", "new")) + ("frozen", "missing")
-KINDS = {"adapter", "special-derived", "historical-trees", "crafting-catalog", "snapshot-manifest"}
+KINDS = {"adapter", "special-derived", "historical-trees", "crafting-catalog", "gem-descriptions", "snapshot-manifest"}
+# Job kinds that read the facts envelope (under the identity the job names in ``facts``).
+FACTS_KINDS = {"adapter", "gem-descriptions"}
 CODE = (
     "RePoE/release/build.py",
     "RePoE/release/assets.py",
@@ -82,6 +84,7 @@ CODE = (
     "RePoE/release/pins.py",
     "RePoE/release/historical_trees.py",
     "RePoE/release/crafting_catalog.py",
+    "RePoE/release/gem_descriptions.py",
     "tools/pobr-data-adapter/Cargo.lock",
 )
 # Paths whose untracked files can change the build (sources, declarations, policies, toolchain pins).
@@ -201,7 +204,8 @@ def load_config(config):
     else:
         # Without a facts envelope only the package-derived jobs can run (a replay of an old package).
         require(
-            all(job.get("kind") != "adapter" for job in domains["jobs"]), "Adapter jobs need a facts envelope (facts)"
+            all(job.get("kind") not in FACTS_KINDS for job in domains["jobs"]),
+            "Adapter jobs need a facts envelope (facts), and so do gem-descriptions jobs",
         )
     if "expect" in lock:
         require(set(lock["expect"]) == {"package"}, "expect: only a package pin is supported")
@@ -216,8 +220,9 @@ def load_config(config):
                 isinstance(job["passthrough"], str) and job["passthrough"].strip(),
                 f"{job['id']}: passthrough must state why the job carries input content over",
             )
+        if job["kind"] in FACTS_KINDS:
+            require(job.get("facts") in FACTS_IDENTITIES, f"{job['id']}: facts must be one of {FACTS_IDENTITIES}")
         if job["kind"] == "adapter":
-            require(job["facts"] in FACTS_IDENTITIES, f"{job['id']}: facts must be one of {FACTS_IDENTITIES}")
             require(set(job.get("options", {})) <= set(PAIRED), f"{job['id']}: unsupported adapter option")
         for member in job.get("outputs", {}).values():
             relative(member)
@@ -565,6 +570,28 @@ def run_crafting_catalog(ctx, job, out):
     return {name: out / name}, {"summary": decisions["summary"]}
 
 
+def run_gem_descriptions(ctx, job, out):
+    """English gem descriptions from the facts envelope, for the player gems of this package."""
+    facts_root, manifest_pin = ctx.facts["roots"][job["facts"]]
+    facts = {}
+    for name in ("gems.json", "tables/ActiveSkills.json"):
+        path = facts_root / name
+        ctx.inputs[f"facts:{job['facts']}:{name}"] = file_pin(path)
+        facts[name] = decode(path.read_bytes())
+    document, summary = gem_descriptions.project(
+        gems=facts["gems.json"],
+        active_skills=facts["tables/ActiveSkills.json"],
+        gem_effects=decode(ctx.resolve(job["gem_effects"], job).read_bytes()),
+        granted_effects=decode(ctx.resolve(job["granted_effects"], job).read_bytes()),
+        facts_manifest_sha256=manifest_pin["sha256"],
+        game_patch=ctx.target["game_patch"],
+    )
+    (name,) = job["outputs"]
+    require(name == "overlay/gem_descriptions.json", f"{job['id']}: output must be overlay/gem_descriptions.json")
+    write_new(out / name, gem_descriptions.runtime_encoded(document))
+    return {name: out / name}, {"summary": summary}
+
+
 def execute(command, logs):
     logs.mkdir(parents=True, exist_ok=True)
     with (logs / "stdout.txt").open("wb") as stdout, (logs / "stderr.txt").open("wb") as stderr:
@@ -580,6 +607,7 @@ RUNNERS = {
     "special-derived": run_special_derived,
     "historical-trees": run_historical_trees,
     "crafting-catalog": run_crafting_catalog,
+    "gem-descriptions": run_gem_descriptions,
 }
 
 
