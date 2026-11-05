@@ -29,6 +29,7 @@ mod facts;
 mod monsters;
 mod ordinary_facts;
 mod raw_source;
+mod schema_id;
 mod skills;
 
 fn main() -> ExitCode {

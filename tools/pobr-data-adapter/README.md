@@ -76,6 +76,12 @@ pinned RePoE facts envelope (`repoe-native-facts/v4`) and its source lock, the
 selected-table and supplement readers, the player context archive verifier and
 the guarded output directory.
 
+Each domain candidate's receipt names its output by a stable schema ID
+(`adapter.output_schema`, for example `pobr-runes/v1` or
+`pobr-passive-tree/v1`; see `src/schema_id.rs`), not by a `pobr_data` Rust
+type path. Policies pinned before the IDs existed still spell selected-file
+schemas as type paths; the adapter accepts those as legacy aliases.
+
 The schema-4 (native runtime) modes `--native-facts` and `--native-runtime` were
 removed on 2026-11-04, after PoBR deleted its schema-4 loader; Git history keeps
 them.

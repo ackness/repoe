@@ -27,6 +27,7 @@ mod uniques;
 #[cfg(all(test, any(target_os = "linux", target_os = "macos")))]
 mod tests;
 
+use crate::schema_id;
 use std::collections::BTreeMap;
 use std::path::PathBuf;
 
@@ -495,7 +496,7 @@ pub(crate) fn run(args: Args) -> Result<String, String> {
             (
                 BTreeMap::from([("unarmed_data.json".into(), converted.bytes)]),
                 converted.receipt,
-                "pobr_data::catalog::UnarmedWeaponDef",
+                "pobr-unarmed-data/v1",
                 vec![
                     "All target Characters supply their own identity/name and unarmed damage/time. The existing verified player archive supplies the explicitly bound common Character.ot unarmed crit stat; no AO inheritance edge or general actor merge is inferred.",
                     "Existing unarmed DTO/core remain unchanged. Weapon type vocabulary and the exact historical-only entry are explicit compatibility; source draft, complete-runtime guard and CURRENT remain unchanged.",
@@ -514,7 +515,7 @@ pub(crate) fn run(args: Args) -> Result<String, String> {
             (
                 BTreeMap::new(),
                 converted.receipt,
-                "pobr_data::catalog::passive_jewel_slots::PassiveJewelSlotsDef",
+                "pobr-passive-jewel-slots/v1",
                 vec![
                     "Every target PassiveJewelSlots physical row resolves its exact PassiveSkills identity, raw graph ID and sinister flag through the existing ordinary import DTO. No active-tree filter or graph-ID substitute.",
                     "Physical slot ordinals retain the existing share-code interpretation. Cluster/proxy/replacement cases require a separate consumer decision; source draft, complete-runtime guard and CURRENT remain unchanged.",
@@ -537,7 +538,7 @@ pub(crate) fn run(args: Args) -> Result<String, String> {
             (
                 BTreeMap::new(),
                 converted.receipt,
-                "pobr_data::catalog::item_granted_skills::ItemGrantedSkillsDef",
+                "pobr-item-granted-skills/v1",
                 vec![
                     "Target raw IsWeapon membership and target base names regenerate reservation_free_bases under an explicit fixed community NoReservation interpretation. Neither raw schema nor field names are changed.",
                     if supplement.is_some() {
@@ -585,7 +586,7 @@ pub(crate) fn run(args: Args) -> Result<String, String> {
             (
                 BTreeMap::new(),
                 converted.receipt,
-                "pobr_data::catalog::boss_poise_thresholds::BossPoiseThresholdsDef",
+                "pobr-boss-poise-thresholds/v1",
                 vec![
                     "Target MonsterVarieties supplies the numeric values; the explicit policy retains the generic MAP-mode/Xesht/Uber-alias preset selection. It is not a universal boss law.",
                     "Existing version-overlay priority, DTO and ordinary consumer remain unchanged. Source acquisition is draft; CURRENT is unchanged.",
@@ -606,7 +607,7 @@ pub(crate) fn run(args: Args) -> Result<String, String> {
             (
                 BTreeMap::new(),
                 converted.receipt,
-                "pobr_data::catalog::item_overlay::CatalystsDef",
+                "pobr-catalysts/v1",
                 vec![
                     "Target catalyst names, descriptors and tags feed the existing ordinary catalog. Historical XML IDs remain explicit codec policy.",
                     "All source currency variants remain in the receipt. No new quality multiplier or application law is inferred; source draft and CURRENT unchanged.",
@@ -632,7 +633,7 @@ pub(crate) fn run(args: Args) -> Result<String, String> {
             (
                 BTreeMap::new(),
                 converted.receipt,
-                "pobr_data::catalog::stat_descriptions::StatDescriptionsDef",
+                "pobr-stat-descriptions/v1",
                 vec![
                     "Pinned RePoE global unscaled singleton descriptions feed the existing representative-value catalog. Other fields remain explicit compatibility; no math, generated rules or CURRENT change.",
                 ],
@@ -657,7 +658,7 @@ pub(crate) fn run(args: Args) -> Result<String, String> {
             (
                 BTreeMap::new(),
                 converted.receipt,
-                "pobr_data::catalog::item_overlay::RunesDef",
+                "pobr-runes/v1",
                 vec![
                     "Target socketable facts and complete global-CSD packets feed the existing ordinary item editor.",
                     "Unrenderable complete socketables require explicit unchanged target-packet bindings to pinned historical text. No partial effect or missing value becomes zero.",
@@ -687,7 +688,7 @@ pub(crate) fn run(args: Args) -> Result<String, String> {
                         "spawn_weights":"SpawnWeight_Tags -> Tags.Id paired with SpawnWeight_Values, preserving order and zero"
                     }
                 }),
-                "pobr_data::catalog::{StatDef,ModDef,ModStat,SpawnWeight}",
+                "pobr-stats-mods/v1",
                 vec![
                     "Only Stats/Mods and their ModType/ModFamily/Tags dependencies were read; unselected payloads and other foreign keys are not certified.",
                     "Physical rows identify source records inside the pinned payload, never stable business IDs. Source values remain in the immutable F package; no input was edited.",
@@ -738,7 +739,7 @@ pub(crate) fn run(args: Args) -> Result<String, String> {
             (
                 BTreeMap::from([("base_items.json".into(), pretty_bytes(&converted.bases)?)]),
                 converted.receipt,
-                "pobr_data::catalog::{BaseItemDef,WeaponBaseStats,ArmourBaseStats,UtilityBaseStats}",
+                "pobr-base-items/v1",
                 vec![
                     "Base-item DTO fields use the selected eleven physical tables; optional inheritance supplies Base.tag through a separately pinned community interpretation. Other fields are not certified.",
                     "Physical row references are distinct from stable IDs. Unmapped fields remain in the pinned source; the receipt lists their payload/column/row scope.",
@@ -757,7 +758,7 @@ pub(crate) fn run(args: Args) -> Result<String, String> {
             (
                 converted.base,
                 converted.receipt,
-                "pobr_data::catalog::{SkillGemDef,GrantedEffectDef,SkillLevelDef,SkillStatSetDef,CostTypeDef}",
+                "pobr-skills/v1",
                 vec![
                     "Only the selected fifteen skill tables were read; physical facts feed the original ordinary converters after strict validation.",
                     "All skill families are considered; no restricted skill profile or stat whitelist is used. Compatibility gaps and original conversion exclusions remain explicit in the receipt.",
@@ -776,7 +777,7 @@ pub(crate) fn run(args: Args) -> Result<String, String> {
             (
                 BTreeMap::new(),
                 converted.receipt,
-                "pobr_data::catalog::{GemQualityStatsDef,GemQualityStatDef,QualityStat}",
+                "pobr-gem-quality-stats/v1",
                 vec![
                     "Only GrantedEffects, Stats and GrantedEffectQualityStats were read; target F supplies all numeric values and stable IDs.",
                     "The explicitly pinned policy records target applicability of the existing effect-wide model, with prior source/patch/vendor evidence kept separate. It does not supply numeric values.",
@@ -800,7 +801,7 @@ pub(crate) fn run(args: Args) -> Result<String, String> {
             (
                 BTreeMap::new(),
                 converted.receipt,
-                "pobr_data::catalog::{StatSetLabelsDef,StatSetLabelDef}",
+                "pobr-stat-set-labels/v1",
                 vec![
                     "The explicitly pinned legacy codec is copied verbatim, including its original metadata, record order, labels and export indices; it is not relabelled as target acquisition.",
                     "Only target GrantedEffects and GrantedEffectStatSets are read. Raw stable-ID ownership is verified with explicit exact-key exceptions; no index inference, ordered-reference deduplication or branch remapping occurs.",
@@ -825,7 +826,7 @@ pub(crate) fn run(args: Args) -> Result<String, String> {
             (
                 BTreeMap::new(),
                 converted.receipt,
-                "pobr_data::catalog::{GemEffectsDef,GemEffectDef}",
+                "pobr-gem-effects/v1",
                 vec![
                     "All normal gem relationships derive from the five selected target F tables; only the original placeholder predicate excludes rows.",
                     "The explicitly pinned legacy codec supplies display order and primary-owner precedence only. Every legacy relationship tuple must match target facts; no exceptions or remapping.",
@@ -841,7 +842,7 @@ pub(crate) fn run(args: Args) -> Result<String, String> {
             (
                 converted.base,
                 converted.receipt,
-                "pobr_data::catalog::{MonsterResistancesDef,MonsterResistanceDef}",
+                "pobr-monster-resistances/v1",
                 vec![
                     "Only MonsterVarieties, MonsterTypes and MonsterResistances were read. All target normal-rarity base resistances derive from F through the original ordinary join.",
                     "Every ordered resistance occurrence contributes, including duplicates, negative values and zeros. An explicit empty reference list means known base zeros; missing or invalid facts fail.",
@@ -857,7 +858,7 @@ pub(crate) fn run(args: Args) -> Result<String, String> {
             (
                 BTreeMap::new(),
                 converted.receipt,
-                "pobr_data::catalog::totem_varieties::{TotemVarietiesDef,TotemVarietyDef}",
+                "pobr-totem-varieties/v1",
                 vec![
                     "Only the selected six target F tables were read. All matched granted effects use the original totem DTO and unchanged raw percentage units.",
                     "ActiveSkill is a physical FK. SkillTotemId and SkillTotemsKey match by opaque value in their declared SkillTotems namespace; no external namespace content or reverse string link is inferred.",
@@ -873,7 +874,7 @@ pub(crate) fn run(args: Args) -> Result<String, String> {
             (
                 converted.base,
                 converted.receipt,
-                "pobr_data::catalog::monster_scaling::MonsterScalingTable",
+                "pobr-monster-scaling/v1",
                 vec![
                     "Only target F DefaultMonsterStats was read. All nine arrays are constructed from its complete unique DisplayLevel set; physical rows are provenance, not level indices.",
                     "Seven exact i32 source fields are checked into u32. Damage/MinionDamage retain signed finite f32-range input through the existing nearest-0.01, ties-away-from-zero convention; raw and normalized values are recorded.",
@@ -902,7 +903,7 @@ pub(crate) fn run(args: Args) -> Result<String, String> {
             (
                 BTreeMap::new(),
                 converted.receipt,
-                "pobr_data::catalog::{stat_map::SkillStatMapDef,StatSetLabelsDef}",
+                "pobr-skill-stat-map/v1",
                 vec![
                     "The exact fixed community map and branch codec bytes remain legacy interpretation inputs with original metadata; no target numerical or gameplay-law acquisition is claimed.",
                     "Only target Stats/GrantedEffects/GrantedEffectStatSets are read. Every map occurrence records present/absent stat identity; each scope binds through the actual pinned export-index codec to raw stable-set ownership or an exact unbound policy exception.",
@@ -932,7 +933,7 @@ pub(crate) fn run(args: Args) -> Result<String, String> {
             (
                 BTreeMap::new(),
                 converted.receipt,
-                "pobr_data::catalog::skill_overrides::{SkillOverridesDef,SkillOverrideEntry}",
+                "pobr-skill-overrides/v1",
                 vec![
                     "Only the selected five target F tables were read. Raw-owned base multipliers use all actual positive primary stat-set levels and the existing 1 + raw/10000 expression, never old numeric values or defaults.",
                     "Legacy constants retain constant semantics only while target source is constant; target changes and new levels are emitted. GPL records pairing evidence without filtering or creating source/runtime levels.",
@@ -966,7 +967,11 @@ pub(crate) fn run(args: Args) -> Result<String, String> {
             (
                 BTreeMap::new(),
                 converted.receipt,
-                "pobr_data::catalog::actors::{MinionsDef,MinionEntryDef}",
+                if catalog == actors::Catalog::Minions {
+                    "pobr-minions/v1"
+                } else {
+                    "pobr-spectres/v1"
+                },
                 vec![
                     "Target actor tables, optional ItemClasses and a pinned MonsterCategories supplement are read only as declared. Declared actor fields use target facts through explicit v1/v2/v3 ownership and vocabulary policies, without legacy numeric/default fallback.",
                     "Curated catalog membership/aliases and every non-owned field remain fixed community interpretation with original metadata. Ordered tags, skill occurrences and resistance refs are preserved; no automatic creature admission, AI or new law is inferred.",
@@ -992,7 +997,7 @@ pub(crate) fn run(args: Args) -> Result<String, String> {
             (
                 BTreeMap::new(),
                 converted.receipt,
-                "pobr_data::catalog::actors::{GrantedEffectMinionsDef,GrantedEffectMinionDef}",
+                "pobr-granted-effect-minions/v1",
                 vec![
                     "Only target GrantedEffects/MonsterVarieties and the lock are read. IgnoreMinionTypes is regenerated per curated effect: true emitted, false omitted; no legacy fallback or equality gate.",
                     "Entry membership/order, all other raw fields and ordered alias relationships are fixed community compatibility. Policy aliases bind exact target variety identities; their authoring catalog is declared, not provided or hash-verified by this producer.",
@@ -1018,7 +1023,7 @@ pub(crate) fn run(args: Args) -> Result<String, String> {
             (
                 converted.base,
                 converted.receipt,
-                "pobr_data::catalog::{PassiveNodeDef[],PassiveTreeMeta}",
+                schema_id::PASSIVE_TREE.id,
                 if args.tree_refresh.is_some() {
                     vec![
                         "Target Default graph owns membership/ordered emitted edges/group-orbit-slot and definitions own names/categories; source-bound non-allocatable records remain explicit exclusions.",
@@ -1055,7 +1060,7 @@ pub(crate) fn run(args: Args) -> Result<String, String> {
             (
                 converted.base,
                 converted.receipt,
-                "pobr_data::catalog::{GameConstantsDef,CharacterConstantsDef,JewelRadiiDef}; optional non_damaging_ailments::NonDamagingAilmentsDef",
+                "pobr-runtime-constants/v1",
                 vec![
                     if args.player_context.is_some() {
                         "Target GameConstants plus the explicitly verified player archive/Characters supply policy-bound ordinary scalar leaves. Exact common OT assignments and all-class consensus are recorded; no AO inheritance or general actor merge is inferred."
