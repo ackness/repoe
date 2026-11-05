@@ -687,8 +687,8 @@ class ReleaseBuildTest(unittest.TestCase):
         contract = receipt["producer"]["contract"]
         self.assertEqual(contract["version"], 1)
         if contract["tag"] is None:
-            # TODO(contract/1.1): the adapter is patched to a local PoBR
-            # checkout until the tag exists; release:publish refuses this.
+            # A [patch] to a local PoBR checkout: the receipt names the local
+            # crates instead of a tag, and release:publish refuses it.
             self.assertEqual(contract["local"], sorted(build.POBR_CRATES))
         else:
             self.assertRegex(contract["tag"], r"^contract/1\.\d+$")
