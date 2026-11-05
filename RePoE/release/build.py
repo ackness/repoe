@@ -589,6 +589,10 @@ def snapshot_manifest(ctx, job, members):
     ``omit`` drops the entries (path prefixes) and top-level fields another
     owner declares itself: the language owner's ``i18n/`` files and
     ``languages``, which PoBR composes from the language package.
+
+    The job is idempotent over its template: ``omit`` skips fields and
+    entries the template does not hold, and ``add`` leaves an entry the
+    template already declares in that section as it is.
     """
     template = decode(ctx.resolve(job["template"], job).read_bytes())
     prefix = f"data/{ctx.target['game_patch']}/"
@@ -596,10 +600,12 @@ def snapshot_manifest(ctx, job, members):
     own = {m[len(prefix) :] for m in members if m.startswith(prefix)}
     omit = job.get("omit", {})
     require(set(omit) <= {"entries", "fields"}, f"{job['id']}: unknown omit keys {sorted(set(omit))}")
-    omitted_entries, omitted_fields = tuple(omit.get("entries", ())), omit.get("fields", [])
-    for field in omitted_fields:
-        require(field in template and field not in ("files", "poe_version"), f"{job['id']}: cannot omit {field}")
-        del template[field]
+    omitted_entries, omitted_fields = tuple(omit.get("entries", ())), []
+    for field in omit.get("fields", []):
+        require(field not in ("files", "poe_version", "domains", "schema_version"), f"{job['id']}: cannot omit {field}")
+        if field in template:
+            del template[field]
+            omitted_fields.append(field)
     files, retained, dropped = {}, {}, 0
     for name, digest in template["files"].items():
         if name in own:
@@ -612,15 +618,20 @@ def snapshot_manifest(ctx, job, members):
                 name.startswith(tuple(job.get("external", ()))), f"{job['id']}: snapshot entry without a member: {name}"
             )
             files[name] = retained[name] = digest
-    added = job.get("add", {})
-    for name, section in added.items():
-        require(name in own and name not in template["files"], f"{job['id']}: added entry is not a new member: {name}")
+    added = {}
+    for name, section in job.get("add", {}).items():
+        require(name in own, f"{job['id']}: added entry is not a member: {name}")
         require(name.startswith(section + "/") and name.endswith(".json"), f"{job['id']}: {name} is not in {section}/")
-        files[name] = sha256(members[prefix + name][0])
         domain = Path(name).stem
-        names = template["domains"][section]
+        names = template["domains"].get(section, [])
+        if name in template["files"]:
+            # Already declared by the template: re-pinned above, nothing to add.
+            require(domain in names, f"{job['id']}: {name} is in the template but {section} lacks {domain}")
+            continue
         require(domain not in names, f"{job['id']}: domain {domain} already declared")
+        files[name] = sha256(members[prefix + name][0])
         template["domains"][section] = sorted([*names, domain])
+        added[name] = section
     missing = own - set(files)
     require(not missing, f"{job['id']}: members missing from the snapshot template: {sorted(missing)}")
     # An added entry goes in path order; otherwise the template order stands.
@@ -688,6 +699,8 @@ def pobr_contract(adapter, cargo_lock=CARGO_LOCK):
         version = adapter_contract_version(adapter)
         return {"repository": "ackness/pobr", "version": version, "tag": None, "commit": None, "local": local}
     require(len(sources) == 1, f"Cargo.lock must pin exactly one {POBR_SOURCE} source, found {sorted(sources)}")
+    # A tag describes the build only when every PoBR crate comes from it.
+    require(not local, f"Cargo.lock mixes a local PoBR [patch] ({', '.join(local)}) with {POBR_SOURCE}")
     url = urlsplit(sources.pop())
     tags = parse_qs(url.query).get("tag", [])
     require(

@@ -129,6 +129,7 @@ class ReleaseBuildTest(unittest.TestCase):
         generated_frozen=False,
         passthrough=None,
         snapshot_passthrough=True,
+        snapshot_fields=None,
     ):
         """Commit an input and a reference package; write a release declaration."""
         inputs = {"codec/a.json": self.codec}
@@ -144,6 +145,7 @@ class ReleaseBuildTest(unittest.TestCase):
                 "overlay/frozen.json": hashlib.sha256(self.frozen).hexdigest(),
                 "i18n/zh-CN/x.json": "c" * 64,
             },
+            **(snapshot_fields or {}),
         }
         members["data/9.9/manifest.json"] = runtime(snapshot)
         manifest = {
@@ -360,23 +362,25 @@ class ReleaseBuildTest(unittest.TestCase):
         self.assertNotIn("contract_version", json.dumps(carried))
 
     def test_snapshot_omits_the_language_owners_entries_and_fields(self):
-        config = self.fixture()
+        config = self.fixture(snapshot_fields={"languages": ["zh-CN"]})
         domains = json.loads((config / "domains.json").read_text())
         snapshot = domains["jobs"][1]
         del snapshot["external"]
-        snapshot["omit"] = {"entries": ["i18n/"], "fields": ["domains"]}
+        snapshot["omit"] = {"entries": ["i18n/"], "fields": ["languages"]}
         (config / "domains.json").write_text(json.dumps(domains))
         out, receipt, _ = self.run_build(config)
         with zipfile.ZipFile(out / "game-build-part.zip") as archive:
             manifest = json.loads(archive.read("data/9.9/manifest.json"))
         self.assertEqual(list(manifest["files"]), ["overlay/a.json", "overlay/frozen.json"])
-        self.assertNotIn("domains", manifest)
+        self.assertNotIn("languages", manifest)
         carried = receipt["jobs"]["snapshot"]["passthrough"]["data/9.9/manifest.json"]
-        self.assertEqual((carried["omitted_pins"], carried["omitted_fields"]), (1, ["domains"]))
+        self.assertEqual((carried["omitted_pins"], carried["omitted_fields"]), (1, ["languages"]))
         self.assertEqual(carried["retained_pins"], 0)
         for omit, message in (
             ({"entries": ["overlay/"]}, "a member of this package is omitted: overlay/a.json"),
             ({"fields": ["files"]}, "cannot omit files"),
+            ({"fields": ["domains"]}, "cannot omit domains"),
+            ({"fields": ["schema_version"]}, "cannot omit schema_version"),
             ({"prefixes": []}, "unknown omit keys"),
         ):
             with self.subTest(omit=omit):
@@ -385,12 +389,45 @@ class ReleaseBuildTest(unittest.TestCase):
                 with self.assertRaisesRegex(ValueError, message):
                     self.run_build(config)
 
-    def test_snapshot_add_rejects_an_existing_member(self):
+    def test_snapshot_omit_skips_what_the_template_lacks(self):
+        # A template that already leaves the language owner's part out.
         config = self.fixture()
+        domains = json.loads((config / "domains.json").read_text())
+        snapshot = domains["jobs"][1]
+        snapshot["omit"] = {"entries": ["i18n/", "absent/"], "fields": ["languages"]}
+        (config / "domains.json").write_text(json.dumps(domains))
+        out, receipt, _ = self.run_build(config)
+        with zipfile.ZipFile(out / "game-build-part.zip") as archive:
+            manifest = json.loads(archive.read("data/9.9/manifest.json"))
+        self.assertEqual(list(manifest["files"]), ["overlay/a.json", "overlay/frozen.json"])
+        carried = receipt["jobs"]["snapshot"]["passthrough"]["data/9.9/manifest.json"]
+        self.assertEqual((carried["omitted_pins"], carried["omitted_fields"]), (1, []))
+
+    def test_snapshot_add_of_a_declared_entry_is_a_no_op(self):
+        config = self.fixture()
+        plain, _, _ = self.run_build(config)
         domains = json.loads((config / "domains.json").read_text())
         domains["jobs"][1]["add"] = {"overlay/a.json": "overlay"}
         (config / "domains.json").write_text(json.dumps(domains))
-        with self.assertRaisesRegex(ValueError, "added entry is not a new member: overlay/a.json"):
+        out, _, _ = self.run_build(config)
+        with (
+            zipfile.ZipFile(plain / "game-build-part.zip") as before,
+            zipfile.ZipFile(out / "game-build-part.zip") as after,
+        ):
+            self.assertEqual(before.read("data/9.9/manifest.json"), after.read("data/9.9/manifest.json"))
+
+    def test_snapshot_add_rejects_a_non_member_or_an_undeclared_domain(self):
+        config = self.fixture()
+        domains = json.loads((config / "domains.json").read_text())
+        domains["jobs"][1]["add"] = {"overlay/b.json": "overlay"}
+        (config / "domains.json").write_text(json.dumps(domains))
+        with self.assertRaisesRegex(ValueError, "added entry is not a member: overlay/b.json"):
+            self.run_build(config)
+        config = self.fixture(snapshot_fields={"domains": {"overlay": ["frozen"]}})
+        domains = json.loads((config / "domains.json").read_text())
+        domains["jobs"][1]["add"] = {"overlay/a.json": "overlay"}
+        (config / "domains.json").write_text(json.dumps(domains))
+        with self.assertRaisesRegex(ValueError, "overlay/a.json is in the template but overlay lacks a"):
             self.run_build(config)
 
     def test_frozen_pin_drift_rejects(self):
@@ -569,6 +606,10 @@ class ReleaseBuildTest(unittest.TestCase):
         dotgit = "git+https://github.com/ackness/pobr.git?tag=contract%2F1.3#" + "e" * 40
         lock.write_text(f'[[package]]\nname = "pobr-data"\nsource = "{dotgit}"\n')
         self.assertEqual(build.pobr_contract(self.adapter, lock)["tag"], "contract/1.3")
+        # A tag must describe every PoBR crate: one patched to a local checkout refuses it.
+        lock.write_text(lock.read_text() + '[[package]]\nname = "pobr-core"\nversion = "0.0.1"\n')
+        with self.assertRaisesRegex(ValueError, r"mixes a local PoBR \[patch\] \(pobr-core\)"):
+            build.pobr_contract(self.adapter, lock)
         lock.write_text(f'[[package]]\nname = "pobr-data"\nsource = "{dotgit[:-1]}X"\n')
         with self.assertRaisesRegex(ValueError, "pinned by tag and commit"):
             build.pobr_contract(self.adapter, lock)
