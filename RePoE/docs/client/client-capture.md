@@ -10,6 +10,10 @@ the owner copies the needed files from a local install on Windows, and
 receipt and a schema-1 source lock. The existing `descriptions:candidate` and
 `tables:candidate` then read those resources, and `release:inputs` publishes
 only their derived text ([RELEASING.md](../../../RELEASING.md#china-client-capture-input)).
+For `china_text`, `release:inputs` enforces that procedure's exact file
+allowlist, candidate formats and manifest pins before staging. Extra or
+missing members name the offending file; capture directories and raw members
+are rejected.
 
 This command decodes no DAT or CSD and adds nothing to `sources/`. It locates
 paths with `inspect_locations` from [index discovery](client-index.md) and reads
@@ -82,8 +86,11 @@ Checks, all before any output is written:
 - An existing `--out` is refused, never reused or replaced.
 
 Files are hashed once in a stream and again when loaded for decoding, so a file
-changed in between is refused. The inputs are checked once more before the
-completion files are written.
+changed in between is refused. Each selected bundle and its cached bytes are
+released after its resources are extracted. Immediately before writing the
+completion lock, the complete capture inventory is checked again: paths,
+sizes, SHA-256, plain files and directories, with no extra or missing entries
+or symlinks. This includes bundles that the request never reads.
 
 ## Output
 
@@ -101,11 +108,16 @@ The receipt holds what reproduction needs and nothing about the owner's machine:
   timestamps are omitted (`omitted_fields`); the `capture.json` SHA-256 still
   pins the original.
 - `observed_client`: the index identity and the executable name, size, SHA-256
-  and version, as the script observed them (0.5.5.172 for the first capture).
+  and portable versions, as the script observed them (0.5.5.172 for the first
+  capture). Each version must have 2–6 numeric components (1–6 digits each),
+  optionally followed by `-alpha`, `-beta` or `-rc` and up to three digits.
+  Other values, including paths, usernames and absent versions, are omitted;
+  the original capture's SHA-256 still pins that metadata.
 - `game_patch` and `realm` with `declared_not_verified`.
 - `index` framing, per-bundle identities and per-resource
   `{bundle, uncompressed_offset, uncompressed_length, bytes, sha256}`.
-- The decoder receipt without its host paths, the SHA-256 of each tool
+- The decoder receipt without its host paths; `identity_sha256` is recomputed
+  from the identity after removing those paths. The SHA-256 of each tool
   (`capture.py`, the index, source and draft modules, `capture-sc.ps1`) and the
   limits.
 
@@ -128,7 +140,9 @@ therefore: `capture.json` SHA-256 → receipt → lock evidence → candidate
 manifest (`source_identity.acquisition`) → input package manifest → zip pin.
 
 Rerunning on the same capture and request writes byte-identical receipt and
-lock.
+lock, including when an equivalent decoder environment is moved to another
+location. The full decoder identity is still checked locally for changes
+during extraction.
 
 ## Limits
 

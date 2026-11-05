@@ -186,10 +186,15 @@ mise run release:inputs -- --realm china --patch <patch> --package china_text=$P
 | Package member | Producer |
 | --- | --- |
 | `capture/capture-receipt.json`, `capture/request.json`, `capture/SHA256SUMS` | `client:capture` (hashes and the path list; `capture.json` itself is pinned by SHA-256 only, because it names the install path) |
-| `stat-descriptions/china/` | `descriptions:candidate`: the four files the translation repository's native reader requires |
-| `display-tables/default/`, `display-tables/simplified-chinese/` | `tables:candidate`: `repoe-native-tables/v1` and `repoe-localized-tables/v1`, derived JSON, not `.datc64` |
+| `stat-descriptions/china/{descriptions,diagnostics,source-lock,manifest}.json` | `descriptions:candidate`: the four files the translation repository's native reader requires |
+| `display-tables/{default,simplified-chinese}/{tables,source-lock,manifest}.json` | `tables:candidate`: `repoe-native-tables/v1` and `repoe-localized-tables/v1`, derived JSON, not `.datc64` |
 
-Never pass `$CAP` itself to `release:inputs`: its `raw/` holds client bytes.
+`release:inputs` enforces this exact derived-file allowlist for `china_text`,
+checks the candidate formats and their manifest file pins, and requires both
+capture JSON files to have the expected schemas. It rejects extra or missing
+members before staging, naming the file; passing `$CAP` itself or adding any
+raw CSD, DAT or bundle member fails. The capture's original `capture.json`
+is also refused because it contains the install path.
 The package name becomes the lock key, so it is `china_text` (letters, digits
 and underscores). `--realm china` sets the package target's realm; the patch is
 the owner's declared target. Publishing a second input batch for the same patch

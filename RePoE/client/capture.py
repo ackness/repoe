@@ -50,6 +50,8 @@ DECODER = {
 }
 # Host paths of the machine that ran the decoder: not needed to reproduce, never published.
 HOST_DECODER_FIELDS = ("executable", "module_path", "uv_lock_path")
+# Numeric releases and conventional prereleases only; never carry arbitrary executable metadata.
+VERSION = re.compile(r"[0-9]{1,6}(?:\.[0-9]{1,6}){1,5}(?:-(?:alpha|beta|rc)[0-9]{0,3})?")
 LIMITS = [
     "game_patch and realm are owner declarations, not verified; the executable version is what capture-sc.ps1 observed.",
     "Hashes show the files are the ones the owner hashed (transfer integrity), not that they are authentic.",
@@ -138,8 +140,9 @@ def load_capture(root, expected_sha256):
         if not re.fullmatch(r"PathOfExile[A-Za-z0-9_]*\.exe", name):
             raise ValueError("Unexpected executable name")
         versions = {
-            key: draft.text(exe[key], key, 64) if exe[key] is not None else None
+            key: exe[key]
             for key in ("file_version", "product_version")
+            if isinstance(exe[key], str) and VERSION.fullmatch(exe[key])
         }
         observed.append({"name": name, **file_pin(exe, name), **versions})
     sums_raw = client.read_file(root / SUMS, client.MIB)
@@ -196,6 +199,7 @@ def raise_error(error):
 
 def verify_files(root, files):
     """Every file on disk is listed, is a regular file and matches its listed size and hash."""
+    root = client.safe_path(root)
     top = {entry.name for entry in os.scandir(root)}
     if top != {CAPTURE_JSON, SUMS, BUNDLES}:
         raise ValueError(f"Unexpected capture contents: {', '.join(sorted(top - {CAPTURE_JSON, SUMS, BUNDLES}))}")
@@ -205,7 +209,8 @@ def verify_files(root, files):
         if not expected(info.st_mode):
             raise ValueError(f"Not a plain capture entry (symlink or special file): {name}")
     base = root / BUNDLES
-    found = set()
+    found, directories = set(), set()
+    expected_directories = {p.as_posix() for name in files for p in Path(name).parents if p != Path(".")}
     for current, folders, names in os.walk(base, followlinks=False, onerror=raise_error):
         for name in [*folders, *names]:
             path = Path(current) / name
@@ -214,6 +219,8 @@ def verify_files(root, files):
                 raise ValueError(f"Symlink in capture: {path.relative_to(root)}")
             if name in names and not stat.S_ISREG(info.st_mode):
                 raise ValueError(f"Not a regular file: {path.relative_to(root)}")
+            if name in folders:
+                directories.add(path.relative_to(base).as_posix())
         for name in names:
             found.add((Path(current) / name).relative_to(base).as_posix())
             if len(found) > MAX_FILES:
@@ -221,6 +228,10 @@ def verify_files(root, files):
     if found != set(files):
         extra, missing = sorted(found - set(files)), sorted(set(files) - found)
         raise ValueError(f"Capture files differ from capture.json: extra {extra}, missing {missing}")
+    if directories != expected_directories:
+        raise ValueError(
+            f"Capture directories differ from capture.json: extra {sorted(directories - expected_directories)}"
+        )
     for name, pin in files.items():
         if hash_file(base / name, MAX_FILE) != pin:
             raise ValueError(f"Size or SHA-256 mismatch: {BUNDLES}/{name}")
@@ -312,6 +323,15 @@ def source_lock(receipt_sha, summary, observed, game_patch, groups, resources):
     return {"schema_version": 1, "sources": sources}
 
 
+def decoder_receipt(decoder):
+    """Fingerprint only the portable identity; keep the full identity for local re-verification."""
+    identity = {k: v for k, v in decoder.identity.items() if k not in HOST_DECODER_FIELDS}
+    return {
+        **{k: v for k, v in decoder.receipt.items() if k not in HOST_DECODER_FIELDS},
+        "identity_sha256": client.sha256(client.encoded(identity)),
+    }
+
+
 def capture(capture_root, expected_capture_sha256, request_path, game_patch, output, python, decoder_lock):
     capture_root, request_path = client.safe_path(capture_root), client.safe_path(request_path)
     output = client.safe_path(output)
@@ -354,21 +374,22 @@ def capture(capture_root, expected_capture_sha256, request_path, game_patch, out
         decoded_chunks_sha256=client.sha256(client.encoded(chunks)),
         index_raw_bytes=index_bundle.size,
     )
-    bundles, opened_bundles, resources, extracted = {}, {}, {}, {}
+    del index_bundle
+    ranges.files.pop(index_url)
+    by_bundle = {}
     for name in paths:
-        record = matched[name]
-        bundle_name = record["bundle_name"]
+        by_bundle.setdefault(matched[name]["bundle_name"], []).append(name)
+    bundles, resources, extracted = {}, {}, {}
+    for bundle_name, names in by_bundle.items():
         file = bundle_name + ".bundle.bin"
         if file not in files:
             raise ValueError(
-                f"{name}: the index places it in {file}, which the capture lacks; "
+                f"{names[0]}: the index places it in {file}, which the capture lacks; "
                 f"rerun capture-sc.ps1 with -Extra '{file}'"
             )
-        if bundle_name not in opened_bundles:
-            bundle = client.Bundle(opened(file), ranges, decoder)
-            if bundle.size != record["bundle_raw_bytes"]:
-                raise ValueError(f"{file}: raw size {bundle.size} differs from the index {record['bundle_raw_bytes']}")
-            opened_bundles[bundle_name] = bundle
+        url = opened(file)
+        bundle = client.Bundle(url, ranges, decoder)
+        try:
             bundles[bundle_name] = {
                 "file": file,
                 **files[file],
@@ -376,17 +397,26 @@ def capture(capture_root, expected_capture_sha256, request_path, game_patch, out
                 "chunk_size": bundle.chunk_size,
                 "chunks": len(bundle.sizes),
             }
-        raw = opened_bundles[bundle_name].read(record["offset"], record["length"])
-        if len(raw) != record["length"]:
-            raise ValueError(f"{name}: extracted {len(raw)} bytes, the index says {record['length']}")
-        extracted[name] = raw
-        resources[name] = {
-            "sha256": client.sha256(raw),
-            "bytes": len(raw),
-            "bundle": bundle_name,
-            "uncompressed_offset": record["offset"],
-            "uncompressed_length": record["length"],
-        }
+            for name in names:
+                record = matched[name]
+                if bundle.size != record["bundle_raw_bytes"]:
+                    raise ValueError(
+                        f"{file}: raw size {bundle.size} differs from the index {record['bundle_raw_bytes']}"
+                    )
+                raw = bundle.read(record["offset"], record["length"])
+                if len(raw) != record["length"]:
+                    raise ValueError(f"{name}: extracted {len(raw)} bytes, the index says {record['length']}")
+                extracted[name] = raw
+                resources[name] = {
+                    "sha256": client.sha256(raw),
+                    "bytes": len(raw),
+                    "bundle": bundle_name,
+                    "uncompressed_offset": record["offset"],
+                    "uncompressed_length": record["length"],
+                }
+        finally:
+            ranges.files.pop(url)
+            del bundle
     receipt = {
         "schema": RECEIPT_SCHEMA,
         "status": STATUS,
@@ -401,7 +431,7 @@ def capture(capture_root, expected_capture_sha256, request_path, game_patch, out
         "index": {"file": INDEX, **files[INDEX], "framing": framing},
         "bundles": dict(sorted(bundles.items())),
         "resources": dict(sorted(resources.items())),
-        "decoder": {k: v for k, v in decoder.receipt.items() if k not in HOST_DECODER_FIELDS},
+        "decoder": decoder_receipt(decoder),
         "tools": identity,
         "limits": LIMITS,
     }
@@ -429,6 +459,7 @@ def capture(capture_root, expected_capture_sha256, request_path, game_patch, out
     client.write_new(output / REQUEST_COPY, request_raw)
     client.write_new(output / SUMS, sums_raw)
     client.write_new(output / RECEIPT, receipt_raw)
+    verify_files(capture_root, files)
     client.write_new(output / LOCK, lock_raw)  # completion marker, last
     return receipt, receipt_raw, lock_raw
 

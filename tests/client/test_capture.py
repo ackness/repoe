@@ -122,15 +122,22 @@ class CaptureTests(unittest.TestCase):
         self.capture_sha = sha(raw)
         return self.capture_sha
 
-    def run_capture(self, out=None, expected=None, game_patch="0.5.5.5"):
-        with patch.object(client, "ExternalDecoder", fixtures.DraftDecoder):
+    def run_capture(
+        self,
+        out=None,
+        expected=None,
+        game_patch="0.5.5.5",
+        decoder=fixtures.DraftDecoder,
+        python=Path("/explicit/python"),
+    ):
+        with patch.object(client, "ExternalDecoder", decoder):
             return capture.capture(
                 self.capture,
                 expected or self.capture_sha,
                 self.request,
                 game_patch,
                 out or self.out,
-                Path("/explicit/python"),
+                python,
                 self.lock,
             )
 
@@ -205,6 +212,123 @@ class CaptureTests(unittest.TestCase):
         _, receipt, lock = self.run_capture()
         _, again, lock_again = self.run_capture(out=self.root / ".cache" / "again")
         self.assertEqual((receipt, lock), (again, lock_again))
+
+    def test_decoder_relocation_is_byte_identical(self):
+        class LocatedDecoder(fixtures.DraftDecoder):
+            def __init__(self, python, lock_path, source):
+                super().__init__(python, lock_path, source)
+                self.identity.update(executable=str(python), module_path=str(python.parent / "ooz.so"))
+                self.receipt = {
+                    **self.receipt,
+                    **self.identity,
+                    "identity_sha256": sha(client.encoded(self.identity)),
+                    "uv_lock_path": str(python.parent / "uv.lock"),
+                }
+
+        first, receipt, lock = self.run_capture(decoder=LocatedDecoder, python=Path("/home/alice/venv/python"))
+        _, again, lock_again = self.run_capture(
+            out=self.root / ".cache" / "relocated", decoder=LocatedDecoder, python=Path("/opt/decoder/python")
+        )
+        self.assertEqual((receipt, lock), (again, lock_again))
+        self.assertEqual(
+            first["decoder"]["identity_sha256"], sha(client.encoded({"version": "0.0.8", "synthetic": True}))
+        )
+        self.assertNotIn(b"alice", receipt)
+
+    def test_nonportable_executable_versions_are_omitted_but_capture_hash_is_preserved(self):
+        for number, version in enumerate(
+            (
+                r"C:\Users\alice\build\0.5.5.172",
+                "/home/alice/build/0.5.5.172",
+                "/Users/alice/0.5.5.172",
+                "alice",
+                "0.5.5.172-alice",
+                "0.5.5.172 (alice)",
+                None,
+            )
+        ):
+            with self.subTest(version=version):
+                self.document["executables"][0].update(file_version=version, product_version=version)
+                self.write_capture(self.document)
+                receipt, receipt_raw, lock_raw = self.run_capture(out=self.root / ".cache" / f"version-{number}")
+                exe = receipt["observed_client"]["executables"][0]
+                self.assertNotIn("file_version", exe)
+                self.assertNotIn("product_version", exe)
+                self.assertEqual(receipt["capture"]["capture_json"]["sha256"], self.capture_sha)
+                for raw in (receipt_raw, lock_raw):
+                    self.assertNotIn(b"alice", raw)
+                    self.assertNotIn(b"/home/", raw)
+                    self.assertNotIn(b"Users", raw)
+
+    def test_portable_executable_versions_are_preserved(self):
+        self.document["executables"][0].update(file_version="0.5.5.172-rc1", product_version="0.5.5.172")
+        self.write_capture(self.document)
+        receipt, _, _ = self.run_capture()
+        exe = receipt["observed_client"]["executables"][0]
+        self.assertEqual(exe["file_version"], "0.5.5.172-rc1")
+        self.assertEqual(exe["product_version"], "0.5.5.172")
+
+    def test_bundle_cache_is_released_after_each_bundle(self):
+        # Interleave the request to ensure a bundle's resources are processed together.
+        self.paths = [CSD, LOCALE, DEFAULT]
+        self.write_request()
+        add = capture.LocalRanges.add
+        caches = []
+
+        def checked_add(cache, url, raw):
+            self.assertEqual(cache.files, {})
+            caches.append(cache)
+            add(cache, url, raw)
+
+        with patch.object(capture.LocalRanges, "add", checked_add):
+            self.run_capture()
+        self.assertEqual(len(caches), 3)  # index and two selected bundles
+        self.assertTrue(all(not cache.files for cache in caches))
+
+    def test_capture_mutations_during_extraction_prevent_completion(self):
+        read = client.Bundle.read
+        unused = self.capture / "Bundles2/Tiny.V0.1.bundle.bin"
+        selected = self.capture / "Bundles2/Folders/data/a.bundle.bin"
+        extra = self.capture / "Bundles2/extra.bin"
+        external = self.root / "external.bin"
+        external.write_bytes(unused.read_bytes())
+
+        def corrupt(path):
+            raw = path.read_bytes()
+            path.write_bytes(raw[:-1] + bytes([raw[-1] ^ 1]))
+
+        def symlink():
+            unused.unlink()
+            unused.symlink_to(external)
+
+        mutations = (
+            (lambda: corrupt(unused), "SHA-256 mismatch"),
+            (lambda: corrupt(selected), "SHA-256 mismatch"),
+            (unused.unlink, "missing"),
+            (selected.unlink, "missing"),
+            (lambda: extra.write_bytes(b"unexpected"), "extra"),
+            (lambda: extra.mkdir(), "directories differ"),
+            (symlink, "Symlink"),
+        )
+        for number, (mutate, error) in enumerate(mutations):
+            with self.subTest(number=number):
+                self.write_capture()
+                changed = False
+
+                def changing_read(bundle, start, length):
+                    nonlocal changed
+                    raw = read(bundle, start, length)
+                    if not changed and bundle.url.endswith(".bundle.bin"):
+                        mutate()
+                        changed = True
+                    return raw
+
+                out = self.root / ".cache" / f"mutated-{number}"
+                with patch.object(client.Bundle, "read", changing_read):
+                    with self.assertRaisesRegex(ValueError, error):
+                        self.run_capture(out=out)
+                self.assertTrue(changed)
+                self.assertFalse((out / "source-lock.json").exists())
 
     def test_refuses_to_reuse_output_or_write_outside_cache(self):
         self.run_capture()
