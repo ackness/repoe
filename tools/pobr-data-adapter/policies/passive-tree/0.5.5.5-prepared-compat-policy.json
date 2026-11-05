@@ -230,7 +230,7 @@
     "source_declaration": {
       "path": "data/0.5.5.4.2/base/passive_tree_meta.json",
       "role": "policy-owned compatibility metadata; authoring file declared, not producer-provided or file-hash-verified",
-      "schema": "pobr_data::catalog::PassiveTreeMeta",
+      "schema": "passive_tree_meta/v1",
       "sha256": "6247ea4b7d75853f3b4947e8946ecf4c7b45450e057dab57516ebe2ec7534ce8",
       "snapshot_version": "0.5.5.4.2"
     },
@@ -422,22 +422,6 @@
   },
   "qualification": {
     "context_sha256": "e0ea24d12544e5f2a762f631732d995cdcecd3e41eea5982c89ab53c22141a7c",
-    "native_stats": {
-      "role": "The stat IDs PoBR's loader maps natively (pobr_core::rules::passive_stats::map_stat at engine-crates/20261102). A node gets native_stats only when its one complete stat is listed and its value is an i64 that an f64 holds exactly; every other node keeps the text path.",
-      "schema": "pobr-ordinary-passive-native-stats/allowlist-v1",
-      "stat_ids": [
-        "base_fire_damage_resistance_%",
-        "chaos_damage_+%",
-        "cold_damage_+%",
-        "elemental_damage_+%",
-        "fire_damage_+%",
-        "lightning_damage_+%",
-        "physical_damage_+%",
-        "projectile_damage_+%",
-        "spell_damage_+%"
-      ],
-      "value": "i64-exact-in-f64"
-    },
     "reference_passive_id": "maximum_resistances1",
     "schema": "pobr-ordinary-passive-native-context/whole-row-reference-v1",
     "variable_fields": [
@@ -452,7 +436,7 @@
   "schema": "pobr-ordinary-passive-tree-policy/v1",
   "source": {
     "path": "data/0.5.5.4.2/base/passive_tree.json",
-    "schema": "pobr_data::catalog::PassiveNodeDef[]",
+    "schema": "passive_tree/v1",
     "sha256": "7e021c17f9679b3ff4d72cacdba20ee3d17bf8d0acf7ea02311dd29886996851",
     "snapshot_manifest_sha256": "bfd31a4607da98af53b139ed101f31a67a3122e4520434fd2e3fda14672fcca4",
     "snapshot_version": "0.5.5.4.2"

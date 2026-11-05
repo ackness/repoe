@@ -40,8 +40,8 @@
             "facts_manifest_sha256"
           ],
           "expect": {
-            "bytes": 1625579,
-            "sha256": "7507ef54ba9562b56f1675c76282c0df3361588ab22290bef8a5ec1f2d98cde9"
+            "bytes": 1624797,
+            "sha256": "efdc74bf5d0be482c6256725608dee8d010a8b6f87a949194bdc28a50b8fd781"
           }
         },
         "--tree-reference": "ordinary:passive-tree/tree-reference/official-tree-bd87e651.json",
@@ -165,6 +165,7 @@
       "domain": "skills",
       "facts": "original",
       "outputs": {
+        "base/active_skill_types.json": "data/0.5.5.5/base/active_skill_types.json",
         "base/cost_types.json": "data/0.5.5.5/base/cost_types.json",
         "base/granted_effect_levels.json": "data/0.5.5.5/base/granted_effect_levels.json",
         "base/granted_effect_stat_sets.json": "data/0.5.5.5/base/granted_effect_stat_sets.json",
@@ -336,12 +337,21 @@
     {
       "id": "snapshot-manifest",
       "kind": "snapshot-manifest",
-      "passthrough": "Only the file pins of members are regenerated; schema_version, languages, domains and the i18n/ pins are the template's (the reference package's own snapshot manifest).",
+      "passthrough": "Only the file pins of members are regenerated, plus the new members under add and the adapter's contract_version; schema_version and the other domains are the template's (the reference package's own snapshot manifest). The i18n/ pins and languages are omitted: the language owner's package declares them and PoBR composes the runtime manifest.",
       "template": "previous:data/0.5.5.5/manifest.json",
-      "external": [
-        "i18n/"
-      ],
-      "member": "data/0.5.5.5/manifest.json"
+      "member": "data/0.5.5.5/manifest.json",
+      "add": {
+        "base/active_skill_types.json": "base"
+      },
+      "contract_version": "adapter",
+      "omit": {
+        "entries": [
+          "i18n/"
+        ],
+        "fields": [
+          "languages"
+        ]
+      }
     }
   ]
 }

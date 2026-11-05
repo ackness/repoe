@@ -45,8 +45,10 @@ class StageTest(unittest.TestCase):
     def tearDown(self):
         self.temporary.cleanup()
 
-    def write_build(self, receipt=None):
-        receipt_raw = encoded(receipt or self.receipt)
+    def write_build(self, receipt=None, described=None):
+        receipt = dict(receipt or self.receipt)
+        receipt.setdefault("package", described or build.file_pin(self.build_dir / "game-build-part.zip"))
+        receipt_raw = encoded(receipt)
         (self.build_dir / "receipt.json").write_bytes(receipt_raw)
         package = {
             "schema": build.PACKAGE,
@@ -99,12 +101,20 @@ class StageTest(unittest.TestCase):
             archive.writestr("extra.json", b"{}")
         with self.assertRaisesRegex(ValueError, "differs from package.json"):
             publish.stage(self.build_dir, self.root / "stage")
+        # package.json repinned to the new zip, but the receipt still describes the old one (a stale --reuse).
+        self.write_build(described={"bytes": 1, "sha256": "0" * 64})
+        with self.assertRaisesRegex(ValueError, "receipt.json does not pin this zip"):
+            publish.stage(self.build_dir, self.root / "stage")
 
     def test_staging_requires_the_contract_in_the_receipt(self):
         producer = {k: v for k, v in self.receipt["producer"].items() if k != "contract"}
         self.write_build({**self.receipt, "producer": producer})
         with self.assertRaisesRegex(ValueError, "PoBR contract"):
             publish.stage(self.build_dir, self.root / "stage")
+        # A local PoBR checkout still stages (a dry run shows the assets); main() refuses to publish it.
+        local = {**CONTRACT, "tag": None, "commit": None, "local": ["pobr-data"]}
+        self.write_build({**self.receipt, "producer": {**self.receipt["producer"], "contract": local}})
+        self.assertIn("pobr-game-9.9.zip", publish.stage(self.build_dir, self.root / "stage")["assets"])
 
     def test_staging_replaces_only_its_own_directory(self):
         foreign = self.root / "foreign"
@@ -345,6 +355,53 @@ class MainTest(GitRepoCase):
         self.assertEqual(code, 1)
         self.assertIn("differs from the reference package", output)
         self.assertEqual(self.main("--allow-different")[0], 0)
+
+    def test_an_expect_pin_replaces_allow_different(self):
+        package = json.loads((self.fixture.build_dir / "package.json").read_text())
+        expect = {k: package["package"][k] for k in ("bytes", "sha256")}
+        package["package"].update(identical_to_reference=False, expect=expect, matches_expect=True)
+        (self.fixture.build_dir / "package.json").write_text(json.dumps(package))
+        code, output, _ = self.main()
+        self.assertEqual(code, 0, output)
+        notes = (Path(self.temporary.name) / "stage/poe2-international-9.9/release-notes.md").read_text()
+        self.assertIn("Equal to the declaration's `expect` pin: yes", notes)
+        package["package"]["matches_expect"] = False
+        (self.fixture.build_dir / "package.json").write_text(json.dumps(package))
+        code, output, _ = self.main("--allow-different")
+        self.assertEqual(code, 1)
+        self.assertIn("differs from the declaration's expect pin", output)
+
+    def test_a_sequenced_declaration_gets_exactly_its_number(self):
+        def run(name):
+            with mock.patch.object(publish, "STAGE", Path(self.temporary.name) / "stage"):
+                stdout, stderr = io.StringIO(), io.StringIO()
+                with contextlib.redirect_stdout(stdout), contextlib.redirect_stderr(stderr):
+                    try:
+                        publish.main(["--repo", str(self.repo), "--config", name], runner=Runner(self.repo))
+                        return 0, stdout.getvalue()
+                    except SystemExit as exit:
+                        return exit.code, stdout.getvalue() + stderr.getvalue()
+
+        self.assertEqual(run("9.9-1"), (0, mock.ANY))
+        code, output = run("9.9-2")
+        self.assertEqual(code, 1)
+        self.assertIn("9.9-2 declares game/9.9-2, but HEAD would be published as game/9.9-1", output)
+        # A bare release/<patch> is the patch's first package.
+        self.assertIsNone(publish.sequence_problem(Path("9.9"), TARGET, 1))
+        self.assertIn("declares game/9.9-1, but", publish.sequence_problem(Path("9.9"), TARGET, 4))
+        self.assertIsNone(publish.sequence_problem(Path("unused"), TARGET, 4))
+        self.assertIsNone(publish.sequence_problem(Path("9.9-4"), TARGET, None))
+
+    def test_refuses_an_adapter_built_against_a_local_pobr_checkout(self):
+        self.fixture.receipt["producer"]["contract"] = {**CONTRACT, "tag": None, "commit": None, "local": ["pobr-data"]}
+        self.fixture.write_build()
+        code, output, runner = self.main()
+        self.assertEqual(code, 1)
+        self.assertIn("staged: ", output)
+        self.assertIn("local PoBR checkout", output)
+        code, output, runner = self.main("--yes")
+        self.assertEqual(code, 1)
+        self.assertNotIn("git tag --annotate", runner.commands())
 
     def test_refuses_a_package_not_built_from_clean_head(self):
         self.fixture.receipt["producer"]["commit"] = "f" * 40

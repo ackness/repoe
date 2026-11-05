@@ -121,7 +121,9 @@ The original three-file policy remains unchanged and replayable. The separate
 [`0.5.5.5-with-ailments-policy.json`](policies/runtime-constants/0.5.5.5-with-ailments-policy.json)
 selects the same three files plus `base/non_damaging_ailments.json` (pin verified
 against the supplied legacy manifest). Use that policy and its SHA256 with the
-same command. It adds these six destinations, for37 total:
+same command. It adds these six destinations, for 37 total, plus
+`BaseMaximumRage` → `game.base_maximum_rage` (contract 1.1, with
+`allow_missing_leaf`, since packages built before the field omit it), for 38:
 
 | Existing DTO leaf | Target GameConstants ID | Unit |
 | --- | --- | --- |
@@ -130,6 +132,11 @@ same command. It adds these six destinations, for37 total:
 | Freeze duration | FreezeDuration | seconds after Value/Divisor |
 | Shock default and minimum | BaseShockMagnitude | percentage points |
 | Shock duration | BaseShockDuration | seconds |
+| Rage maximum (`game.base_maximum_rage`) | BaseMaximumRage | rage |
+
+The player's inherent "1% more attack damage per rage" is not in any pinned
+table (it is a `Character.ot` stat; only `PlayerMinionIntrinsicStats`, which
+applies to minions, carries the value), so PoBR keeps that constant.
 
 All unlisted fields, including Chill minimum, Shock maximum, Freeze bounds,
 precision, damage-type/scaling relationships, unknown JSON and absent defaults,

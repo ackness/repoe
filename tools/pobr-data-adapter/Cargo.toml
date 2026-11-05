@@ -16,7 +16,7 @@ description = "Adapts pinned RePoE facts and PoBR domain policies into PoBR's ru
 # Production code depends on pobr-data only; the engine crates are for tests
 # (`mise run adapter:check` enforces both rules).
 [dependencies]
-pobr-data = { git = "https://github.com/ackness/pobr", tag = "contract/1.0" }
+pobr-data = { git = "https://github.com/ackness/pobr", tag = "contract/1.1" }
 serde = { version = "1", features = ["derive"] }
 # Raw PSG coordinates must round-trip exactly; the default parser can shift one ULP.
 serde_json = { version = "1", features = ["float_roundtrip"] }
@@ -27,10 +27,10 @@ sha2 = { version = "0.11", default-features = false }
 rustix = { version = "1.1", features = ["fs"] }
 
 [dev-dependencies]
-pobr-core = { git = "https://github.com/ackness/pobr", tag = "contract/1.0" }
-pobr-gamedata = { git = "https://github.com/ackness/pobr", tag = "contract/1.0" }
-pobr-item = { git = "https://github.com/ackness/pobr", tag = "contract/1.0" }
-pobr-tree = { git = "https://github.com/ackness/pobr", tag = "contract/1.0" }
+pobr-core = { git = "https://github.com/ackness/pobr", tag = "contract/1.1" }
+pobr-gamedata = { git = "https://github.com/ackness/pobr", tag = "contract/1.1" }
+pobr-item = { git = "https://github.com/ackness/pobr", tag = "contract/1.1" }
+pobr-tree = { git = "https://github.com/ackness/pobr", tag = "contract/1.1" }
 
 # Same settings as PoBR: line tables for panic locations, no incremental object
 # graphs, and optimized dependencies so JSON-heavy tests stay fast.

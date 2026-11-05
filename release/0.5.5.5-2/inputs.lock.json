@@ -57,11 +57,9 @@
       }
     },
     "previous": {
-      "tag": "handoff/quality-family-20261103",
       "repository": "ackness/repoe",
-      "publication": "published",
-      "revision": "99c14eb5a50876aae749cb9cd4850a04d8a997a1",
-      "path": "handoff/quality-family-20261103/game-build-part.zip",
+      "tag": "game/0.5.5.5-1",
+      "asset": "pobr-game-0.5.5.5.zip",
       "bytes": 4452510,
       "sha256": "3edc9b1eb3e813781ef63dcc7db5be29cfd6a15ef29b92773eaa7fb45082df4d",
       "manifest": {
@@ -72,6 +70,12 @@
     }
   },
   "reference": "previous",
+  "expect": {
+    "package": {
+      "bytes": 4559376,
+      "sha256": "c46df616c802d9c068b9516d77403147b9515a2d551d668e134623539d692ecb"
+    }
+  },
   "facts": {
     "package": "ordinary",
     "archive": "ordinary-input.zip/ordinary-input.zip",

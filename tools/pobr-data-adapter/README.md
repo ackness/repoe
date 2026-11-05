@@ -7,9 +7,9 @@ in [`policies/`](policies). The tool and the policies moved here from PoBR
 published packages through its `pipeline/data.lock.json`.
 
 It is a standalone Cargo workspace inside this Python repository. PoBR's data
-types come from the immutable contract tag `contract/1.0` of `ackness/pobr`
+types come from the immutable contract tag `contract/1.1` of `ackness/pobr`
 (`contract/<n>.<m>`, where n is `pobr_data::CONTRACT_VERSION`); `Cargo.lock`
-pins the resolved commit `95d71c6f`. Production code depends on `pobr-data`
+pins the resolved commit `ac3c5c92`. Production code depends on `pobr-data`
 only. The engine crates `pobr-core`, `pobr-gamedata`, `pobr-item` and
 `pobr-tree` are dev-dependencies for the tests that check how PoBR consumes the
 output, and they must name the same tag: two tags compile two copies of
@@ -20,9 +20,9 @@ crate other than `pobr-data` reaches the normal dependency tree, or if the
 locked PoBR crates resolve to more than one commit.
 
 Changing the pin does not change the published bytes by itself: `contract/1.0`
-(from `engine-crates/20261102`, `174ca6fb`) reproduced the published game part
-exactly. The sealed manifest does not record a contract version yet; adding
-one changes package bytes, so it waits for the next published release.
+(the previous pin, from `engine-crates/20261102`, `174ca6fb`) reproduced the published game part
+exactly. From game 0.5.5.5-2 the snapshot manifest records the
+`contract_version` the adapter was compiled against (`--contract-version`).
 
 ## Configuration ownership
 
@@ -82,20 +82,22 @@ registry in `src/schema_id.rs` (`adapter.output_schema`, for example
 never as a `pobr_data` Rust type path. Where a member declares its own
 `_meta.schema`, the converter writes it from the same constant, so the two
 agree (spellings are kept as published, e.g. `monster-resistances/v1`).
-Policies pinned before the registry still spell selected-file schemas as type
-paths; the adapter accepts those as legacy aliases.
+Policies name selected input files by the same IDs (`game_constants/v1`,
+`passive_tree/v1`, …); the type-path spellings older policies used were
+rewritten for game 0.5.5.5-2 and are no longer accepted.
 
 The schema-4 (native runtime) modes `--native-facts` and `--native-runtime` were
 removed on 2026-11-04, after PoBR deleted its schema-4 loader; Git history keeps
 them.
 
 `adapter:keystones` checks the `reference` package of the highest
-`release/<patch>/inputs.lock.json` (the published game package), by commit,
-path, bytes and SHA-256, and requires its `handoff/<name>` tag on `origin` to
-peel to that commit. A pull request that moves `reference` to a new release
-therefore runs the check on the new package. To check a candidate before
-publishing it, pass
-`--pin <file>` with `{revision, path, bytes, sha256[, tag]}`.
+`release/<patch>[-<n>]/inputs.lock.json` (the published game package). A
+Release asset `{repository, tag, asset, bytes, sha256}` is downloaded
+anonymously and verified; a Git blob `{revision, path, bytes, sha256}` must
+have a `handoff/<name>` tag on `origin` that peels to its commit. A pull
+request that moves `reference` to a new release therefore runs the check on
+the new package. To check a candidate before publishing it, pass `--pin
+<file>` with either shape.
 
 ## Assembling a package
 

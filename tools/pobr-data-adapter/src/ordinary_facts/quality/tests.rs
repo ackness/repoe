@@ -642,7 +642,7 @@ fn quality_does_not_change_existing_domain_outputs_or_add_overlay_fields() {
                 include_bytes!("../../../tests/fixtures/ordinary-facts/skill-tables.json")
                     .as_slice(),
             ),
-            5,
+            6,
         ),
     ] {
         let mut f = Fixture::new();

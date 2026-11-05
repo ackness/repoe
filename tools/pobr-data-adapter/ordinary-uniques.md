@@ -101,7 +101,7 @@ the field selections, and the game part (`handoff/game-crafting-20261103` @
 The result, `ordinary-inputs.zip` (40020250 bytes, SHA-256
 `a1290a172e280f08bd46722684e9ac7304634f906cfa400cfed34f9eebb84141`), is
 retained at `0f68afc31192bc23c734ec1439789244aedec25a` by
-`handoff/ordinary-uniques-20261103`; `release/0.5.5.5/inputs.lock.json` pins it
+`handoff/ordinary-uniques-20261103`; `release/0.5.5.5-2/inputs.lock.json` pins it
 as the `ordinary` package. The plan and its packager (`RePoE.data_publication`)
 were retired with the publication index; both remain in Git history (for
 example at `bd4c1994e3932ed914219dac4d2495878e826cf6`), and the relations policy

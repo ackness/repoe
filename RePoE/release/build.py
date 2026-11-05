@@ -1,9 +1,10 @@
 """Rebuild the PoBR game part from pinned inputs and classify every member.
 
-Inputs are handoff packages addressed by commit, path, bytes and SHA-256 and
-read from local Git objects; ``--fetch`` fetches a missing pinned commit from
-``origin`` (never the game CDN). Producers are the adapter domains and the
-Python projections declared in ``release/<patch>/domains.json``. Every other
+Inputs are packages pinned by bytes and SHA-256: Git blobs at a pinned commit
+(read from local Git objects; ``--fetch`` fetches a missing commit from
+``origin``) or GitHub Release assets (``--fetch`` downloads a missing one
+anonymously; see ``RePoE.release.assets``). Nothing is read from the game CDN. Producers are the adapter domains and the
+Python projections declared in ``release/<patch>[-<n>]/domains.json``. Every other
 member is copied from a package named in ``frozen-inputs.json``. The result is
 ``game-build-part.zip`` plus ``receipt.json`` (how it was built) and
 ``package.json`` (what was built) under ``.cache/release/``.
@@ -12,7 +13,9 @@ Each member has a provenance: ``generated`` (a producer derived it),
 ``passthrough`` (a producer emitted the payload of one of its own inputs, or
 the snapshot manifest carried template fields over) or ``frozen`` (copied).
 Generated and passthrough members are further compared with the reference
-package of the lock (``-identical``, ``-different``, ``-new``). See RELEASING.md.
+package of the lock (``-identical``, ``-different``, ``-new``); ``--check``
+compares the zip with the lock's ``expect`` pin, or without one with the
+reference package. See RELEASING.md.
 """
 
 import argparse
@@ -32,7 +35,8 @@ from urllib.parse import parse_qs, urlsplit
 import zipfile
 
 from RePoE import pobr_crafting_catalog, pobr_historical_trees, source_rebinding
-from RePoE.pins import archive_manifest, decode, encoded, pin, pinned, relative, require
+from RePoE.pins import archive_manifest, byte_pin, decode, encoded, pin, pinned, relative, require
+from RePoE.release import assets
 
 ROOT = Path(__file__).resolve().parents[2]
 RELEASES = ROOT / "release"
@@ -45,7 +49,9 @@ SCHEMAS = {
     "domains.json": "repoe-release-domains/v1",
     "frozen-inputs.json": "repoe-release-frozen-inputs/v1",
 }
-RECEIPT = "repoe-release-receipt/v1"
+# v2: the receipt pins the zip and its root manifest (``package``); v1 receipts were
+# written before the zip and pinned by a fresh manifest instead.
+RECEIPT = "repoe-release-receipt/v2"
 PACKAGE = "repoe-release-package/v1"
 PART_SCHEMA = "pobr-build-data-part/v1"
 FACTS_IDENTITIES = ("rebound", "original")
@@ -70,6 +76,7 @@ CLASSES = tuple(f"{p}-{c}" for p in PROVENANCE[:2] for c in ("identical", "diffe
 KINDS = {"adapter", "special-derived", "historical-trees", "crafting-catalog", "snapshot-manifest"}
 CODE = (
     "RePoE/release/build.py",
+    "RePoE/release/assets.py",
     "RePoE/source_rebinding.py",
     "RePoE/source_io.py",
     "RePoE/pins.py",
@@ -119,18 +126,46 @@ def log(message):
 # --- configuration -------------------------------------------------------------------------------
 
 
-def patch_key(name):
-    parts = name.split(".")
-    return tuple(int(part) for part in parts) if all(part.isdigit() for part in parts) else None
+CONFIG_NAME = re.compile(r"(?P<patch>[0-9]+(?:\.[0-9]+)*)(?:-(?P<sequence>[1-9][0-9]*))?")
+
+
+def config_key(name):
+    """``(patch, n)`` of a ``<patch>`` or ``<patch>-<n>`` directory name (``<patch>`` sorts as n = 0), else None."""
+    match = CONFIG_NAME.fullmatch(name)
+    if not match:
+        return None
+    return tuple(int(part) for part in match["patch"].split(".")), int(match["sequence"] or 0)
+
+
+def config_sequence(config, target):
+    """The ``n`` of a ``release/<patch>-<n>`` declaration (the package is published as ``game/<patch>-<n>``)."""
+    match = CONFIG_NAME.fullmatch(Path(config).name)
+    if match and match["patch"] == target["game_patch"] and match["sequence"]:
+        return int(match["sequence"])
+    return None
+
+
+def declared_sequence(config, target):
+    """The ``n`` a declaration must be published as: its ``-<n>``, 1 for a bare ``<patch>``, else None."""
+    match = CONFIG_NAME.fullmatch(Path(config).name)
+    if match and match["patch"] == target["game_patch"]:
+        return int(match["sequence"] or 1)
+    return None
+
+
+def output_name(config, target):
+    """``<game>-<realm>-<patch>[-<n>]``: two declarations of one patch never share an output directory."""
+    sequence = config_sequence(config, target)
+    return f"{target['game']}-{target['realm']}-{target['game_patch']}" + (f"-{sequence}" if sequence else "")
 
 
 def default_config(releases=RELEASES):
-    """The highest game patch directory under ``release/`` (one per patch, named by the patch)."""
+    """The highest ``release/<patch>[-<n>]`` directory: the highest patch, then the highest ``n``."""
     patches = [p for p in Path(releases).iterdir() if (p / "inputs.lock.json").is_file()]
-    invalid = sorted(p.name for p in patches if patch_key(p.name) is None)
-    require(not invalid, f"Release directories must be named by game patch: {invalid}")
+    invalid = sorted(p.name for p in patches if config_key(p.name) is None)
+    require(not invalid, f"Release directories must be named <patch> or <patch>-<n>: {invalid}")
     require(patches, f"No release declaration under {display(releases)}; pass --config")
-    return max(patches, key=lambda p: patch_key(p.name))
+    return max(patches, key=lambda p: config_key(p.name))
 
 
 def load_config(config):
@@ -144,8 +179,9 @@ def load_config(config):
     lock, domains, frozen = (documents[name] for name in SCHEMAS)
     target = lock["target"]
     require(set(target) == {"game", "game_patch", "realm"}, "Invalid target")
+    name = CONFIG_NAME.fullmatch(config.name)
     require(
-        config.parent != RELEASES or config.name == target["game_patch"],
+        config.parent != RELEASES or (name and name["patch"] == target["game_patch"]),
         f"{display(config)} declares game patch {target['game_patch']}",
     )
     require(domains["target"] == target and frozen["target"] == target, "Config target mismatch")
@@ -153,10 +189,23 @@ def load_config(config):
     require(isinstance(packages, dict) and packages, "No input packages")
     for name, spec in packages.items():
         require(name.isidentifier(), f"Invalid package name: {name}")
-        require(len(spec["revision"]) == 40 and len(spec["sha256"]) == 64, f"{name}: full revision/SHA-256 required")
-        relative(spec["path"])
+        if assets.is_release(spec):
+            assets.validate(spec)
+        else:
+            require(len(spec["revision"]) == 40, f"{name}: full revision required")
+            relative(spec["path"])
+        require(len(spec["sha256"]) == 64, f"{name}: full SHA-256 required")
     require(lock["reference"] in packages, "Reference package must be a declared input")
-    require(lock["facts"]["package"] in packages, "Facts package must be a declared input")
+    if "facts" in lock:
+        require(lock["facts"]["package"] in packages, "Facts package must be a declared input")
+    else:
+        # Without a facts envelope only the package-derived jobs can run (a replay of an old package).
+        require(
+            all(job.get("kind") != "adapter" for job in domains["jobs"]), "Adapter jobs need a facts envelope (facts)"
+        )
+    if "expect" in lock:
+        require(set(lock["expect"]) == {"package"}, "expect: only a package pin is supported")
+        byte_pin(lock["expect"]["package"])
     seen = set()
     for job in domains["jobs"]:
         require(job.get("kind") in KINDS, f"Unknown job kind: {job.get('kind')}")
@@ -264,8 +313,11 @@ class Package:
 
 
 def open_package(repo, name, spec, cache, fetch):
-    raw = git_blob(repo, spec, fetch)
-    tag = verify_tag(repo, spec, fetch) if "tag" in spec else None
+    if assets.is_release(spec):
+        raw, tag = assets.fetch(spec, cache, fetch), None
+    else:
+        raw = git_blob(repo, spec, fetch)
+        tag = verify_tag(repo, spec, fetch) if "tag" in spec else None
     root = cache / "packages" / spec["sha256"]
     with zipfile.ZipFile(io.BytesIO(raw)) as archive:
         if "manifest" in spec:
@@ -407,7 +459,9 @@ def materialize_policy(ctx, spec, job):
         parent[field] = ctx.facts["roots"][job["facts"]][1]["sha256"]
         raw = runtime_encoded(document)
     if "expect" in spec:
-        require(pin(raw) == spec["expect"], f"{job['id']}: materialized policy differs from its declared pin")
+        require(
+            pin(raw) == spec["expect"], f"{job['id']}: materialized policy {pin(raw)} differs from its declared pin"
+        )
     path = ctx.work / "policies" / job["id"] / PurePosixPath(spec["policy"].partition(":")[2]).name
     write_new(path, raw)
     return path
@@ -581,23 +635,64 @@ def snapshot_manifest(ctx, job, members):
     Entries naming package members get the assembled bytes' SHA-256. Entries
     for files another owner ships (locale) keep the template's pins; they are
     reported as retained external pins. Every other top-level field is the
-    template's, so the member is a pass-through of the template.
+    template's, so the member is a pass-through of the template, except that
+    ``add`` declares new members (path -> domain section),
+    ``contract_version: "adapter"`` records the adapter's data contract and
+    ``omit`` drops the entries (path prefixes) and top-level fields another
+    owner declares itself: the language owner's ``i18n/`` files and
+    ``languages``, which PoBR composes from the language package.
+
+    The job is idempotent over its template: ``omit`` skips fields and
+    entries the template does not hold, and ``add`` leaves an entry the
+    template already declares in that section as it is.
     """
     template = decode(ctx.resolve(job["template"], job).read_bytes())
     prefix = f"data/{ctx.target['game_patch']}/"
     require(template.get("poe_version") == ctx.target["game_patch"], f"{job['id']}: template version mismatch")
     own = {m[len(prefix) :] for m in members if m.startswith(prefix)}
-    files, retained = {}, {}
+    omit = job.get("omit", {})
+    require(set(omit) <= {"entries", "fields"}, f"{job['id']}: unknown omit keys {sorted(set(omit))}")
+    omitted_entries, omitted_fields = tuple(omit.get("entries", ())), []
+    for field in omit.get("fields", []):
+        require(field not in ("files", "poe_version", "domains", "schema_version"), f"{job['id']}: cannot omit {field}")
+        if field in template:
+            del template[field]
+            omitted_fields.append(field)
+    files, retained, dropped = {}, {}, 0
     for name, digest in template["files"].items():
         if name in own:
+            require(not name.startswith(omitted_entries), f"{job['id']}: a member of this package is omitted: {name}")
             files[name] = sha256(members[prefix + name][0])
+        elif omitted_entries and name.startswith(omitted_entries):
+            dropped += 1
         else:
-            require(name.startswith(tuple(job["external"])), f"{job['id']}: snapshot entry without a member: {name}")
+            require(
+                name.startswith(tuple(job.get("external", ()))), f"{job['id']}: snapshot entry without a member: {name}"
+            )
             files[name] = retained[name] = digest
-    missing = own - set(template["files"])
+    added = {}
+    for name, section in job.get("add", {}).items():
+        require(name in own, f"{job['id']}: added entry is not a member: {name}")
+        require(name.startswith(section + "/") and name.endswith(".json"), f"{job['id']}: {name} is not in {section}/")
+        domain = Path(name).stem
+        names = template["domains"].get(section, [])
+        if name in template["files"]:
+            # Already declared by the template: re-pinned above, nothing to add.
+            require(domain in names, f"{job['id']}: {name} is in the template but {section} lacks {domain}")
+            continue
+        require(domain not in names, f"{job['id']}: domain {domain} already declared")
+        files[name] = sha256(members[prefix + name][0])
+        template["domains"][section] = sorted([*names, domain])
+        added[name] = section
+    missing = own - set(files)
     require(not missing, f"{job['id']}: members missing from the snapshot template: {sorted(missing)}")
-    template["files"] = files
-    fields = sorted(set(template) - {"files", "poe_version"})
+    # An added entry goes in path order; otherwise the template order stands.
+    template["files"] = dict(sorted(files.items())) if added or dropped else files
+    if job.get("contract_version") == "adapter":
+        # The data contract the members were built for, read from the adapter
+        # (pobr_data::CONTRACT_VERSION it was compiled against), never hand-written.
+        template["contract_version"] = adapter_contract_version(ctx.adapter)
+    fields = sorted(set(template) - {"files", "poe_version", "contract_version"})
     carried = {}
     if fields or retained:
         carried[job["member"]] = {
@@ -606,6 +701,7 @@ def snapshot_manifest(ctx, job, members):
             "fields": fields,
             "retained_pins": len(retained),
             "regenerated_pins": len(files) - len(retained),
+            **({"omitted_pins": dropped, "omitted_fields": sorted(omitted_fields)} if omit else {}),
         }
     return runtime_encoded(template), {"retained_external_pins": retained}, carried
 
@@ -614,13 +710,27 @@ def snapshot_manifest(ctx, job, members):
 
 
 def write_zip(path, members):
-    """The publication tools' archive convention; reproduces published zips byte for byte."""
+    """The publication tools' archive convention; reproduces published zips byte for byte.
+
+    A member's value is its bytes or the path of a file holding them (read one at a time).
+    """
     with zipfile.ZipFile(path, "x", compression=zipfile.ZIP_DEFLATED) as archive:
         for member in sorted(members):
             info = zipfile.ZipInfo(member, (1980, 1, 1, 0, 0, 0))
             info.create_system = 3
             info.external_attr = (stat.S_IFREG | 0o644) << 16
-            archive.writestr(info, members[member], compress_type=zipfile.ZIP_DEFLATED, compresslevel=9)
+            raw = members[member].read_bytes() if isinstance(members[member], Path) else members[member]
+            archive.writestr(info, raw, compress_type=zipfile.ZIP_DEFLATED, compresslevel=9)
+
+
+POBR_CRATES = {"pobr-data", "pobr-core", "pobr-gamedata", "pobr-item", "pobr-tree"}
+
+
+def adapter_contract_version(adapter):
+    result = subprocess.run([str(adapter), "--contract-version"], capture_output=True, check=False)
+    output = result.stdout.decode().strip()
+    require(result.returncode == 0 and output.isdigit(), f"{adapter} --contract-version failed: {result.stderr!r}")
+    return int(output)
 
 
 def pobr_contract(adapter, cargo_lock=CARGO_LOCK):
@@ -631,22 +741,29 @@ def pobr_contract(adapter, cargo_lock=CARGO_LOCK):
     ``ackness/pobr`` source Cargo.lock resolves every PoBR crate to. The tag
     must be ``contract/<version>.<m>``.
     """
+    packages = tomllib.loads(Path(cargo_lock).read_text())["package"]
     sources = {
         package["source"]
-        for package in tomllib.loads(Path(cargo_lock).read_text())["package"]
+        for package in packages
         if package.get("source", "").startswith((POBR_SOURCE + "?", POBR_SOURCE + ".git?"))
     }
+    local = sorted(p["name"] for p in packages if p["name"] in POBR_CRATES and "source" not in p)
+    if local and not sources:
+        # A `[patch]` to a local PoBR checkout, for developing against an
+        # unpublished contract revision. The build is reproducible only on that
+        # machine: the receipt says so and release:publish refuses it.
+        version = adapter_contract_version(adapter)
+        return {"repository": "ackness/pobr", "version": version, "tag": None, "commit": None, "local": local}
     require(len(sources) == 1, f"Cargo.lock must pin exactly one {POBR_SOURCE} source, found {sorted(sources)}")
+    # A tag describes the build only when every PoBR crate comes from it.
+    require(not local, f"Cargo.lock mixes a local PoBR [patch] ({', '.join(local)}) with {POBR_SOURCE}")
     url = urlsplit(sources.pop())
     tags = parse_qs(url.query).get("tag", [])
     require(
         len(tags) == 1 and re.fullmatch(r"[0-9a-f]{40}", url.fragment),
         f"PoBR crates must be pinned by tag and commit: {url.geturl()}",
     )
-    result = subprocess.run([str(adapter), "--contract-version"], capture_output=True, check=False)
-    output = result.stdout.decode().strip()
-    require(result.returncode == 0 and output.isdigit(), f"{adapter} --contract-version failed: {result.stderr!r}")
-    version, tag = int(output), tags[0]
+    version, tag = adapter_contract_version(adapter), tags[0]
     require(
         re.fullmatch(rf"contract/{version}\.\d+", tag),
         f"The adapter is built for contract version {version}, but Cargo.lock pins {tag}",
@@ -705,13 +822,18 @@ def provenance_counts(counts):
     return {group: totals[group] for group in PROVENANCE if group in totals}
 
 
-def fresh_manifest(target, files, receipt_pin, producer, frozen_path):
+def fresh_manifest(target, files, frozen_path):
+    """A new root manifest that depends only on the members and the declaration.
+
+    It names no producer commit and no receipt, so the same inputs give the
+    same zip on every commit and the declaration can pin it (``expect``); the
+    receipt pins the package instead.
+    """
     return {
         "schema": PART_SCHEMA,
         "kind": "game",
         "target": target,
         "production_ready": False,
-        "release_build": {"receipt": receipt_pin, "producer": {k: producer[k] for k in ("repository", "commit")}},
         "limits": [
             "Generated members come from the declared release producers; frozen members are copied from "
             f"{frozen_path} with their recorded origin and exit condition.",
@@ -733,8 +855,7 @@ def build(
 ):
     config, lock, domains, frozen, config_pins = load_config(config or default_config())
     target = lock["target"]
-    name = f"{target['game']}-{target['realm']}-{target['game_patch']}"
-    out = Path(out or cache / name).absolute()
+    out = Path(out or cache / output_name(config, target)).absolute()
     require(out.is_relative_to(ROOT / ".cache") or not out.is_relative_to(ROOT), "Output must be under .cache/")
     adapter = Path(adapter).absolute()
     require(adapter.is_file() and os.access(adapter, os.X_OK), f"Adapter binary not found: {adapter} (cargo build)")
@@ -747,8 +868,10 @@ def build(
 
     log(f"opening {len(lock['packages'])} pinned packages")
     packages = {key: open_package(repo, key, spec, cache / "inputs", fetch) for key, spec in lock["packages"].items()}
-    log("verifying the portable facts envelope")
-    facts = prepare_facts(packages[lock["facts"]["package"]], lock["facts"], cache / "inputs")
+    facts = None
+    if "facts" in lock:
+        log("verifying the portable facts envelope")
+        facts = prepare_facts(packages[lock["facts"]["package"]], lock["facts"], cache / "inputs")
     ctx = Context(target, packages, facts, work, adapter, policies)
     prefix = f"data/{target['game_patch']}/"
     jobs, snapshot_job, passthrough = {}, None, {}
@@ -809,7 +932,8 @@ def build(
         "inputs": {
             "packages": lock["packages"],
             "tags": {name: package.tag for name, package in packages.items() if package.tag},
-            "facts": {
+            "facts": facts
+            and {
                 "handoff": facts["handoff"],
                 "archive": facts["archive"],
                 "identities": {k: v[1] for k, v in facts["roots"].items()},
@@ -826,33 +950,37 @@ def build(
         "provenance": provenance_counts(counts),
         "reference": {"package": lock["reference"], "members_identical": identical},
     }
-    # receipt.json is complete before the package exists, so a fresh manifest
-    # inside the zip can pin it; package.json then pins the zip and receipt.
-    receipt_raw = encoded(receipt)
-    receipt_pin = {"path": "receipt.json", **pin(receipt_raw)}
-    (out / "receipt.json").write_bytes(receipt_raw)
+    # The zip depends only on the members and the declaration (never on the
+    # producer commit); the receipt then pins the zip, and package.json both.
     if mode == "retain-if-identical" and identical:
         manifest_raw, manifest_class = reference.read("manifest.json"), "retained-reference-manifest"
     else:
-        manifest = fresh_manifest(target, files, receipt_pin, producer, display(config / "frozen-inputs.json"))
+        manifest = fresh_manifest(target, files, display(config / "frozen-inputs.json"))
         manifest_raw, manifest_class = encoded(manifest), "fresh-manifest"
     all_members = {member: raw for member, (raw, _) in ctx.members.items()}
     all_members["manifest.json"] = manifest_raw
     zip_path = out / "game-build-part.zip"
     write_zip(zip_path, all_members)
     package_pin = file_pin(zip_path)
+    manifest_pin = {"class": manifest_class, **pin(manifest_raw)}
+    receipt["package"] = {"path": zip_path.name, **package_pin, "manifest": manifest_pin}
+    receipt_raw = encoded(receipt)
+    receipt_pin = {"path": "receipt.json", **pin(receipt_raw)}
+    (out / "receipt.json").write_bytes(receipt_raw)
     reference_spec = lock["packages"][lock["reference"]]
+    expect = lock.get("expect", {}).get("package")
     outcome = {
         "schema": PACKAGE,
         "target": target,
         "receipt": receipt_pin,
-        "manifest": {"class": manifest_class, **pin(manifest_raw)},
+        "manifest": manifest_pin,
         "package": {
             "path": zip_path.name,
             **package_pin,
             "expanded_bytes": sum(len(raw) for raw in all_members.values()),
             "identical_to_reference": package_pin["sha256"] == reference_spec["sha256"],
             "reference": {k: reference_spec[k] for k in ("bytes", "sha256")},
+            **({"expect": expect, "matches_expect": package_pin == expect} if expect else {}),
         },
     }
     outcome_raw = encoded(outcome)
@@ -879,7 +1007,18 @@ def report(receipt, outcome):
     lines.append(f"manifest.json: {outcome['manifest']['class']}")
     lines.append(f"game-build-part.zip: {package['bytes']} bytes sha256 {package['sha256']}")
     lines.append(f"identical to reference package: {package['identical_to_reference']}")
+    if "expect" in package:
+        lines.append(f"matches the declared expect pin: {package['matches_expect']}")
     return "\n".join(lines)
+
+
+def check_failure(outcome):
+    """Why ``--check`` fails, or None: the zip must equal ``expect`` when declared, else the reference package."""
+    package = outcome["package"]
+    if "expect" in package:
+        expect = package["expect"]
+        return None if package["matches_expect"] else f"package differs from the expect pin {expect['sha256']}"
+    return None if package["identical_to_reference"] else "package differs from the reference package"
 
 
 def main(argv=None):
@@ -887,14 +1026,20 @@ def main(argv=None):
     parser.add_argument(
         "--config",
         type=Path,
-        help="release declaration directory release/<patch> (default: the highest patch under release/)",
+        help="release declaration directory release/<patch>[-<n>] (default: the highest under release/)",
     )
     parser.add_argument("--out", type=Path, help="output directory under .cache/ (default .cache/release/<target>)")
     parser.add_argument("--adapter", type=Path, default=ADAPTER, help="built pobr-data-adapter binary")
     parser.add_argument("--cache", type=Path, default=CACHE, help="input extraction cache")
-    parser.add_argument("--fetch", action="store_true", help="fetch missing pinned commits from origin (Git only)")
+    parser.add_argument(
+        "--fetch",
+        action="store_true",
+        help="fetch missing pinned commits from origin and download missing Release assets",
+    )
     parser.add_argument("--manifest", choices=["retain-if-identical", "fresh"], help="override the manifest mode")
-    parser.add_argument("--check", action="store_true", help="exit 1 unless the zip equals the reference package")
+    parser.add_argument(
+        "--check", action="store_true", help="exit 1 unless the zip equals the expect pin (else the reference package)"
+    )
     args = parser.parse_args(argv)
     try:
         out, receipt, outcome = build(args.config, args.out, args.adapter, args.cache, args.fetch, args.manifest)
@@ -902,8 +1047,8 @@ def main(argv=None):
         parser.exit(1, f"release:build: {error}\n")
     print(report(receipt, outcome))
     print(f"output: {out}")
-    if args.check and not outcome["package"]["identical_to_reference"]:
-        parser.exit(1, "release:build: package differs from the reference package\n")
+    if args.check and (failure := check_failure(outcome)):
+        parser.exit(1, f"release:build: {failure}\n")
 
 
 if __name__ == "__main__":

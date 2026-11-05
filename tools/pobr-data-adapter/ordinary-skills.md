@@ -43,6 +43,7 @@ written or reopened by the producer.
 | `granted_effect_levels.json` | Original cooldown/attack time/costs, signed attack speed multiplier, crit attribution and offhand override, CostMultiplier − 100, Reservation, EffectOnPlayer − 100 and stored-use normalization |
 | `granted_effect_stat_sets.json` | Stable primary/additional set identity and order; real labels; constants/implicit/ignored stats; all FloatStats/BaseResolvedValues, AdditionalStats/values and flags; original effectiveness, signed multiplier, actor scaling and per-effectiveness rules |
 | `cost_types.json` | Physical index order, stable Id, Divisor and PerMinute; nonpositive Divisor uses the original normalization to 1 and is reported |
+| `active_skill_types.json` | Every `ActiveSkillType` row in row order: stable `Id` and 1-based `index` (row + 1), PoB2's `SkillType` numbering (`active_skill_types/v1`, contract 1.1). PoBR installs it as its skill-type name table, replacing the embedded `skill_type_names.txt` copy |
 
 `GrantedEffects.IgnoreMinionTypes` additionally fills the same-purpose existing
 `ignore_minion_types` boolean in this mode. This direct-source addition is listed
@@ -90,6 +91,7 @@ fresh-skills/
   base/granted_effect_levels.json
   base/granted_effect_stat_sets.json
   base/cost_types.json
+  base/active_skill_types.json
   source-manifest.json
   source-lock.json
   producer-receipt.json

@@ -512,9 +512,10 @@ pub(super) fn project(
             object,
             &effects,
         )?;
-        // A native packet is an optimization for the policy's allowlisted stats
-        // only. Multi-stat nodes use the same ordinary parser as every other
-        // rendered tree node.
+        // Every complete single-stat whole-context node carries its native
+        // packet, whatever PoBR maps today: the consumer decides per packet
+        // (an unknown stat keeps the text path). Multi-stat nodes use the
+        // same ordinary parser as every other rendered tree node.
         let stats = facts.stats(input, row)?;
         if text_record["owner"] == "target-csd"
             && kind == PassiveNodeKind::Normal
@@ -528,12 +529,6 @@ pub(super) fn project(
             })
             && stats.len() == 1
             && lines.len() == 1
-            && policy
-                .base_policy
-                .qualification
-                .native_stats
-                .admit(&stats[0])
-                .is_ok()
         {
             let packet = NativePassiveStats {
                 data_version: input.manifest["source_identity"]["game_patch"]

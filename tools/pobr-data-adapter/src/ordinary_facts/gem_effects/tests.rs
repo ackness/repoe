@@ -685,7 +685,7 @@ fn gem_effects_preserves_prior_base_domains_and_stat_set_codec_bytes_and_shapes(
                 include_bytes!("../../../tests/fixtures/ordinary-facts/skill-tables.json")
                     .as_slice(),
             ),
-            5,
+            6,
         ),
         (Domain::StatSetCodec, None, 1),
     ] {

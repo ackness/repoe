@@ -1,7 +1,9 @@
 """Synthetic end-to-end tests for RePoE.release.build (no real packages or Rust adapter)."""
 
 import ast
+import functools
 import hashlib
+import http.server
 import io
 import json
 import os
@@ -11,6 +13,7 @@ import subprocess
 import sys
 import tempfile
 import textwrap
+import threading
 import unittest
 from unittest import mock
 import zipfile
@@ -79,6 +82,32 @@ def receipt_raw(out):
     return (out / "receipt.json").read_bytes()
 
 
+def serve(case, directory, redirect=False):
+    """A local Release host for ``case``: ``/<repository>/releases/download/<tag>/<asset>`` under ``directory``.
+
+    With ``redirect`` every request is redirected once, as GitHub redirects to its asset storage.
+    """
+
+    class Handler(http.server.SimpleHTTPRequestHandler):
+        def do_GET(self):
+            if redirect and not self.path.startswith("/storage/"):
+                self.send_response(302)
+                self.send_header("Location", "/storage" + self.path)
+                self.end_headers()
+                return
+            self.path = self.path.removeprefix("/storage")
+            super().do_GET()
+
+        def log_message(self, *args):
+            pass
+
+    server = http.server.ThreadingHTTPServer(("127.0.0.1", 0), functools.partial(Handler, directory=str(directory)))
+    threading.Thread(target=server.serve_forever, daemon=True).start()
+    case.addCleanup(server.server_close)
+    case.addCleanup(server.shutdown)
+    return f"http://127.0.0.1:{server.server_port}"
+
+
 class ReleaseBuildTest(unittest.TestCase):
     def setUp(self):
         self.temporary = tempfile.TemporaryDirectory()
@@ -129,6 +158,7 @@ class ReleaseBuildTest(unittest.TestCase):
         generated_frozen=False,
         passthrough=None,
         snapshot_passthrough=True,
+        snapshot_fields=None,
     ):
         """Commit an input and a reference package; write a release declaration."""
         inputs = {"codec/a.json": self.codec}
@@ -138,11 +168,13 @@ class ReleaseBuildTest(unittest.TestCase):
         snapshot = {
             "schema_version": 3,
             "poe_version": "9.9",
+            "domains": {"overlay": ["a", "frozen"]},
             "files": {
                 "overlay/a.json": hashlib.sha256(published_a).hexdigest(),
                 "overlay/frozen.json": hashlib.sha256(self.frozen).hexdigest(),
                 "i18n/zh-CN/x.json": "c" * 64,
             },
+            **(snapshot_fields or {}),
         }
         members["data/9.9/manifest.json"] = runtime(snapshot)
         manifest = {
@@ -242,6 +274,8 @@ class ReleaseBuildTest(unittest.TestCase):
 
     def test_reproduces_reference_package(self):
         out, receipt, outcome = self.run_build(self.fixture())
+        self.assertEqual(receipt["schema"], "repoe-release-receipt/v2")
+        self.assertEqual(receipt["package"]["sha256"], build.file_pin(out / "game-build-part.zip")["sha256"])
         self.assertEqual(receipt["summary"], {"generated-identical": 1, "passthrough-identical": 1, "frozen": 1})
         self.assertEqual(receipt["provenance"], {"generated": 1, "passthrough": 1, "frozen": 1})
         self.assertEqual(
@@ -249,7 +283,7 @@ class ReleaseBuildTest(unittest.TestCase):
             {
                 "input": "previous:data/9.9/manifest.json",
                 "carried": "template",
-                "fields": ["schema_version"],
+                "fields": ["domains", "schema_version"],
                 "retained_pins": 1,
                 "regenerated_pins": 2,
             },
@@ -288,10 +322,52 @@ class ReleaseBuildTest(unittest.TestCase):
             self.assertEqual(archive.read("data/9.9/overlay/a.json"), self.derived)
         self.assertEqual(manifest["schema"], build.PART_SCHEMA)
         self.assertEqual(manifest["files"]["data/9.9/overlay/a.json"], pin(self.derived))
-        # The fresh manifest pins a file that exists: the published receipt.json.
-        self.assertEqual(manifest["release_build"]["receipt"], {"path": "receipt.json", **pin(receipt_raw(out))})
+        # The fresh manifest names no producer commit or receipt; the receipt pins the zip instead.
+        self.assertNotIn("release_build", manifest)
+        zip_pin = build.file_pin(out / "game-build-part.zip")
+        self.assertEqual(
+            {k: receipt["package"][k] for k in ("path", "bytes", "sha256")}, {"path": "game-build-part.zip", **zip_pin}
+        )
+        with zipfile.ZipFile(out / "game-build-part.zip") as archive:
+            manifest_pin = {"class": "fresh-manifest", **pin(archive.read("manifest.json"))}
+        self.assertEqual(receipt["package"]["manifest"], manifest_pin)
+        self.assertEqual(json.loads(receipt_raw(out)), receipt)
         sums = (out / "SHA256SUMS").read_text().split()
-        self.assertEqual(sums[2:4], [manifest["release_build"]["receipt"]["sha256"], "receipt.json"])
+        self.assertEqual(sums[2:4], [pin(receipt_raw(out))["sha256"], "receipt.json"])
+        self.assertEqual(build.check_failure(outcome), "package differs from the reference package")
+
+    def test_fresh_package_does_not_depend_on_the_producer_commit(self):
+        published = runtime({"_meta": {"generator": "old"}, "value": 0})
+        config = self.fixture(published_a=published)
+        out, first, _ = self.run_build(config)
+        zip_raw = (out / "game-build-part.zip").read_bytes()
+        self.commit({"later.txt": b"another producer commit"})
+        out, second, _ = self.run_build(config)
+        self.assertNotEqual(first["producer"]["commit"], second["producer"]["commit"])
+        self.assertEqual((out / "game-build-part.zip").read_bytes(), zip_raw)
+
+    def test_expect_pin_decides_the_check(self):
+        published = runtime({"_meta": {"generator": "old"}, "value": 0})
+        config = self.fixture(published_a=published)
+        _, _, outcome = self.run_build(config)
+        built = {k: outcome["package"][k] for k in ("bytes", "sha256")}
+        lock = json.loads((config / "inputs.lock.json").read_text())
+        for expect, failure in ((built, None), ({"bytes": 1, "sha256": "0" * 64}, "differs from the expect pin")):
+            with self.subTest(expect=expect):
+                lock["expect"] = {"package": expect}
+                (config / "inputs.lock.json").write_text(json.dumps(lock))
+                _, _, outcome = self.run_build(config)
+                self.assertFalse(outcome["package"]["identical_to_reference"])
+                self.assertEqual(outcome["package"]["matches_expect"], failure is None)
+                self.assertEqual(outcome["package"]["expect"], expect)
+                if failure is None:
+                    self.assertIsNone(build.check_failure(outcome))
+                else:
+                    self.assertIn(failure, build.check_failure(outcome))
+        lock["expect"] = {"package": built, "receipt": built}
+        (config / "inputs.lock.json").write_text(json.dumps(lock))
+        with self.assertRaisesRegex(ValueError, "only a package pin"):
+            build.load_config(config)
 
     def test_fresh_manifest_mode_overrides_retention(self):
         _, receipt, outcome = self.run_build(self.fixture(), manifest_mode="fresh")
@@ -334,6 +410,97 @@ class ReleaseBuildTest(unittest.TestCase):
         adapter = self.adapter.read_text().replace('["overlay/a.json"]', '["overlay/a.json", "overlay/b.json"]')
         self.adapter.write_text(adapter)
         with self.assertRaisesRegex(ValueError, r"members missing from the snapshot template: \['overlay/b.json'\]"):
+            self.run_build(config)
+
+    def test_snapshot_adds_new_members_and_records_the_adapter_contract(self):
+        config = self.fixture()
+        domains = json.loads((config / "domains.json").read_text())
+        domains["jobs"][0]["outputs"]["overlay/b.json"] = "data/9.9/overlay/b.json"
+        snapshot = domains["jobs"][1]
+        snapshot["add"] = {"overlay/b.json": "overlay"}
+        snapshot["contract_version"] = "adapter"
+        (config / "domains.json").write_text(json.dumps(domains))
+        adapter = self.adapter.read_text().replace('["overlay/a.json"]', '["overlay/a.json", "overlay/b.json"]')
+        self.adapter.write_text(adapter)
+        out, receipt, _ = self.run_build(config)
+        with zipfile.ZipFile(out / "game-build-part.zip") as archive:
+            snapshot = json.loads(archive.read("data/9.9/manifest.json"))
+            added = archive.read("data/9.9/overlay/b.json")
+        self.assertEqual(snapshot["contract_version"], 1)
+        self.assertEqual(snapshot["domains"], {"overlay": ["a", "b", "frozen"]})
+        self.assertEqual(list(snapshot["files"]), sorted(snapshot["files"]))
+        self.assertEqual(snapshot["files"]["overlay/b.json"], hashlib.sha256(added).hexdigest())
+        self.assertEqual(receipt["members"]["data/9.9/overlay/b.json"]["class"], "generated-new")
+        carried = receipt["jobs"]["snapshot"]["passthrough"]["data/9.9/manifest.json"]
+        self.assertNotIn("contract_version", json.dumps(carried))
+
+    def test_snapshot_omits_the_language_owners_entries_and_fields(self):
+        config = self.fixture(snapshot_fields={"languages": ["zh-CN"]})
+        domains = json.loads((config / "domains.json").read_text())
+        snapshot = domains["jobs"][1]
+        del snapshot["external"]
+        snapshot["omit"] = {"entries": ["i18n/"], "fields": ["languages"]}
+        (config / "domains.json").write_text(json.dumps(domains))
+        out, receipt, _ = self.run_build(config)
+        with zipfile.ZipFile(out / "game-build-part.zip") as archive:
+            manifest = json.loads(archive.read("data/9.9/manifest.json"))
+        self.assertEqual(list(manifest["files"]), ["overlay/a.json", "overlay/frozen.json"])
+        self.assertNotIn("languages", manifest)
+        carried = receipt["jobs"]["snapshot"]["passthrough"]["data/9.9/manifest.json"]
+        self.assertEqual((carried["omitted_pins"], carried["omitted_fields"]), (1, ["languages"]))
+        self.assertEqual(carried["retained_pins"], 0)
+        for omit, message in (
+            ({"entries": ["overlay/"]}, "a member of this package is omitted: overlay/a.json"),
+            ({"fields": ["files"]}, "cannot omit files"),
+            ({"fields": ["domains"]}, "cannot omit domains"),
+            ({"fields": ["schema_version"]}, "cannot omit schema_version"),
+            ({"prefixes": []}, "unknown omit keys"),
+        ):
+            with self.subTest(omit=omit):
+                snapshot["omit"] = omit
+                (config / "domains.json").write_text(json.dumps(domains))
+                with self.assertRaisesRegex(ValueError, message):
+                    self.run_build(config)
+
+    def test_snapshot_omit_skips_what_the_template_lacks(self):
+        # A template that already leaves the language owner's part out.
+        config = self.fixture()
+        domains = json.loads((config / "domains.json").read_text())
+        snapshot = domains["jobs"][1]
+        snapshot["omit"] = {"entries": ["i18n/", "absent/"], "fields": ["languages"]}
+        (config / "domains.json").write_text(json.dumps(domains))
+        out, receipt, _ = self.run_build(config)
+        with zipfile.ZipFile(out / "game-build-part.zip") as archive:
+            manifest = json.loads(archive.read("data/9.9/manifest.json"))
+        self.assertEqual(list(manifest["files"]), ["overlay/a.json", "overlay/frozen.json"])
+        carried = receipt["jobs"]["snapshot"]["passthrough"]["data/9.9/manifest.json"]
+        self.assertEqual((carried["omitted_pins"], carried["omitted_fields"]), (1, []))
+
+    def test_snapshot_add_of_a_declared_entry_is_a_no_op(self):
+        config = self.fixture()
+        plain, _, _ = self.run_build(config)
+        domains = json.loads((config / "domains.json").read_text())
+        domains["jobs"][1]["add"] = {"overlay/a.json": "overlay"}
+        (config / "domains.json").write_text(json.dumps(domains))
+        out, _, _ = self.run_build(config)
+        with (
+            zipfile.ZipFile(plain / "game-build-part.zip") as before,
+            zipfile.ZipFile(out / "game-build-part.zip") as after,
+        ):
+            self.assertEqual(before.read("data/9.9/manifest.json"), after.read("data/9.9/manifest.json"))
+
+    def test_snapshot_add_rejects_a_non_member_or_an_undeclared_domain(self):
+        config = self.fixture()
+        domains = json.loads((config / "domains.json").read_text())
+        domains["jobs"][1]["add"] = {"overlay/b.json": "overlay"}
+        (config / "domains.json").write_text(json.dumps(domains))
+        with self.assertRaisesRegex(ValueError, "added entry is not a member: overlay/b.json"):
+            self.run_build(config)
+        config = self.fixture(snapshot_fields={"domains": {"overlay": ["frozen"]}})
+        domains = json.loads((config / "domains.json").read_text())
+        domains["jobs"][1]["add"] = {"overlay/a.json": "overlay"}
+        (config / "domains.json").write_text(json.dumps(domains))
+        with self.assertRaisesRegex(ValueError, "overlay/a.json is in the template but overlay lacks a"):
             self.run_build(config)
 
     def test_frozen_pin_drift_rejects(self):
@@ -437,8 +604,25 @@ class ReleaseBuildTest(unittest.TestCase):
         self.assertEqual(build.default_config(releases), releases / "0.10.0")
         (releases / "next").mkdir()
         (releases / "next" / "inputs.lock.json").write_text("{}")
-        with self.assertRaisesRegex(ValueError, "named by game patch"):
+        with self.assertRaisesRegex(ValueError, "named <patch> or <patch>-<n>"):
             build.default_config(releases)
+        (releases / "next").rename(releases / "0.10.0-2")
+        # <patch>-<n> sorts after <patch>, then by n.
+        (releases / "0.10.0-10").mkdir()
+        (releases / "0.10.0-10" / "inputs.lock.json").write_text("{}")
+        self.assertEqual(build.default_config(releases), releases / "0.10.0-10")
+
+    def test_config_names_give_the_sequence_and_output_directory(self):
+        for name, sequence, output in (
+            ("9.9", None, "poe2-international-9.9"),
+            ("9.9-2", 2, "poe2-international-9.9-2"),
+            ("9.8-2", None, "poe2-international-9.9"),
+            ("scratch", None, "poe2-international-9.9"),
+        ):
+            with self.subTest(name=name):
+                self.assertEqual(build.config_sequence(Path(name), TARGET), sequence)
+                self.assertEqual(build.output_name(Path(name), TARGET), output)
+        self.assertIsNone(build.config_key("9.9-0"))
 
     def test_config_option_selects_the_declaration(self):
         config = self.fixture()
@@ -459,6 +643,11 @@ class ReleaseBuildTest(unittest.TestCase):
                 build.load_config(config)
             renamed = config.rename(config.parent / "9.9")
             self.assertEqual(build.load_config(renamed)[0], renamed)
+            renamed = renamed.rename(config.parent / "9.9-3")
+            self.assertEqual(build.load_config(renamed)[0], renamed)
+            renamed = renamed.rename(config.parent / "9.8-3")
+            with self.assertRaisesRegex(ValueError, "declares game patch 9.9"):
+                build.load_config(renamed)
 
     def test_release_workflow_paths_cover_the_build_code(self):
         root = Path(build.__file__).resolve().parents[2]
@@ -489,9 +678,19 @@ class ReleaseBuildTest(unittest.TestCase):
         _, receipt, _ = self.run_build(self.fixture())
         contract = receipt["producer"]["contract"]
         self.assertEqual(contract["version"], 1)
-        self.assertRegex(contract["tag"], r"^contract/1\.\d+$")
-        self.assertRegex(contract["commit"], r"^[0-9a-f]{40}$")
+        if contract["tag"] is None:
+            # TODO(contract/1.1): the adapter is patched to a local PoBR
+            # checkout until the tag exists; release:publish refuses this.
+            self.assertEqual(contract["local"], sorted(build.POBR_CRATES))
+        else:
+            self.assertRegex(contract["tag"], r"^contract/1\.\d+$")
+            self.assertRegex(contract["commit"], r"^[0-9a-f]{40}$")
         lock = self.root / "Cargo.lock"
+        lock.write_text('[[package]]\nname = "pobr-data"\nversion = "0.0.1"\n')
+        self.assertEqual(
+            build.pobr_contract(self.adapter, lock),
+            {"repository": "ackness/pobr", "version": 1, "tag": None, "commit": None, "local": ["pobr-data"]},
+        )
         source = "git+https://github.com/ackness/pobr?tag=contract%2F2.0#" + "1" * 40
         lock.write_text(f'[[package]]\nname = "pobr-data"\nsource = "{source}"\n')
         with self.assertRaisesRegex(ValueError, "contract version 1, but Cargo.lock pins contract/2.0"):
@@ -502,9 +701,101 @@ class ReleaseBuildTest(unittest.TestCase):
         dotgit = "git+https://github.com/ackness/pobr.git?tag=contract%2F1.3#" + "e" * 40
         lock.write_text(f'[[package]]\nname = "pobr-data"\nsource = "{dotgit}"\n')
         self.assertEqual(build.pobr_contract(self.adapter, lock)["tag"], "contract/1.3")
+        # A tag must describe every PoBR crate: one patched to a local checkout refuses it.
+        lock.write_text(lock.read_text() + '[[package]]\nname = "pobr-core"\nversion = "0.0.1"\n')
+        with self.assertRaisesRegex(ValueError, r"mixes a local PoBR \[patch\] \(pobr-core\)"):
+            build.pobr_contract(self.adapter, lock)
         lock.write_text(f'[[package]]\nname = "pobr-data"\nsource = "{dotgit[:-1]}X"\n')
         with self.assertRaisesRegex(ValueError, "pinned by tag and commit"):
             build.pobr_contract(self.adapter, lock)
+
+    def release_reference(self, config, raw=None):
+        """Move the reference package from its Git blob to a Release asset on a local host."""
+        lock = json.loads((config / "inputs.lock.json").read_text())
+        spec = lock["packages"]["previous"]
+        for key in ("revision", "path"):
+            del spec[key]
+        spec.update(repository="ackness/repoe", tag="game/9.9-1", asset="pobr-game-9.9.zip")
+        (config / "inputs.lock.json").write_text(json.dumps(lock))
+        host = self.root / "host"
+        asset = host / "ackness/repoe/releases/download/game/9.9-1/pobr-game-9.9.zip"
+        asset.parent.mkdir(parents=True)
+        asset.write_bytes(self.previous_raw if raw is None else raw)
+        return host
+
+    def test_reference_can_be_a_release_asset(self):
+        config = self.fixture()
+        base = serve(self, self.release_reference(config), redirect=True)
+        with mock.patch.dict(os.environ, {"REPOE_RELEASE_BASE_URL": base}):
+            with self.assertRaisesRegex(ValueError, "game/9.9-1 pobr-game-9.9.zip is not cached; rerun with --fetch"):
+                self.run_build(config)
+            out, receipt, outcome = self.run_build(config, fetch=True)
+        self.assertTrue(outcome["package"]["identical_to_reference"])
+        self.assertEqual((out / "game-build-part.zip").read_bytes(), self.previous_raw)
+        self.assertEqual(receipt["inputs"]["packages"]["previous"]["tag"], "game/9.9-1")
+        self.assertNotIn("previous", receipt["inputs"]["tags"])
+        cached = self.root / "cache/inputs/downloads" / hashlib.sha256(self.previous_raw).hexdigest()
+        self.assertEqual(cached.read_bytes(), self.previous_raw)
+        # Offline from the cache; a corrupt cache entry is refused, never trusted.
+        self.assertTrue(self.run_build(config)[2]["package"]["identical_to_reference"])
+        cached.write_bytes(b"corrupt")
+        with self.assertRaisesRegex(ValueError, "Corrupt cache entry"):
+            self.run_build(config)
+
+    def test_a_release_asset_must_match_its_pin(self):
+        config = self.fixture()
+        base = serve(self, self.release_reference(config, raw=b"not the package"))
+        with mock.patch.dict(os.environ, {"REPOE_RELEASE_BASE_URL": base}):
+            with self.assertRaisesRegex(ValueError, "does not match its pin"):
+                self.run_build(config, fetch=True)
+        downloads = self.root / "cache/inputs/downloads"
+        self.assertEqual(list(downloads.iterdir()) if downloads.exists() else [], [])
+        with mock.patch.dict(os.environ, {"REPOE_RELEASE_BASE_URL": base + "/missing"}):
+            with self.assertRaisesRegex(ValueError, "Cannot download .*404.*REPOE_RELEASE_TRANSPORT=gh"):
+                self.run_build(config, fetch=True)
+        lock = json.loads((config / "inputs.lock.json").read_text())
+        lock["packages"]["previous"]["path"] = "handoff/prev/game.zip"
+        (config / "inputs.lock.json").write_text(json.dumps(lock))
+        with self.assertRaisesRegex(ValueError, "no Git path"):
+            build.load_config(config)
+
+    def test_gh_transport_downloads_with_gh(self):
+        spec = {"repository": "ackness/repoe", "tag": "game/9.9-1", "asset": "a.zip", **pin(b"zip")}
+        result = subprocess.CompletedProcess([], 0, b"zip", b"")
+        with mock.patch.object(subprocess, "run", return_value=result) as run:
+            self.assertEqual(build.assets.download(spec, transport="gh"), b"zip")
+        self.assertEqual(run.call_args[0][0][:4], ["gh", "release", "download", "game/9.9-1"])
+        with self.assertRaisesRegex(ValueError, "must be https or gh"):
+            build.assets.download(spec, transport="ftp")
+        with mock.patch.object(subprocess, "run", side_effect=subprocess.TimeoutExpired(["gh"], 5)):
+            with self.assertRaisesRegex(ValueError, "did not finish within 5 s"):
+                build.assets.download(spec, transport="gh", timeout=5)
+        with mock.patch.object(subprocess, "run", side_effect=FileNotFoundError("gh")):
+            with self.assertRaisesRegex(ValueError, "gh is not available"):
+                build.assets.download(spec, transport="gh")
+
+    def test_a_replay_without_facts_runs_only_package_derived_jobs(self):
+        config = self.fixture()
+        lock = json.loads((config / "inputs.lock.json").read_text())
+        del lock["facts"]
+        (config / "inputs.lock.json").write_text(json.dumps(lock))
+        with self.assertRaisesRegex(ValueError, "Adapter jobs need a facts envelope"):
+            build.load_config(config)
+        domains = json.loads((config / "domains.json").read_text())
+        del domains["jobs"][0]
+        (config / "domains.json").write_text(json.dumps(domains))
+        frozen = json.loads((config / "frozen-inputs.json").read_text())
+        frozen["members"]["data/9.9/overlay/a.json"] = {
+            **frozen["members"]["data/9.9/overlay/frozen.json"],
+            **pin(self.derived),
+        }
+        (config / "frozen-inputs.json").write_text(json.dumps(frozen))
+        out, receipt, outcome = build.build(
+            config, out=self.root / "out", adapter=self.adapter, cache=self.root / "cache", repo=self.repo
+        )
+        self.assertIsNone(receipt["inputs"]["facts"])
+        self.assertEqual(receipt["summary"], {"passthrough-identical": 1, "frozen": 2})
+        self.assertTrue(outcome["package"]["identical_to_reference"])
 
     def test_template_expansion(self):
         bindings = {"a.b": [1], "nested": {"c": 2}}

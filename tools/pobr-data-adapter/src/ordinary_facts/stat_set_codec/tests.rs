@@ -700,7 +700,7 @@ fn codec_leaves_existing_base_domains_bytes_and_receipt_shapes_unchanged() {
                 include_bytes!("../../../tests/fixtures/ordinary-facts/skill-tables.json")
                     .as_slice(),
             ),
-            5,
+            6,
         ),
     ] {
         let mut f = Fixture::new();

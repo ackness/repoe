@@ -1066,7 +1066,7 @@ fn previous_non_quality_domains_keep_files_and_receipt_shapes() {
                 include_bytes!("../../../tests/fixtures/ordinary-facts/skill-tables.json")
                     .as_slice(),
             ),
-            8,
+            9,
         ),
         (Domain::StatSetCodec, None, 5),
         (Domain::GemEffects, None, 6),

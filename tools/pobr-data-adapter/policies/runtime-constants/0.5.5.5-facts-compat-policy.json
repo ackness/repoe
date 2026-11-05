@@ -227,19 +227,19 @@
     {
       "file": "game_constants.json",
       "relative_path": "base/game_constants.json",
-      "schema": "pobr_data::catalog::GameConstantsDef",
+      "schema": "game_constants/v1",
       "sha256": "7a90760b853088493bbcd377d274c5bf6582384c2ad8d59a30dbe0221f2e0e22"
     },
     {
       "file": "character_constants.json",
       "relative_path": "base/character_constants.json",
-      "schema": "pobr_data::catalog::CharacterConstantsDef",
+      "schema": "character_constants/v1",
       "sha256": "e64bd63f5c2288447ff22e878297752aae8ec5ee9a6135e460f514914ed22150"
     },
     {
       "file": "jewel_radii.json",
       "relative_path": "base/jewel_radii.json",
-      "schema": "pobr_data::catalog::JewelRadiiDef",
+      "schema": "jewel_radii/v1",
       "sha256": "00c1e71af6666521c2e1fc3afd7af7f5eb9cb14b1a4537dbb44e8f2de6d7d336"
     }
   ],

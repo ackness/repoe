@@ -277,7 +277,7 @@ fn additional_sets_pair_source_order_keep_duplicates_flags_and_scaling() {
     );
     assert_eq!(receipt["complete_runtime"], false);
     assert_eq!(receipt["adoption"], "not-adopted");
-    assert_eq!(receipt["files"].as_object().unwrap().len(), 8);
+    assert_eq!(receipt["files"].as_object().unwrap().len(), 9);
     for (file, pin) in receipt["files"].as_object().unwrap() {
         let bytes = fs::read(f.root.join("out").join(file)).unwrap();
         assert_eq!(
@@ -800,4 +800,29 @@ fn older_domains_remain_deterministic_across_a_skills_conversion() {
             );
         }
     }
+}
+
+#[test]
+fn active_skill_types_list_every_row_in_order_with_one_based_index() {
+    use pobr_data::catalog::skill_types::ActiveSkillTypesDef;
+    let f = fixture();
+    run(args(&f)).unwrap();
+    let types: ActiveSkillTypesDef = read(&f, "base/active_skill_types.json");
+    let listed: Vec<_> = types.iter().map(|t| (t.id.as_str(), t.index)).collect();
+    assert_eq!(
+        listed,
+        [
+            ("Attack", 1),
+            ("Spell", 2),
+            ("Minion", 3),
+            ("AND", 4),
+            ("OR", 5),
+            ("NOT", 6)
+        ]
+    );
+    let mut f = fixture();
+    f.values("ActiveSkillType", 2)["Id"] = json!("");
+    f.seal();
+    // The fact reader already refuses an empty row Id.
+    rejects(&f, "empty or duplicate stable game id");
 }

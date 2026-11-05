@@ -15,9 +15,10 @@
 //!   (`overlay/runes.json` is `runes/v1`); a domain that writes several
 //!   members is named after the domain (`stats_mods/v1`, `skills/v1`).
 //!
-//! Policies pinned before the IDs existed spell selected-file schemas as
-//! `pobr_data::catalog::…` type paths. Their bytes are pinned inputs, so the
-//! [`SchemaId`] of such a file still accepts that spelling as a legacy alias.
+//! Policies name the schema of each selected input file by the same IDs
+//! ([`SchemaId`]); the `pobr_data::catalog::…` type-path spellings that
+//! policies pinned before the registry used were retired with game
+//! 0.5.5.5-2, when every pinned policy was rewritten.
 
 // Domain outputs. Members that declare `_meta.schema` themselves:
 pub(crate) const ITEM_GRANTED_SKILLS: &str = "item_granted_skills/v1";
@@ -57,46 +58,38 @@ pub(crate) const PASSIVE_TREE_DOMAIN: &str = PASSIVE_TREE.id;
 /// `base/{game_constants,character_constants,jewel_radii,non_damaging_ailments}.json`.
 pub(crate) const RUNTIME_CONSTANTS: &str = "runtime_constants/v1";
 
-/// The schema of one selected input file and the type-path spelling pinned
-/// policies may use for it.
+/// The schema of one selected input file, as policies name it.
 #[derive(Clone, Copy, Debug)]
 pub(crate) struct SchemaId {
     pub(crate) id: &'static str,
-    legacy: &'static str,
 }
 
 impl SchemaId {
     pub(crate) fn accepts(self, value: &str) -> bool {
-        value == self.id || value == self.legacy
+        value == self.id
     }
 }
 
 pub(crate) const GAME_CONSTANTS: SchemaId = SchemaId {
     id: "game_constants/v1",
-    legacy: "pobr_data::catalog::GameConstantsDef",
 };
 pub(crate) const CHARACTER_CONSTANTS: SchemaId = SchemaId {
     id: "character_constants/v1",
-    legacy: "pobr_data::catalog::CharacterConstantsDef",
 };
 pub(crate) const JEWEL_RADII: SchemaId = SchemaId {
     id: "jewel_radii/v1",
-    legacy: "pobr_data::catalog::JewelRadiiDef",
 };
 pub(crate) const NON_DAMAGING_AILMENTS: SchemaId = SchemaId {
     id: "non_damaging_ailments/v1",
-    legacy: "pobr_data::catalog::non_damaging_ailments::NonDamagingAilmentsDef",
 };
 /// The member `base/passive_tree.json` (a `PassiveNodeDef` array). The
 /// passive-tree domain reuses its ID ([`PASSIVE_TREE_DOMAIN`]).
 pub(crate) const PASSIVE_TREE: SchemaId = SchemaId {
     id: "passive_tree/v1",
-    legacy: "pobr_data::catalog::PassiveNodeDef[]",
 };
 /// The member `base/passive_tree_meta.json`.
 pub(crate) const PASSIVE_TREE_META: SchemaId = SchemaId {
     id: "passive_tree_meta/v1",
-    legacy: "pobr_data::catalog::PassiveTreeMeta",
 };
 
 #[cfg(test)]
@@ -104,12 +97,11 @@ mod tests {
     use super::*;
 
     #[test]
-    fn ids_accept_their_legacy_type_path_only() {
+    fn ids_accept_only_themselves() {
         assert!(GAME_CONSTANTS.accepts("game_constants/v1"));
-        assert!(GAME_CONSTANTS.accepts("pobr_data::catalog::GameConstantsDef"));
-        assert!(!GAME_CONSTANTS.accepts("pobr_data::catalog::JewelRadiiDef"));
+        assert!(!GAME_CONSTANTS.accepts("pobr_data::catalog::GameConstantsDef"));
         assert!(!GAME_CONSTANTS.accepts("jewel_radii/v1"));
-        assert!(!PASSIVE_TREE.accepts("pobr_data::catalog::PassiveNodeDef"));
+        assert!(!PASSIVE_TREE.accepts("pobr_data::catalog::PassiveNodeDef[]"));
     }
 
     /// The `_meta.schema` spellings of the published 0.5.5.5 game package

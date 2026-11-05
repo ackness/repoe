@@ -4,7 +4,8 @@ The release is tagged on the ackness/repoe master commit that produced the
 package. Its assets are ``pobr-game-<patch>.zip`` (the release:build zip, byte
 for byte), ``receipt.json`` and ``SHA256SUMS``; the release body is generated
 from the receipt. ``<n>`` starts at 1 per patch and is one above the highest
-``game/<patch>-<n>`` tag on the remote.
+``game/<patch>-<n>`` tag on the remote; a ``release/<patch>-<n>`` declaration
+must get exactly that ``<n>``.
 
 Without ``--yes`` nothing is tagged, pushed or released: the command builds (or,
 with ``--reuse``, verifies the existing build of HEAD), stages the assets under
@@ -46,8 +47,8 @@ def asset_name(patch):
     return f"pobr-game-{patch}.zip"
 
 
-def tag_name(patch, sequence):
-    return f"{TAG_PREFIX}{patch}-{sequence}"
+def tag_name(patch, sequence, prefix=TAG_PREFIX):
+    return f"{prefix}{patch}-{sequence}"
 
 
 def sha256sums(digests):
@@ -70,15 +71,15 @@ def remote_tags(ls_remote):
     return tags
 
 
-def sequences(tags, patch):
-    """``{n: tag}`` of the ``game/<patch>-<n>`` tags among ``tags`` (other names are ignored)."""
-    pattern = re.compile(re.escape(tag_name(patch, "")) + r"([1-9][0-9]*)")
+def sequences(tags, patch, prefix=TAG_PREFIX):
+    """``{n: tag}`` of the ``<prefix><patch>-<n>`` tags among ``tags`` (other names are ignored)."""
+    pattern = re.compile(re.escape(tag_name(patch, "", prefix)) + r"([1-9][0-9]*)")
     return {int(m[1]): tag for tag in tags if (m := pattern.fullmatch(tag))}
 
 
-def next_sequence(tags, patch):
-    """One above the highest ``game/<patch>-<n>`` tag; 1 for a patch without one."""
-    return max(sequences(tags, patch), default=0) + 1
+def next_sequence(tags, patch, prefix=TAG_PREFIX):
+    """One above the highest ``<prefix><patch>-<n>`` tag; 1 for a patch without one."""
+    return max(sequences(tags, patch, prefix), default=0) + 1
 
 
 def stage(build_dir, out):
@@ -103,6 +104,12 @@ def stage(build_dir, out):
     zip_path = build_dir / package["package"]["path"]
     zip_pin = build.file_pin(zip_path)
     require(zip_pin == {k: package["package"][k] for k in ("bytes", "sha256")}, f"{zip_path} differs from package.json")
+    # The receipt describes this zip (a stale --reuse output or a hand-copied zip does not match).
+    described = receipt.get("package")
+    require(
+        isinstance(described, dict) and {k: described.get(k) for k in ("bytes", "sha256")} == zip_pin,
+        "receipt.json does not pin this zip; rebuild it",
+    )
     with zipfile.ZipFile(zip_path) as archive:
         require(archive.testzip() is None, f"{zip_path}: corrupt member")
     patch = receipt["target"]["game_patch"]
@@ -133,6 +140,11 @@ def release_body(staged, tag, sequence):
     provenance = ", ".join(f"{counts[group]} {group}" for group in build.PROVENANCE if group in counts)
     classes = ", ".join(f"{kind} {count}" for kind, count in sorted(receipt["summary"].items()))
     identical = "yes" if package["package"]["identical_to_reference"] else "no"
+    expect = ""
+    if "expect" in package["package"]:
+        expect = (
+            f"- Equal to the declaration's `expect` pin: {'yes' if package['package']['matches_expect'] else 'no'}\n"
+        )
     return (
         f"PoBR game package for {target['game']} {patch} ({target['realm']}), sequence {sequence}.\n"
         "\n"
@@ -143,6 +155,7 @@ def release_body(staged, tag, sequence):
         f"- Members: {provenance}; root manifest: {package['manifest']['class']}\n"
         f"- Classes: {classes}\n"
         f"- Identical to the reference package `{receipt['reference']['package']}`: {identical}\n"
+        f"{expect}"
         "\n"
         f"Pin it in PoBR with `mise run data:bump {REPOSITORY} {tag}`. `receipt.json` records every input pin; "
         "`SHA256SUMS` pins the other assets.\n"
@@ -206,42 +219,44 @@ def preflight(repo, remote=REMOTE, branch=BRANCH, fetch=True):
     return commit, problems, warnings
 
 
-def list_remote_tags(repo, remote=REMOTE):
-    """``{tag: commit}`` of the remote's ``game/*`` tags, or None when the remote cannot be listed."""
-    result = git(repo, "ls-remote", "--tags", remote, f"refs/tags/{TAG_PREFIX}*", online=True)
+def list_remote_tags(repo, remote=REMOTE, prefix=TAG_PREFIX):
+    """``{tag: commit}`` of the remote's ``<prefix>*`` tags, or None when the remote cannot be listed."""
+    result = git(repo, "ls-remote", "--tags", remote, f"refs/tags/{prefix}*", online=True)
     if result.returncode:
         log(f"could not list {remote}'s tags: {result.stderr.decode().strip()}")
         return None
     return remote_tags(result.stdout.decode())
 
 
-def plan(repo, patch, commit, tags):
+def plan(repo, patch, commit, tags, prefix=TAG_PREFIX):
     """Decide what publishing HEAD means, before anything is built or staged.
 
     Returns ``{"action", "sequence", "problems"}``. ``action`` is ``new`` (tag
-    ``game/<patch>-<n>`` with the next ``n``), ``resume-push`` (an unpushed
+    ``<prefix><patch>-<n>`` with the next ``n``), ``resume-push`` (an unpushed
     local tag already names HEAD), ``remote-tag`` (the remote already has a
     tag on HEAD: create its Release if missing, else check it) or None when
     the remote's tags are unknown. HEAD never gets a second sequence number.
     """
     if tags is None:
-        problem = f"the remote's {TAG_PREFIX}{patch}-* tags could not be listed, so <n> is unknown"
+        problem = f"the remote's {prefix}{patch}-* tags could not be listed, so <n> is unknown"
         return {"action": None, "sequence": None, "problems": [problem]}
-    remote = sequences(tags, patch)
+    remote = sequences(tags, patch, prefix)
     at_head = sorted(n for n, tag in remote.items() if tags[tag] == commit)
     if at_head:
         problems = [f"HEAD carries several tags: {[remote[n] for n in at_head]}"] if len(at_head) > 1 else []
         return {"action": "remote-tag", "sequence": at_head[-1], "problems": problems}
-    listed = git(repo, "tag", "--points-at", commit, "--list", f"{TAG_PREFIX}{patch}-*").stdout.decode().split()
-    local = sorted(sequences(listed, patch))
+    listed = git(repo, "tag", "--points-at", commit, "--list", f"{prefix}{patch}-*").stdout.decode().split()
+    local = sorted(sequences(listed, patch, prefix))
     if local:
-        problems = [f"HEAD carries several local tags: {[tag_name(patch, n) for n in local]}"] if len(local) > 1 else []
-        problems += [f"{tag_name(patch, n)} names another commit on the remote" for n in local if n in remote]
+        names = [tag_name(patch, n, prefix) for n in local]
+        problems = [f"HEAD carries several local tags: {names}"] if len(local) > 1 else []
+        problems += [f"{tag_name(patch, n, prefix)} names another commit on the remote" for n in local if n in remote]
         return {"action": "resume-push", "sequence": local[-1], "problems": problems}
-    sequence = next_sequence(tags, patch)
+    sequence = next_sequence(tags, patch, prefix)
     problems = []
-    if git(repo, "rev-parse", "--quiet", "--verify", f"refs/tags/{tag_name(patch, sequence)}").returncode == 0:
-        problems.append(f"a local tag {tag_name(patch, sequence)} exists that the remote does not have; delete it")
+    tag = tag_name(patch, sequence, prefix)
+    if git(repo, "rev-parse", "--quiet", "--verify", f"refs/tags/{tag}").returncode == 0:
+        problems.append(f"a local tag {tag} exists that the remote does not have; delete it")
     return {"action": "new", "sequence": sequence, "problems": problems}
 
 
@@ -288,105 +303,42 @@ def published_assets(run, tag, directory, repository=REPOSITORY):
     return {path.name: build.file_pin(path) for path in sorted(directory.iterdir())}
 
 
-# --- command -------------------------------------------------------------------------------------
+def release_steps(run, staged, tag, commit, action, repository=REPOSITORY):
+    """The steps still to run for ``action`` and the resulting action.
 
-
-def load_target(config):
-    return build.load_config(config)[1]["target"]
-
-
-def built(args, config, cache=build.CACHE):
-    """The release:build output for HEAD: rebuilt, or with ``--reuse`` the existing one if it matches HEAD."""
-    config, lock, *_, config_pins = build.load_config(config)
-    target = lock["target"]
-    out = Path(cache) / f"{target['game']}-{target['realm']}-{target['game_patch']}"
-    if args.reuse:
-        receipt = decode((out / "receipt.json").read_bytes())
-        current = build.producer_identity(args.repo, Path(args.adapter).absolute(), config, config_pins)
-        require(receipt["producer"] == current, f"{out} was not built from this checkout; rerun without --reuse")
-        log(f"reusing {build.display(out)}")
-        return out
-    log("running release:build")
-    out, receipt, outcome = build.build(config, out, args.adapter, cache, args.fetch, repo=args.repo)
-    print(build.report(receipt, outcome), file=sys.stderr)
-    return out
-
-
-def bullets(items):
-    return "".join(f"  - {item}\n" for item in items)
-
-
-def main(argv=None, runner=None):
-    parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
-    parser.add_argument("--config", type=Path, help="release declaration release/<patch> (default: highest patch)")
-    mode = parser.add_mutually_exclusive_group()
-    mode.add_argument("--dry-run", action="store_true", help="stage and print the plan only (the default)")
-    mode.add_argument("--yes", action="store_true", help="tag, push and create the GitHub Release")
-    parser.add_argument("--reuse", action="store_true", help="reuse the existing release:build output of HEAD")
-    parser.add_argument("--fetch", action="store_true", help="release:build --fetch: fetch missing pinned commits")
-    parser.add_argument(
-        "--allow-different",
-        action="store_true",
-        help="publish a package that differs from the lock's reference package (a new patch or data change)",
+    Steps are None when ``tag`` is already released with exactly the staged
+    assets. A draft left by an interrupted create is published only if every
+    staged asset arrived intact; any other existing Release must equal the
+    staged assets.
+    """
+    steps = commands(staged, tag, commit, repository=repository)
+    if action == "resume-push":
+        return steps[1:], action
+    if action != "remote-tag":
+        return steps, action
+    state = release_state(run, tag, repository)
+    if state is None:
+        return steps[2:], action
+    published = published_assets(run, tag, staged["directory"] / "published", repository)
+    expected = staged["assets"]
+    if state == "draft":
+        require(
+            published == expected,
+            f"{tag} has an unfinished draft Release with other assets: {sorted(published)}; delete it "
+            f"(gh release delete {tag} --repo {repository} --yes keeps the tag) and rerun",
+        )
+        return [["gh", "release", "edit", tag, "--repo", repository, "--draft=false"]], "draft"
+    require(
+        published == expected,
+        f"{tag} is already released with other assets: {sorted(published)} differ from the staged "
+        f"{sorted(expected)} (or their SHA-256)",
     )
-    parser.add_argument("--adapter", type=Path, default=build.ADAPTER, help=argparse.SUPPRESS)
-    parser.add_argument("--repo", type=Path, default=build.ROOT, help=argparse.SUPPRESS)
-    args = parser.parse_args(argv)
-    run = runner or default_runner(args.repo)
-    try:
-        # Before the build: the checkout, the remote's tags and (to publish) gh.
-        commit, problems, warnings = preflight(args.repo)
-        config = args.config or build.default_config()
-        target = load_target(config)
-        patch = target["game_patch"]
-        decision = plan(args.repo, patch, commit, list_remote_tags(args.repo))
-        problems += decision["problems"]
-        if args.yes and (problem := gh_problem(run)):
-            problems.append(problem)
-        if args.yes and (problems or warnings):
-            parser.exit(1, "release:publish: refusing to publish:\n" + bullets(problems + warnings))
-        # The build and what it says about HEAD.
-        staged = stage(built(args, config), STAGE / f"{target['game']}-{target['realm']}-{patch}")
-        receipt, package = staged["receipt"], staged["package"]
-        if receipt["producer"]["commit"] != commit or receipt["producer"]["dirty"]:
-            problems.append("the package was not built from a clean HEAD")
-        if not package["package"]["identical_to_reference"] and not args.allow_different:
-            problems.append("the package differs from the reference package (pass --allow-different if intended)")
-        sequence, action = decision["sequence"], decision["action"]
-        tag = tag_name(patch, sequence if sequence is not None else "<n>")
-        directory = staged["directory"]
-        (directory / "release-notes.md").write_text(release_body(staged, tag, sequence or "<n>"))
-        (directory / "tag-message.txt").write_text(tag_message(staged, tag))
-        steps = commands(staged, tag, commit)
-        if action == "resume-push":
-            steps = steps[1:]
-        elif action == "remote-tag":
-            state = release_state(run, tag)
-            if state is None:
-                steps = steps[2:]
-            else:
-                published = published_assets(run, tag, directory / "published")
-                expected = staged["assets"]
-                if state == "draft":
-                    # An interrupted create: finish it only if every asset arrived intact.
-                    require(
-                        published == expected,
-                        f"{tag} has an unfinished draft Release with other assets: {sorted(published)}; delete it "
-                        f"(gh release delete {tag} --repo {REPOSITORY} --yes keeps the tag) and rerun",
-                    )
-                    steps = [["gh", "release", "edit", tag, "--repo", REPOSITORY, "--draft=false"]]
-                    action = "draft"
-                else:
-                    require(
-                        published == expected,
-                        f"{tag} is already released with other assets: {sorted(published)} differ from the staged "
-                        f"{sorted(expected)} (or their SHA-256)",
-                    )
-                    print(f"already published: {tag} names HEAD and its Release assets equal the staged ones")
-                    return
-    except (ValueError, KeyError, TypeError, OSError, zipfile.BadZipFile) as error:
-        parser.exit(1, f"release:publish: {error}\n")
+    return None, "published"
 
+
+def carry_out(parser, run, staged, tag, commit, steps, action, problems, warnings, yes, repository=REPOSITORY):
+    """Print the staged assets and the plan; with ``yes`` and no problems, run the steps."""
+    directory = staged["directory"]
     print(f"staged: {build.display(directory)}")
     for name, value in staged["assets"].items():
         print(f"  {name}  {value['bytes']} bytes  sha256 {value['sha256']}")
@@ -405,7 +357,7 @@ def main(argv=None, runner=None):
     if problems:
         print("publish refused:\n" + bullets(problems))
         raise SystemExit(1)
-    if not args.yes:
+    if not yes:
         print("dry run: nothing was tagged, pushed or released; rerun with --yes to publish")
         return
     for index, step in enumerate(steps):
@@ -418,11 +370,113 @@ def main(argv=None, runner=None):
             remaining = "".join(f"  {shlex.join(s)}\n" for s in steps[index:])
             parser.exit(
                 1,
-                f"release:publish: step failed: {shlex.join(step)}"
+                f"{parser.prog}: step failed: {shlex.join(step)}"
                 f"{f' ({failed})' if isinstance(failed, str) else ''}\n"
-                "rerun release:publish to resume (it keeps the tag), or run by hand:\n" + remaining,
+                "rerun to resume (it keeps the tag), or run by hand:\n" + remaining,
             )
-    print(f"published https://github.com/{REPOSITORY}/releases/tag/{tag}")
+    print(f"published https://github.com/{repository}/releases/tag/{tag}")
+
+
+def sequence_problem(config, target, sequence, prefix=TAG_PREFIX):
+    """``release/<patch>-<n>`` is the package ``<prefix><patch>-<n>`` and ``release/<patch>`` is ``-1``; no other."""
+    declared = build.declared_sequence(config, target)
+    if declared is None or sequence is None or declared == sequence:
+        return None
+    patch = target["game_patch"]
+    return (
+        f"{build.display(config)} declares {tag_name(patch, declared, prefix)}, but HEAD would be published as "
+        f"{tag_name(patch, sequence, prefix)}"
+    )
+
+
+# --- command -------------------------------------------------------------------------------------
+
+
+def load_target(config):
+    return build.load_config(config)[1]["target"]
+
+
+def built(args, config, cache=build.CACHE):
+    """The release:build output for HEAD: rebuilt, or with ``--reuse`` the existing one if it matches HEAD."""
+    config, lock, *_, config_pins = build.load_config(config)
+    out = Path(cache) / build.output_name(config, lock["target"])
+    if args.reuse:
+        receipt = decode((out / "receipt.json").read_bytes())
+        current = build.producer_identity(args.repo, Path(args.adapter).absolute(), config, config_pins)
+        require(receipt["producer"] == current, f"{out} was not built from this checkout; rerun without --reuse")
+        log(f"reusing {build.display(out)}")
+        return out
+    log("running release:build")
+    out, receipt, outcome = build.build(config, out, args.adapter, cache, args.fetch, repo=args.repo)
+    print(build.report(receipt, outcome), file=sys.stderr)
+    return out
+
+
+def bullets(items):
+    return "".join(f"  - {item}\n" for item in items)
+
+
+def main(argv=None, runner=None):
+    parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
+    parser.add_argument("--config", type=Path, help="release declaration release/<patch>[-<n>] (default: the highest)")
+    mode = parser.add_mutually_exclusive_group()
+    mode.add_argument("--dry-run", action="store_true", help="stage and print the plan only (the default)")
+    mode.add_argument("--yes", action="store_true", help="tag, push and create the GitHub Release")
+    parser.add_argument("--reuse", action="store_true", help="reuse the existing release:build output of HEAD")
+    parser.add_argument("--fetch", action="store_true", help="release:build --fetch: fetch missing pinned commits")
+    parser.add_argument(
+        "--allow-different",
+        action="store_true",
+        help="publish a package that differs from the reference package although the lock declares no expect pin",
+    )
+    parser.add_argument("--adapter", type=Path, default=build.ADAPTER, help=argparse.SUPPRESS)
+    parser.add_argument("--repo", type=Path, default=build.ROOT, help=argparse.SUPPRESS)
+    args = parser.parse_args(argv)
+    run = runner or default_runner(args.repo)
+    parser.prog = "release:publish"
+    try:
+        # Before the build: the checkout, the remote's tags and (to publish) gh.
+        commit, problems, warnings = preflight(args.repo)
+        config = Path(args.config or build.default_config())
+        target = load_target(config)
+        patch = target["game_patch"]
+        decision = plan(args.repo, patch, commit, list_remote_tags(args.repo))
+        problems += decision["problems"]
+        if problem := sequence_problem(config, target, decision["sequence"]):
+            problems.append(problem)
+        if args.yes and (problem := gh_problem(run)):
+            problems.append(problem)
+        if args.yes and (problems or warnings):
+            parser.exit(1, "release:publish: refusing to publish:\n" + bullets(problems + warnings))
+        # The build and what it says about HEAD.
+        staged = stage(built(args, config), STAGE / build.output_name(config, target))
+        receipt, package = staged["receipt"], staged["package"]
+        if receipt["producer"]["commit"] != commit or receipt["producer"]["dirty"]:
+            problems.append("the package was not built from a clean HEAD")
+        if receipt["producer"]["contract"].get("tag") is None:
+            # Reported, not raised: a dry run still stages the assets (a rehearsal can serve them).
+            problems.append(
+                "the adapter was built against a local PoBR checkout; pin tools/pobr-data-adapter to a "
+                "contract/<n>.<m> tag"
+            )
+        if "expect" in package["package"]:
+            # The reviewed declaration pins the bytes; --allow-different is not needed (or enough).
+            if not package["package"]["matches_expect"]:
+                problems.append("the package differs from the declaration's expect pin")
+        elif not package["package"]["identical_to_reference"] and not args.allow_different:
+            problems.append("the package differs from the reference package (pass --allow-different if intended)")
+        sequence = decision["sequence"]
+        tag = tag_name(patch, sequence if sequence is not None else "<n>")
+        directory = staged["directory"]
+        (directory / "release-notes.md").write_text(release_body(staged, tag, sequence or "<n>"))
+        (directory / "tag-message.txt").write_text(tag_message(staged, tag))
+        steps, action = release_steps(run, staged, tag, commit, decision["action"])
+    except (ValueError, KeyError, TypeError, OSError, zipfile.BadZipFile) as error:
+        parser.exit(1, f"release:publish: {error}\n")
+    if steps is None:
+        print(f"already published: {tag} names HEAD and its Release assets equal the staged ones")
+        return
+    carry_out(parser, run, staged, tag, commit, steps, action, problems, warnings, args.yes)
 
 
 if __name__ == "__main__":

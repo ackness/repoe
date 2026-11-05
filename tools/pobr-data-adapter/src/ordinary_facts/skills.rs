@@ -59,6 +59,7 @@ pub(super) fn convert(input: &VerifiedFacts) -> Result<Converted, String> {
             .get(effect.id.as_str())
             .ok_or_else(|| format!("converted effect has no source: {}", effect.id))?;
     }
+    let types = active_skill_types(&source.tables)?;
     let receipt = receipt::build(input, &source, &bundle, &sets.sets)?;
     let base = BTreeMap::from([
         ("skill_gems.json".into(), super::pretty_bytes(&bundle.gems)?),
@@ -75,6 +76,31 @@ pub(super) fn convert(input: &VerifiedFacts) -> Result<Converted, String> {
             super::pretty_bytes(&sets.sets)?,
         ),
         ("cost_types.json".into(), super::pretty_bytes(&costs)?),
+        (
+            "active_skill_types.json".into(),
+            super::pretty_bytes(&types)?,
+        ),
     ]);
     Ok(Converted { base, receipt })
+}
+
+/// Every `ActiveSkillType` row in row order: its `Id` and 1-based index
+/// (row + 1). The skill type names of rules, skill data and PoB build codes
+/// (PoB2's `SkillType` enum is this table).
+fn active_skill_types(
+    tables: &crate::facts::reader::Tables<'_>,
+) -> Result<pobr_data::catalog::skill_types::ActiveSkillTypesDef, String> {
+    (0..tables.len("ActiveSkillType"))
+        .map(|row| {
+            let raw = tables.row("ActiveSkillType", row)?;
+            let id = raw["Id"]
+                .as_str()
+                .filter(|id| !id.is_empty())
+                .ok_or_else(|| format!("ActiveSkillType row {row}: invalid Id"))?;
+            Ok(pobr_data::catalog::skill_types::ActiveSkillTypeDef {
+                id: id.into(),
+                index: u32::try_from(row + 1).map_err(|e| e.to_string())?,
+            })
+        })
+        .collect()
 }
