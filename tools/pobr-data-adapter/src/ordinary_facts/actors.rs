@@ -6,6 +6,7 @@ mod projection;
 #[cfg(all(test, any(target_os = "linux", target_os = "macos")))]
 pub(super) mod tests;
 
+use crate::schema_id;
 use std::collections::{BTreeMap, BTreeSet};
 use std::path::PathBuf;
 
@@ -54,8 +55,8 @@ impl Catalog {
     }
     fn schema(self) -> &'static str {
         match self {
-            Self::Minions => "minions/v1",
-            Self::Spectres => "spectres/v1",
+            Self::Minions => schema_id::MINIONS,
+            Self::Spectres => schema_id::SPECTRES,
         }
     }
     fn identity_field(self) -> &'static str {

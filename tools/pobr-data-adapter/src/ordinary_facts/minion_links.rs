@@ -4,6 +4,7 @@ mod policy;
 #[cfg(all(test, any(target_os = "linux", target_os = "macos")))]
 pub(super) mod tests;
 
+use crate::schema_id;
 use std::collections::{BTreeMap, BTreeSet};
 use std::path::PathBuf;
 
@@ -17,7 +18,7 @@ use crate::raw_source::sha256_hex;
 
 pub(super) const TABLES: [&str; 2] = ["GrantedEffects", "MonsterVarieties"];
 const FILE: &str = "granted_effect_minions.json";
-const SCHEMA: &str = "granted_effect_minions/v1";
+const SCHEMA: &str = schema_id::GRANTED_EFFECT_MINIONS;
 const OWNED: &str = "ignore_minion_types";
 
 pub(super) struct Converted {

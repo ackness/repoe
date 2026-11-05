@@ -1,5 +1,6 @@
 //! Explicit legacy interpretation identity and exact target absence decisions.
 
+use crate::schema_id;
 use std::collections::BTreeSet;
 
 use serde::{Deserialize, Serialize};
@@ -79,9 +80,9 @@ impl Policy {
             return Err("skill-stat-map policy target patch / manifest mismatch".into());
         }
         self.source
-            .validate("skill_stat_map.json", "skill_stat_map/v1")?;
+            .validate("skill_stat_map.json", schema_id::SKILL_STAT_MAP)?;
         self.branch_codec
-            .validate("stat_set_labels.json", "stat_set_labels/v1")?;
+            .validate("stat_set_labels.json", schema_id::STAT_SET_LABELS)?;
         if self.statement.trim().is_empty() {
             return Err("empty compatibility statement".into());
         }

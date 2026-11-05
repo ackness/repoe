@@ -1,4 +1,5 @@
 //! Target item grant flags under an explicit, pinned community interpretation.
+use crate::schema_id;
 use std::collections::{BTreeMap, BTreeSet};
 use std::path::PathBuf;
 
@@ -81,7 +82,7 @@ pub(super) fn convert(
         .as_object_mut()
         .ok_or("item grants must be an object")?
         .remove("_meta");
-    document["_meta"] = json!({"schema":"item_granted_skills/v1","generator":"pobr-data-adapter ordinary item-grants",
+    document["_meta"] = json!({"schema":schema_id::ITEM_GRANTED_SKILLS,"generator":"pobr-data-adapter ordinary item-grants",
         "facts_manifest_sha256":sha256_hex(&input.manifest_bytes),"policy_sha256":args.policy_sha256,
         "reservation_free_bases":"Target IsWeapon flags interpreted as NoReservation only under the pinned community policy; not official field semantics.",
         "other_fields_source_sha256":args.source_sha256,"legacy_metadata_present":legacy_meta.is_some(),"legacy_metadata":legacy_meta});

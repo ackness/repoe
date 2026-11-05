@@ -5,6 +5,7 @@ mod source;
 #[cfg(all(test, any(target_os = "linux", target_os = "macos")))]
 pub(super) mod tests;
 
+use crate::schema_id;
 use std::collections::{BTreeMap, BTreeSet};
 use std::path::PathBuf;
 
@@ -241,7 +242,7 @@ pub(super) fn convert(
     let target_identity = json!({"facts_manifest_sha256":sha256_hex(&input.manifest_bytes),"source_identity":input.manifest["source_identity"],
         "formula":"1.0 + raw as f64 / 10000.0","numeric_source":"GrantedEffects primary StatSet -> GrantedEffectStatSetsPerLevel.BaseMultiplier at each actual positive GemLevel",
         "scope":"only raw-owned base_multiplier numbers are target-derived; acquisition status remains unchanged"});
-    output_document["_meta"] = json!({"schema":"skill_overrides/v1","generator":"pobr-data-adapter/ordinary-facts",
+    output_document["_meta"] = json!({"schema":schema_id::SKILL_OVERRIDES,"generator":"pobr-data-adapter/ordinary-facts",
         "target_numeric":target_identity,"legacy_compatibility":{"source":legacy_identity,"branch_codec":codec_identity,"policy":policy_identity},
         "status":"domain-candidate; mixed target numeric facts and fixed community interpretation; not complete runtime or adopted"});
     // Recheck the emitted shape, without losing raw unknown fields through DTO serialization.

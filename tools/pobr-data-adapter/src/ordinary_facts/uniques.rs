@@ -7,6 +7,7 @@
 //! base names to target `BaseItemTypes`/`ItemClasses` identities by exact
 //! `Name` equality. Name equality verifies that the vendor text names a real
 //! target base; it is not an official unique->base link.
+use crate::schema_id;
 use std::collections::{BTreeMap, BTreeSet};
 use std::path::PathBuf;
 
@@ -145,7 +146,7 @@ pub(super) fn convert(input: &VerifiedFacts, args: &super::CodecArgs) -> Result<
     let (relations, diagnostics) = project(input, &source)?;
     let document = json!({
         "_meta": {
-            "schema": "unique_relations/v1",
+            "schema": schema_id::UNIQUE_RELATIONS,
             "generator": "pobr-data-adapter ordinary uniques",
             "facts_manifest_sha256": sha256_hex(&input.manifest_bytes),
             "legacy_source_sha256": args.source_sha256,

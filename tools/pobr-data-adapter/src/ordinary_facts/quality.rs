@@ -6,6 +6,7 @@ mod publication;
 #[cfg(all(test, any(target_os = "linux", target_os = "macos")))]
 pub(super) mod tests;
 
+use crate::schema_id;
 use std::collections::BTreeMap;
 use std::path::PathBuf;
 
@@ -98,7 +99,7 @@ pub(super) fn convert(input: &VerifiedFacts, pinned: policy::Pinned) -> Result<C
         .collect();
     let mut doc = json!({
         "_meta": {
-            "schema":"gem_quality_stats/v1",
+            "schema":schema_id::GEM_QUALITY_STATS,
             "generator":"pobr-data-adapter --ordinary-domain gem-quality",
             "poe_version":input.manifest["source_identity"]["game_patch"],
             "source_manifest_sha256":sha256_hex(&input.manifest_bytes),

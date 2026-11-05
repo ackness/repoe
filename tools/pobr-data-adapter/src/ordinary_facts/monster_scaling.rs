@@ -3,6 +3,7 @@
 #[cfg(all(test, any(target_os = "linux", target_os = "macos")))]
 pub(super) mod tests;
 
+use crate::schema_id;
 use std::collections::BTreeMap;
 
 use pobr_data::catalog::monster_scaling::{MONSTER_SCALING_TABLE_LEN, MonsterScalingTable};
@@ -114,7 +115,7 @@ pub(super) fn convert(input: &VerifiedFacts) -> Result<Converted, String> {
     }).collect();
     let mut document = serde_json::to_value(data).map_err(|e| e.to_string())?;
     document["_meta"] = json!({
-        "schema":"monster-scaling/v1","generator":"pobr-data-adapter ordinary-facts monster-scaling",
+        "schema":schema_id::MONSTER_SCALING,"generator":"pobr-data-adapter ordinary-facts monster-scaling",
         "poe_version":input.manifest["source_identity"]["game_patch"],"source_identity":input.manifest["source_identity"],
         "facts_manifest_sha256":sha256_hex(&input.manifest_bytes),
         "inputs":{PAYLOAD:sha256_hex(&input.bytes[PAYLOAD])}
