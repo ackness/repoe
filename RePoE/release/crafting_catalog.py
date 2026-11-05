@@ -12,12 +12,14 @@ from RePoE.release.pins import HEX, archive_manifest, byte_pin, decode, pinned, 
 FORMAT = "repoe-native-crafting-facts/v1"
 POLICY = "pobr-trade-crafting-catalog/v1"
 TABLES = ("BaseItemTypes", "ItemClasses", "Mods", "Stats", "Essences", "EssenceTargetItemCategories", "EssenceMods")
-# Producer file keys of the published crafting facts package (`packages.crafting` in
-# release/0.5.5.5-2/inputs.lock.json): the historical identity sealed into that package before the exporters
-# moved to RePoE/native/, so never rename them to the current paths. A package exported by the current tree is
-# keyed RePoE/native/crafting_facts.py and RePoE/native/descriptions.py; accepting it is a deliberate change
-# here, made with the declaration that pins it (RELEASING.md, "A new game patch").
-PRODUCERS = {"RePoE/native_crafting_facts.py", "RePoE/native_descriptions.py"}
+# Producer file keys a crafting facts package may carry; the package's manifest pin binds their values.
+# HISTORICAL_PRODUCERS is the identity sealed into the published package (`packages.crafting` in
+# release/0.5.5.5-2/inputs.lock.json) before the exporters moved to RePoE/native/: never rename it.
+# CURRENT_PRODUCERS is what RePoE/native/crafting_facts.py writes today (tests keep the two in step),
+# so a fresh export for a new patch is accepted, as it was before the move.
+HISTORICAL_PRODUCERS = frozenset({"RePoE/native_crafting_facts.py", "RePoE/native_descriptions.py"})
+CURRENT_PRODUCERS = frozenset({"RePoE/native/crafting_facts.py", "RePoE/native/descriptions.py"})
+PRODUCER_KEY_SETS = (HISTORICAL_PRODUCERS, CURRENT_PRODUCERS)
 OWNER = "ackness/repoe"
 
 
@@ -221,7 +223,7 @@ def facts_document(archive, spec, target):
     """Authenticate the whole crafting package before reading `crafting.json`."""
     require(spec.get("publication") == "published" and spec.get("repository") == OWNER, "Unpublished crafting facts")
     require(
-        set(spec.get("producer", {})) == PRODUCERS
+        frozenset(spec.get("producer", {})) in PRODUCER_KEY_SETS
         and all(isinstance(value, str) and HEX.fullmatch(value) for value in spec["producer"].values()),
         "Invalid crafting producer closure",
     )
