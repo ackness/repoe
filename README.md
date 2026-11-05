@@ -1,5 +1,7 @@
 # RePoE
 
+**English** | [简体中文](README.zh-CN.md)
+
 Game data for Path of Exile tool developers. This fork maintains the PoE2 client exporters and game-data packages used by [PoBR](https://github.com/ackness/pobr), while retaining the upstream PoE1 and PoE2 parsers.
 
 RePoE reads client resources, preserves their identities and relationships, and turns selected facts into versioned JSON packages. Each package records its source bytes, producer and validation scope.
@@ -13,7 +15,8 @@ RePoE reads client resources, preserves their identities and relationships, and 
 | Convert facts into PoBR runtime JSON | [Rust data adapter](tools/pobr-data-adapter/README.md) |
 | Build and publish a new PoBR game package | [RELEASING.md](RELEASING.md) (`release:build` → `release:publish` → PoBR `data:bump`) |
 | Inspect client resources and their provenance | [Client acquisition](RePoE/docs/client/client-sources.md) and [resource lookup](RePoE/docs/client/client-index.md) |
-| Find a domain's schema or validation limits | [Data contracts](#data-contracts) below |
+| Find a domain's schema or validation limits | [Data contracts](#data-contracts) below and the [documentation index](RePoE/docs/README.md) |
+| Change code or data here | [AGENTS.md](AGENTS.md) (rules, layout, validation) and [CONTRIBUTING.md](CONTRIBUTING.md) |
 
 ## Role in the PoBR ecosystem
 
@@ -32,9 +35,9 @@ Packages have different scopes. A successful facts export does not establish com
 
 ## Consume a published package
 
-Each game package is a GitHub Release `game/<patch>-<n>` with three assets: `pobr-game-<patch>.zip`, its `receipt.json` (producer commit, contract, every input pin and the provenance class of every member) and `SHA256SUMS`. PoBR pins one Release in `pipeline/data.lock.json` with `mise run data:bump ackness/repoe game/<patch>-<n>`. Consumers need no Python, Rust, client installation or checkout of this repository.
+Each game package is a GitHub Release `game/<patch>-<n>` with three assets: `pobr-game-<patch>.zip`, its `receipt.json` (producer commit, contract, every input pin and the provenance class of every member) and `SHA256SUMS`. PoBR pins one Release, with the matching language Release, in `pipeline/data.lock.json` (`mise run data:bump`, see PoBR's [RELEASING.md](https://github.com/ackness/pobr/blob/master/RELEASING.md)). Consumers need no Python, Rust, client installation or checkout of this repository.
 
-Packages published before Releases (and most inputs `release:build` reads) live on orphan commits kept reachable by `handoff/*` tags. Those tags are never moved or deleted: `release/<patch>[-<n>]/inputs.lock.json` addresses them by commit, path and SHA-256. New inputs are GitHub Releases `inputs/<patch>-<n>` (`mise run release:inputs`), addressed like game packages by repository, tag, asset and SHA-256.
+Packages published before Releases (and the older inputs `release:build` reads) live on orphan commits kept reachable by `handoff/*` tags. Those tags are never moved or deleted: `release/<patch>[-<n>]/inputs.lock.json` addresses them by commit, path and SHA-256. New inputs are GitHub Releases `inputs/<patch>-<n>` (`mise run release:inputs`), addressed like game packages by repository, tag, asset and SHA-256.
 
 ## Development
 
@@ -60,7 +63,9 @@ mise run adapter:check
 mise run adapter:keystones
 ```
 
-The last command checks the keystone rules of the published game package against its declared remote tag. CI runs both the Python checks and adapter checks. Generated `RePoE/model/` files are maintained explicitly with `mise run models:generate -- [schema paths]`.
+`adapter:keystones` rebuilds the keystone rules of the `reference` package of the highest `release/<patch>[-<n>]/` declaration (today `game/0.5.5.5-1`) from its passive tree and compares bytes. Generated `RePoE/model/` files are maintained explicitly with `mise run models:generate -- [schema paths]`.
+
+CI runs two workflows. `verify.yml` (every pull request and master push) runs `mise run check` and, in a second job, `adapter:check` and `adapter:keystones`. `release-build.yml` runs only when something the release build reads changes (`RePoE/release/`, the client modules it imports, `release/`, the adapter, the mise and toolchain files) and rebuilds every declaration with `release:build -- --config release/<dir> --fetch --check`.
 
 ## Exporting data
 
@@ -88,18 +93,26 @@ Client decoding uses a separately selected, fingerprinted environment. Keep rece
 ## Repository layout
 
 ```text
-RePoE/parser/                 Upstream PoE1 and PoE2 exporters
-RePoE/native/                 Native facts, descriptions and metadata exporters
-RePoE/client/                 Client discovery, acquisition, resource lookup and source verification
-RePoE/docs/                   Domain formats and producer contracts
-schema/                       Pinned decoding schema and provenance
-tools/pobr-data-adapter/      Rust runtime-data adapter and domain policies
-RePoE/release/, release/      Game-package release build/publish and its pinned declarations
+RePoE/parser/                 Upstream PoE1 and PoE2 exporters (the repoe CLI is RePoE/run_parser.py)
+RePoE/poe/                    Upstream PyPoE file-format extensions
+RePoE/schema/, RePoE/model/   Upstream legacy JSON schemas and their generated models
+RePoE/client/                 Patch observation, acquisition, drafts, resource lookup, source envelopes
+RePoE/native/                 Native facts, tables, descriptions, inheritance, crafting and player exporters
+RePoE/release/                Game-package build, publish and input packaging, and the release jobs
+RePoE/trade_snapshot.py       Offline trade-text snapshot reader for stat_translations
+RePoE/docs/                   Formats and contracts, grouped like the code (index: RePoE/docs/README.md)
+release/                      One pinned declaration per game package (release/<patch>[-<n>]/)
+schema/                       Pinned dat-schema and provenance
 sources/                      Raw-material source ledger and retained source metadata
-tests/                        Offline Python regressions
-.cache/                       Local candidates and intermediate exports
+tools/pobr-data-adapter/      Rust adapter, its policies/ and per-domain docs/
+tests/                        Offline Python regressions: client/, native/, release/, parser/
+scripts/                      Maintenance scripts (PyPoE pin reproduction)
+.github/workflows/            verify.yml and release-build.yml
+.cache/                       Local candidates, exports and release builds; ignored by Git
 RePoE/data/                   Default legacy export directory; ignored by Git
 ```
+
+Which paths are upstream, where new code goes and which files must keep their bytes: [AGENTS.md](AGENTS.md#layout).
 
 ## Data contracts
 
@@ -111,7 +124,8 @@ RePoE/data/                   Default legacy export directory; ignored by Git
 | Descriptions and languages | [CSD branches](RePoE/docs/native/native_descriptions.md), [supplemental/localized tables](RePoE/docs/native/native_tables.md), [description relationships](RePoE/docs/native/description_relations.md) |
 | Crafting and trees | [Crafting facts](RePoE/docs/native/native_crafting_facts.md), [PoBR crafting catalog](RePoE/docs/release/pobr_crafting_catalog.md), [historical tree selectors](RePoE/docs/release/pobr_historical_trees.md) |
 | PoBR runtime conversion | [Adapter modes](tools/pobr-data-adapter/README.md) and [domain policies](tools/pobr-data-adapter/policies/README.md) |
-| Legacy JSON formats | [Stats](RePoE/docs/stats.md), [mods](RePoE/docs/mods.md), [items](RePoE/docs/base_items.md), [gems](RePoE/docs/gems.md), [augments](RePoE/docs/augments.md), and [other domain files](RePoE/docs) |
+| PoBR runtime domains | [Ordinary-facts domains](tools/pobr-data-adapter/docs/ordinary-facts.md), one `docs/ordinary-<domain>.md` each |
+| Legacy JSON formats | [Stats](RePoE/docs/stats.md), [mods](RePoE/docs/mods.md), [items](RePoE/docs/base_items.md), [gems](RePoE/docs/gems.md), [augments](RePoE/docs/augments.md), and [other domain files](RePoE/docs/README.md#legacy-json-formats-repoeparser) |
 
 ## Upstream and credits
 
