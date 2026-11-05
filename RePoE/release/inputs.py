@@ -26,7 +26,7 @@ import shutil
 import stat
 import zipfile
 
-from RePoE.pins import archive_manifest, encoded, pin, relative, require
+from RePoE.release.pins import archive_manifest, encoded, pin, relative, require
 from RePoE.release import build, publish
 
 SCHEMA = "repoe-release-input/v1"

@@ -5,8 +5,8 @@ import io
 import zipfile
 import unittest
 
-from RePoE import pins
-from RePoE import pobr_crafting_catalog as crafting
+from RePoE.release import pins
+from RePoE.release import crafting_catalog as crafting
 
 TARGET = {"game": "poe2", "game_patch": "9.1", "realm": "international"}
 

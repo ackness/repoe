@@ -13,7 +13,7 @@ import unittest
 from unittest import mock
 import zipfile
 
-from RePoE.pins import encoded, pin
+from RePoE.release.pins import encoded, pin
 from RePoE.release import build, publish
 
 TARGET = {"game": "poe2", "game_patch": "9.9", "realm": "international"}

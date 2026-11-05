@@ -9,7 +9,7 @@ arbitrary snapshots. `release:build` runs it as the `historical-trees` job.
 import copy
 import json
 
-from RePoE.pins import decode, encoded, pin, pinned, require
+from RePoE.release.pins import decode, encoded, pin, pinned, require
 
 POLICY = "pobr-historical-attribute-selectors/v1"
 

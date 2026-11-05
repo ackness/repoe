@@ -10,7 +10,7 @@ import unittest
 from unittest import mock
 import zipfile
 
-from RePoE.pins import decode, pin
+from RePoE.release.pins import decode, pin
 from RePoE.release import assets, build, inputs, publish
 from tests.test_release_build import serve
 from tests.test_release_publish import GitRepoCase, Runner, git

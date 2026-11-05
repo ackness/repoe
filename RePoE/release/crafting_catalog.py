@@ -7,11 +7,16 @@ admission. `release:build` runs it as the `crafting-catalog` job.
 
 import json
 
-from RePoE.pins import HEX, archive_manifest, byte_pin, decode, pinned, require
+from RePoE.release.pins import HEX, archive_manifest, byte_pin, decode, pinned, require
 
 FORMAT = "repoe-native-crafting-facts/v1"
 POLICY = "pobr-trade-crafting-catalog/v1"
 TABLES = ("BaseItemTypes", "ItemClasses", "Mods", "Stats", "Essences", "EssenceTargetItemCategories", "EssenceMods")
+# Producer file keys of the published crafting facts package (`packages.crafting` in
+# release/0.5.5.5-2/inputs.lock.json): the historical identity sealed into that package before the exporters
+# moved to RePoE/native/, so never rename them to the current paths. A package exported by the current tree is
+# keyed RePoE/native/crafting_facts.py and RePoE/native/descriptions.py; accepting it is a deliberate change
+# here, made with the declaration that pins it (RELEASING.md, "A new game patch").
 PRODUCERS = {"RePoE/native_crafting_facts.py", "RePoE/native_descriptions.py"}
 OWNER = "ackness/repoe"
 

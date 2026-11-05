@@ -10,8 +10,8 @@ import subprocess
 import tempfile
 import unittest
 
-from RePoE import buff_source_reconciliation as rec
-from RePoE.pins import ROOT, pin
+from RePoE.release import buff_source_reconciliation as rec
+from RePoE.release.pins import ROOT, pin
 
 PERFORM = "Modules/CalcPerform.lua"
 DEFENCE = "Modules/CalcDefence.lua"

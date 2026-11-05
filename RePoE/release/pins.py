@@ -6,7 +6,7 @@ from pathlib import Path, PurePosixPath
 import re
 import stat
 
-ROOT = Path(__file__).resolve().parents[1]
+ROOT = Path(__file__).resolve().parents[2]
 HEX = re.compile(r"[0-9a-f]{64}")
 
 

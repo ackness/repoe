@@ -4,8 +4,8 @@ import copy
 import json
 import unittest
 
-from RePoE import pins as package
-from RePoE import pobr_historical_trees as trees
+from RePoE.release import pins as package
+from RePoE.release import historical_trees as trees
 
 
 def fixture():

@@ -21,7 +21,7 @@ from urllib.error import HTTPError
 from urllib.parse import quote
 import urllib.request
 
-from RePoE.pins import pin, require, validate_pin
+from RePoE.release.pins import pin, require, validate_pin
 
 BASE_URL = "REPOE_RELEASE_BASE_URL"
 TRANSPORT = "REPOE_RELEASE_TRANSPORT"

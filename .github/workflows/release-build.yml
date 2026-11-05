@@ -11,9 +11,6 @@ on:
       - .github/workflows/release-build.yml
       - RePoE/__init__.py
       - RePoE/release/**
-      - RePoE/pobr_crafting_catalog.py
-      - RePoE/pobr_historical_trees.py
-      - RePoE/pins.py
       - RePoE/client/__init__.py
       - RePoE/client/source_io.py
       - RePoE/client/source_rebinding.py

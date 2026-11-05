@@ -5,7 +5,7 @@ import stat
 import unittest
 import zipfile
 
-from RePoE import pins
+from RePoE.release import pins
 
 
 class PinsTests(unittest.TestCase):

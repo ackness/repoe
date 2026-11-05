@@ -35,7 +35,7 @@ TREE = re.compile(r"^data/([^/]+)/base/passive_tree\.json$")
 HANDOFF = re.compile(r"^(handoff/[A-Za-z0-9._-]+)/")
 
 sys.path.insert(0, str(ROOT))
-from RePoE.pins import decode  # noqa: E402
+from RePoE.release.pins import decode  # noqa: E402
 from RePoE.release import assets  # noqa: E402
 from RePoE.release.build import CACHE, default_config  # noqa: E402
 
