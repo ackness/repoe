@@ -6,7 +6,7 @@ import tomllib
 import unittest
 import zipfile
 
-from RePoE.schema_candidate import ROOT
+from RePoE.native.schema_candidate import ROOT
 
 
 class PackagingTests(unittest.TestCase):

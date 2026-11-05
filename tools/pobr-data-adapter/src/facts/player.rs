@@ -205,6 +205,8 @@ fn verify_manifest(m: &Value) -> Result<(), String> {
         "unsupported player package",
     )?;
     // All 14 fixed cf190d05 Git-source fingerprints, independent of package claims.
+    // FIXTURE is that historical producer identity (pre-RePoE/native/ paths);
+    // a new player export needs its own fixed identity, never an edit of this one.
     require(
         m["producer"] == fixed["producer"]
             && m["producer"].as_object().is_some_and(|p| p.len() == 14),

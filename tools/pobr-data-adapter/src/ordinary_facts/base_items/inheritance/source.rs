@@ -23,6 +23,8 @@ pub(super) fn open(args: &BranchCodecArgs, parent: &Value) -> Result<Archive, St
         "item inheritance manifest",
     )?;
     let m = &manifest.document;
+    // Historical producer identity of the pinned inheritance package (manifest
+    // f8642243); never edited to follow current paths.
     let producer = reader::strict_json(include_bytes!(
         "../../../../tests/fixtures/ordinary-facts/item-inheritance-producer.json"
     ))?;

@@ -93,3 +93,17 @@ under `provenance/original-{manifest,source-lock}.json`. The prepared facts mani
 has a different identity; this fixture asserts only the selected source payloads.
 Tests verify the full 424/5 policy partition and every published rate, occurrence,
 channel and scope, including Snipe's unresolved native position 3.
+
+## Fixed producer identities
+
+`selected-tables-producer.json`, `selected-tables-producer-21ace02.json`,
+`item-inheritance-producer.json` and `../native-facts/player-context-manifest.json`
+are read by production code (`include_bytes!` in `src/facts/reader/selected.rs`,
+`src/ordinary_facts/base_items/inheritance/source.rs` and `src/facts/player.rs`),
+like the producer map in `src/facts/trust.rs`. They are the producer identities
+sealed into the pinned RePoE packages, keyed by the file paths of the producing
+commit (`RePoE/native_*.py`, before the exporters moved to `RePoE/native/`).
+Keep their bytes: a package exported by the current tree records new paths and
+hashes, and accepting it means adding its identity beside these. Re-validating
+an old package runs at its producer commit
+([native facts](../../../../../RePoE/docs/native/native_facts.md#producer-identity-and-re-validation)).

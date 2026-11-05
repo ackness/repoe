@@ -34,9 +34,9 @@ import tomllib
 from urllib.parse import parse_qs, urlsplit
 import zipfile
 
-from RePoE import pobr_crafting_catalog, pobr_historical_trees, source_rebinding
-from RePoE.pins import archive_manifest, byte_pin, decode, encoded, pin, pinned, relative, require
-from RePoE.release import assets
+from RePoE.client import source_rebinding
+from RePoE.release import assets, crafting_catalog, historical_trees
+from RePoE.release.pins import archive_manifest, byte_pin, decode, encoded, pin, pinned, relative, require
 
 ROOT = Path(__file__).resolve().parents[2]
 RELEASES = ROOT / "release"
@@ -77,11 +77,11 @@ KINDS = {"adapter", "special-derived", "historical-trees", "crafting-catalog", "
 CODE = (
     "RePoE/release/build.py",
     "RePoE/release/assets.py",
-    "RePoE/source_rebinding.py",
-    "RePoE/source_io.py",
-    "RePoE/pins.py",
-    "RePoE/pobr_historical_trees.py",
-    "RePoE/pobr_crafting_catalog.py",
+    "RePoE/client/source_rebinding.py",
+    "RePoE/client/source_io.py",
+    "RePoE/release/pins.py",
+    "RePoE/release/historical_trees.py",
+    "RePoE/release/crafting_catalog.py",
     "tools/pobr-data-adapter/Cargo.lock",
 )
 # Paths whose untracked files can change the build (sources, declarations, policies, toolchain pins).
@@ -534,11 +534,11 @@ def run_special_derived(ctx, job, out):
 def run_historical_trees(ctx, job, out):
     """Historical-tree selector projection applied to the pinned historical tree inputs."""
     policy = decode(ctx.resolve(job["policy"], job).read_bytes())
-    require(policy.get("schema") == pobr_historical_trees.POLICY, f"{job['id']}: unsupported policy")
+    require(policy.get("schema") == historical_trees.POLICY, f"{job['id']}: unsupported policy")
     require(set(job["trees"]) == set(policy["versions"]), f"{job['id']}: tree versions differ from policy")
     outputs, records = {}, {}
     for version, ref in sorted(job["trees"].items()):
-        projected, records[version] = pobr_historical_trees.project(
+        projected, records[version] = historical_trees.project(
             ctx.resolve(ref, job).read_bytes(), policy["versions"][version]
         )
         name = f"base/passive_trees/{version}.json"
@@ -552,8 +552,8 @@ def run_crafting_catalog(ctx, job, out):
     """Crafting-catalog projection of the pinned crafting facts package."""
     package = ctx.packages[job["package"]]
     with zipfile.ZipFile(io.BytesIO(package.raw)) as archive:
-        facts = pobr_crafting_catalog.facts_document(archive, package.spec, ctx.target)
-    document, decisions = pobr_crafting_catalog.project(
+        facts = crafting_catalog.facts_document(archive, package.spec, ctx.target)
+    document, decisions = crafting_catalog.project(
         facts,
         source_manifest_sha256=package.spec["manifest"]["sha256"],
         facts_manifest_sha256=package.spec["input_manifest"]["sha256"],
@@ -561,7 +561,7 @@ def run_crafting_catalog(ctx, job, out):
     )
     ctx.inputs[f"{package.name}:crafting.json"] = package.members["crafting.json"]
     (name,) = job["outputs"]
-    write_new(out / name, pobr_crafting_catalog.runtime_encoded(document))
+    write_new(out / name, crafting_catalog.runtime_encoded(document))
     return {name: out / name}, {"summary": decisions["summary"]}
 
 

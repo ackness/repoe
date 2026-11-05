@@ -10,9 +10,9 @@ physical payloads.
 
 The acquisition chain that produced these records — index discovery, draft
 collection, strict replay and physical decoding — is implemented in this
-repository ([client-index](../RePoE/docs/client-index.md),
-[client-sources](../RePoE/docs/client-sources.md),
-[client-source-draft](../RePoE/docs/client-source-draft.md)). Acceptance entries
+repository ([client-index](../RePoE/docs/client/client-index.md),
+[client-sources](../RePoE/docs/client/client-sources.md),
+[client-source-draft](../RePoE/docs/client/client-source-draft.md)). Acceptance entries
 are exact evidence decisions, not a runtime release gate: original draft
 envelope statuses stay frozen, new bytes do not inherit acceptance, and no entry
 switches a consumer's current data.

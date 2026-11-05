@@ -43,10 +43,10 @@ policy move.
 
 The separate special-currency catalog projector, including currency prefixes and
 selection/aggregation policy, now runs in RePoE as the `crafting-catalog` job of
-`mise run release:build` (see [RePoE/docs/pobr_crafting_catalog.md](../../RePoE/docs/pobr_crafting_catalog.md));
+`mise run release:build` (see [RePoE/docs/release/pobr_crafting_catalog.md](../../RePoE/docs/release/pobr_crafting_catalog.md));
 the game part carries the projected catalog.
 
-The bounded [historical attribute selector projection](../../RePoE/docs/pobr_historical_trees.md)
+The bounded [historical attribute selector projection](../../RePoE/docs/release/pobr_historical_trees.md)
 also runs in RePoE, as the `historical-trees` job of `mise run release:build`. It
 repairs the four byte-pinned retained `base/passive_trees/0_1..0_4.json` trees
 using a reviewed identity policy, without reviving the retired Lua extractor or
@@ -67,9 +67,9 @@ The modes are `--ordinary-facts` (current domains), `--tree` (historical
 official tree package) and `--emit-special-derived` (keystone rules from a
 prepared `passive_tree.json`). Each mode documents its arguments and guards:
 
-- ordinary domains: [ordinary-facts.md](ordinary-facts.md) and the
+- ordinary domains: [ordinary-facts.md](docs/ordinary-facts.md) and the
   `ordinary-*.md` file for each domain;
-- passive tree: [ordinary-passive-tree.md](ordinary-passive-tree.md).
+- passive tree: [ordinary-passive-tree.md](docs/ordinary-passive-tree.md).
 
 The ordinary domains read their input through `src/facts/`: the verifier of the
 pinned RePoE facts envelope (`repoe-native-facts/v4`) and its source lock, the

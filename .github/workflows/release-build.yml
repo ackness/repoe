@@ -2,7 +2,7 @@ name: Release build
 
 # A separate workflow because GitHub filters paths per workflow, not per job:
 # the cold `cargo build --release` and the pinned-package fetch only run when
-# something the release build reads changes. tests/test_release_build.py checks
+# something the release build reads changes. tests/release/test_build.py checks
 # that these paths cover every Python module build.py imports.
 on:
   push:
@@ -11,11 +11,9 @@ on:
       - .github/workflows/release-build.yml
       - RePoE/__init__.py
       - RePoE/release/**
-      - RePoE/pobr_crafting_catalog.py
-      - RePoE/pobr_historical_trees.py
-      - RePoE/pins.py
-      - RePoE/source_io.py
-      - RePoE/source_rebinding.py
+      - RePoE/client/__init__.py
+      - RePoE/client/source_io.py
+      - RePoE/client/source_rebinding.py
       - release/**
       - tools/pobr-data-adapter/**
       - mise.toml
