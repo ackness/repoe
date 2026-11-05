@@ -158,7 +158,7 @@ it. Consumers compare these maps with fixed copies, which are historical
 identities too and never follow a rename or edit: in `tools/pobr-data-adapter/`,
 `src/facts/trust.rs`, `tests/fixtures/ordinary-facts/*-producer*.json` and
 `tests/fixtures/native-facts/player-context-manifest.json`; in this package's
-release, `RePoE/release/crafting_catalog.py` `PRODUCERS`.
+release, `RePoE/release/crafting_catalog.py` `HISTORICAL_PRODUCERS`.
 
 `facts:validate` replays the export with the current tree and, for every
 profile beyond v1, requires the replayed `producer` to equal the package's.

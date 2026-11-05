@@ -44,14 +44,13 @@ digests. Its official-tree cross-check corroborates nodes 1200 and 11741, but
 tree. The historical Lua/code references are review evidence only; the producer
 never opens them, executes Lua or reads PoBR's vendor directory.
 
-The 0.5.5.5 game publication plan (`publication/0.5.5.5-game.plan.json`, now
-only in Git history) retained those already-defective JSON files byte-for-byte from the snapshot.
-Subsequent owner game packages preserved the same four file hashes, including
-the sequence-3/4 game input at
-`c804bfc764da2cb9eebcb6d418744e09bf5c005d`,
-`handoff/game-crafting-20261103/game-build-part.zip`.
-The original migration plan was not rewritten: rewriting its pins would conceal
-the historical defect rather than repair its output.
+The first 0.5.5.5 game package retained those already-defective JSON files
+byte-for-byte from the snapshot, and later owner game packages preserved the
+same four file hashes, including the game input
+`handoff/game-crafting-20261103/game-build-part.zip` at
+`c804bfc764da2cb9eebcb6d418744e09bf5c005d`. Those packages were not
+rewritten: rewriting their pins would conceal the historical defect rather than
+repair its output.
 The retired Lua extractor is not reintroduced into the owner production path.
 
 ## Projection contract

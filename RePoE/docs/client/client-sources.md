@@ -21,8 +21,8 @@ All paths below are explicit examples; there is no current/latest lookup or fall
 mise run client:source -- acquire \
   --source-lock /path/to/sources.lock.json --source official-client-0.5.5.5 \
   --cache .cache/client-sources/cache --out .cache/client-sources/raw \
-  --decoder-python /Users/claw/codes/repoe/.venv/bin/python \
-  --decoder-lock /Users/claw/codes/repoe/uv.lock --mode offline
+  --decoder-python /path/to/decoder-env/.venv/bin/python \
+  --decoder-lock /path/to/decoder-env/uv.lock --mode offline
 ```
 
 Offline mode never constructs an HTTP opener. Missing or corrupt cached inputs
