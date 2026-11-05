@@ -3,10 +3,10 @@
 from pathlib import Path
 import re
 
-from RePoE import native_descriptions as envelope
+from RePoE.native import descriptions as envelope
 
 
-ROOT = Path(__file__).resolve().parents[1]
+ROOT = Path(__file__).resolve().parents[2]
 FORMAT = "repoe-actor-templates/v1"
 MAX_FILES = 64
 MAX_FILE_BYTES = 1024 * 1024
@@ -308,7 +308,7 @@ def create_candidate(*, source_lock, source, raw, out, expected_source_lock_sha2
         raise ValueError("Actor output cannot enter raw input")
     producer = {
         name: envelope._sha((ROOT / name).read_bytes())
-        for name in ["RePoE/native_actor_templates.py", "RePoE/native_descriptions.py"]
+        for name in ["RePoE/native/actor_templates.py", "RePoE/native/descriptions.py"]
     }
     files = {name: parse_template(name, data) for name, data in sorted(verified.items())}
     roots, reached = parent_chains(selected["roots"], files)

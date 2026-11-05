@@ -17,7 +17,7 @@ from pathlib import Path
 import sys
 
 
-PIN = Path(__file__).resolve().parents[1] / "schema/pypoe-sources.json"
+PIN = Path(__file__).resolve().parents[2] / "schema/pypoe-sources.json"
 REVISION = "66d1d7442c5718260e1a8efd24989d22987e91af"
 URL = "https://github.com/repoe-fork/pypoe.git"
 

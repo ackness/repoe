@@ -2,7 +2,7 @@
 
 import unittest
 
-from RePoE.native_metadata import parse_metadata, resource_path, validate_closure
+from RePoE.native.metadata import parse_metadata, resource_path, validate_closure
 
 
 def raw(text):

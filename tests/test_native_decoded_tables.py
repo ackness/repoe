@@ -7,12 +7,12 @@ import tempfile
 import unittest
 from unittest.mock import patch
 
-from RePoE import native_decoded_tables as ingest
-from RePoE import native_descriptions as env
-from RePoE import native_facts as facts
-from RePoE import native_locale_probe as probe
-from RePoE import schema_candidate
-from RePoE.native_tools import pinned_pypoe
+from RePoE.native import decoded_tables as ingest
+from RePoE.native import descriptions as env
+from RePoE.native import facts
+from RePoE.native import locale_probe as probe
+from RePoE.native import schema_candidate
+from RePoE.native.tools import pinned_pypoe
 from test_native_facts import dat_bytes
 
 
@@ -45,7 +45,7 @@ class DecodedIngestTests(unittest.TestCase):
         a, b, c = [self.decode(name, rows) for rows in [default, localized, target]]
         transfer = probe.MemoryTransfer(
             observed_client={"game": "poe2", "game_patch": None, "realm": None, "index_sha256": "a" * 64},
-            decoder_source_sha256=env._sha((ingest.ROOT / "RePoE/native_locale_probe.py").read_bytes()),
+            decoder_source_sha256=env._sha((ingest.ROOT / "RePoE/native/locale_probe.py").read_bytes()),
             python_version="synthetic-memory-test",
             evidence=[{"kind": "synthetic-not-game-source", "sha256": "b" * 64}],
         )

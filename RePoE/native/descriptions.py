@@ -8,10 +8,10 @@ from pathlib import Path
 import re
 import sys
 
-from RePoE import native_csd
+from RePoE.native import csd as native_csd
 
 
-ROOT = Path(__file__).resolve().parents[1]
+ROOT = Path(__file__).resolve().parents[2]
 MAX_FILE_BYTES = 32 * 1024 * 1024
 MAX_TOTAL_BYTES = 64 * 1024 * 1024
 MAX_FILES = 128
@@ -201,7 +201,7 @@ def _payloads(lock_bytes, selected, verified, source):
         },
         "producer": {
             path: _sha((ROOT / path).read_bytes())
-            for path in ["RePoE/native_csd.py", "RePoE/native_descriptions.py", "pyproject.toml", "uv.lock"]
+            for path in ["RePoE/native/csd.py", "RePoE/native/descriptions.py", "pyproject.toml", "uv.lock"]
         },
         "python_version": sys.version.split()[0],
         "summary": summary,

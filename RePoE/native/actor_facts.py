@@ -1,6 +1,6 @@
 """Native constants, monster and minion facts without server formula assumptions."""
 
-from RePoE.native_items import Facts
+from RePoE.native.items import Facts
 
 
 TABLES = (

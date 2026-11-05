@@ -12,8 +12,8 @@ import unittest
 from unittest.mock import patch
 import warnings
 
-from RePoE import native_facts as facts
-from RePoE import schema_candidate
+from RePoE.native import facts
+from RePoE.native import schema_candidate
 
 
 def dat_bytes(specification, name, rows):
@@ -161,7 +161,7 @@ class NativeFactsFixture(unittest.TestCase):
 
 class NativeFactsTests(NativeFactsFixture):
     def test_complete_physical_and_native_projections_without_legacy_or_network(self):
-        from RePoE.native_tools import _SourceLoader
+        from RePoE.native.tools import _SourceLoader
 
         execute = _SourceLoader.exec_module
 
@@ -334,7 +334,7 @@ class NativeFactsTests(NativeFactsFixture):
                     sys.executable,
                     "-B",
                     "-m",
-                    "RePoE.native_facts",
+                    "RePoE.native.facts",
                     "--source-lock",
                     str(self.lock),
                     "--source",

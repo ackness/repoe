@@ -11,9 +11,9 @@ import sys
 import tempfile
 import warnings
 
-from RePoE import schema_candidate
-from RePoE.native_dat import validate_dat
-from RePoE.native_tools import pinned_pypoe
+from RePoE.native import schema_candidate
+from RePoE.native.dat import validate_dat
+from RePoE.native.tools import pinned_pypoe
 
 
 FORMAT = "repoe-native-facts/v1"
@@ -57,14 +57,14 @@ def profile_tables(profile):
     if profile == BASE_PROFILE:
         return TABLES
     if profile in (SKILLS_PROFILE, GEMS_PROFILE, ITEMS_ACTORS_PROFILE):
-        from RePoE.native_skills import TABLES as skill_tables
+        from RePoE.native.skills import TABLES as skill_tables
 
         if profile in (GEMS_PROFILE, ITEMS_ACTORS_PROFILE):
-            from RePoE.native_gems import TABLES as gem_tables
+            from RePoE.native.gems import TABLES as gem_tables
 
             if profile == ITEMS_ACTORS_PROFILE:
-                from RePoE.native_items import TABLES as item_tables
-                from RePoE.native_actor_facts import TABLES as actor_tables
+                from RePoE.native.items import TABLES as item_tables
+                from RePoE.native.actor_facts import TABLES as actor_tables
 
                 return TABLES + skill_tables + gem_tables + item_tables + actor_tables
             return TABLES + skill_tables + gem_tables
@@ -530,7 +530,7 @@ def _candidate_payloads(verified, source_identity, tool_identity, *, profile=BAS
     documents, summary = _projections(tables, graph)
     scope = LIMITS
     if profile != BASE_PROFILE:
-        from RePoE import native_skills
+        from RePoE.native import skills as native_skills
 
         core, core_summary, diagnostics = native_skills.project(tables, _resolve)
         documents["skill_core.json"] = core
@@ -539,7 +539,7 @@ def _candidate_payloads(verified, source_identity, tool_identity, *, profile=BAS
         documents["diagnostics.json"]["scope"] = scope
         documents["diagnostics.json"]["diagnostics"].extend(diagnostics)
     if profile in (GEMS_PROFILE, ITEMS_ACTORS_PROFILE):
-        from RePoE import native_gems
+        from RePoE.native import gems as native_gems
 
         gems, constraints, gem_summary, diagnostics = native_gems.project(tables, _resolve)
         documents.update({"gems.json": gems, "constraints.json": constraints})
@@ -566,7 +566,7 @@ def _candidate_payloads(verified, source_identity, tool_identity, *, profile=BAS
                 else "unknown"
             )
     if profile == ITEMS_ACTORS_PROFILE:
-        from RePoE import native_items, native_actor_facts
+        from RePoE.native import items as native_items, actor_facts as native_actor_facts
 
         items, item_summary, item_diagnostics = native_items.project(tables, _resolve)
         actors, actor_summary, actor_diagnostics = native_actor_facts.project(tables, _resolve)
@@ -589,23 +589,23 @@ def _candidate_payloads(verified, source_identity, tool_identity, *, profile=BAS
         **{
             name: schema_candidate._sha((schema_candidate.ROOT / name).read_bytes())
             for name in (
-                "RePoE/native_facts.py",
-                "RePoE/native_dat.py",
-                "RePoE/native_tools.py",
+                "RePoE/native/facts.py",
+                "RePoE/native/dat.py",
+                "RePoE/native/tools.py",
                 "schema/pypoe-sources.json",
             )
         },
     }
     if profile != BASE_PROFILE:
-        producer["RePoE/native_skills.py"] = schema_candidate._sha(
-            (schema_candidate.ROOT / "RePoE/native_skills.py").read_bytes()
+        producer["RePoE/native/skills.py"] = schema_candidate._sha(
+            (schema_candidate.ROOT / "RePoE/native/skills.py").read_bytes()
         )
     if profile in (GEMS_PROFILE, ITEMS_ACTORS_PROFILE):
-        producer["RePoE/native_gems.py"] = schema_candidate._sha(
-            (schema_candidate.ROOT / "RePoE/native_gems.py").read_bytes()
+        producer["RePoE/native/gems.py"] = schema_candidate._sha(
+            (schema_candidate.ROOT / "RePoE/native/gems.py").read_bytes()
         )
     if profile == ITEMS_ACTORS_PROFILE:
-        for name in ("RePoE/native_items.py", "RePoE/native_actor_facts.py"):
+        for name in ("RePoE/native/items.py", "RePoE/native/actor_facts.py"):
             producer[name] = schema_candidate._sha((schema_candidate.ROOT / name).read_bytes())
     manifest = {
         "format": (

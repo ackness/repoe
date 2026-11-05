@@ -13,7 +13,7 @@ import tempfile
 import tomllib
 
 
-ROOT = Path(__file__).resolve().parents[1]
+ROOT = Path(__file__).resolve().parents[2]
 
 
 def _sha(raw):
@@ -64,7 +64,7 @@ def _inputs(root):
     producer = {
         name: _sha((root / name).read_bytes())
         for name in [
-            "RePoE/schema_candidate.py",
+            "RePoE/native/schema_candidate.py",
             "pyproject.toml",
             "uv.lock",
             "schema/source.json",

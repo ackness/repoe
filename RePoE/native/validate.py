@@ -8,9 +8,9 @@ from pathlib import Path
 import struct
 import sys
 
-from RePoE import native_facts as facts
-from RePoE import schema_candidate
-from RePoE.native_tools import PIN, pinned_pypoe
+from RePoE.native import facts
+from RePoE.native import schema_candidate
+from RePoE.native.tools import PIN, pinned_pypoe
 
 
 def _equal(actual, expected, context):

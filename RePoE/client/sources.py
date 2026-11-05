@@ -667,7 +667,7 @@ def main(argv=None):
         command.add_argument("--cache", required=True, type=Path)
     import_parser.add_argument("--archive-root", required=True, type=Path)
     import_parser.add_argument("--archive-ledger", required=True, type=Path)
-    acquire_parser.add_argument("--out", required=True, type=Path, help="New raw root for RePoE.native_facts")
+    acquire_parser.add_argument("--out", required=True, type=Path, help="New raw root for RePoE.native.facts")
     acquire_parser.add_argument("--decoder-python", required=True, type=Path)
     acquire_parser.add_argument("--decoder-lock", required=True, type=Path, help="External environment's uv.lock")
     acquire_parser.add_argument("--mode", required=True, choices=["offline", "online"])

@@ -11,8 +11,8 @@ import tempfile
 import unittest
 from unittest.mock import patch
 
-from RePoE import native_csd as csd
-from RePoE import native_descriptions as producer
+from RePoE.native import csd
+from RePoE.native import descriptions as producer
 
 
 BASE = "Data/StatDescriptions/base.csd"
@@ -275,7 +275,7 @@ class CandidateTests(unittest.TestCase):
                 sys.executable,
                 "-B",
                 "-m",
-                "RePoE.native_descriptions",
+                "RePoE.native.descriptions",
                 "--source-lock",
                 str(self.lock_path),
                 "--expected-source-lock-sha256",

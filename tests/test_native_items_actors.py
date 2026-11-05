@@ -6,7 +6,7 @@ import subprocess
 import sys
 from unittest.mock import patch
 
-from RePoE import native_actor_facts, native_facts as facts, native_items, native_validate
+from RePoE.native import actor_facts as native_actor_facts, facts, items as native_items, validate as native_validate
 from test_native_gems import NativeGemFixture
 
 
@@ -254,7 +254,7 @@ class NativeItemsActorsTests(NativeGemFixture):
                     sys.executable,
                     "-B",
                     "-m",
-                    "RePoE.native_facts",
+                    "RePoE.native.facts",
                     "--source-lock",
                     str(self.lock),
                     "--source",

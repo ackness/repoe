@@ -8,7 +8,7 @@ import tempfile
 import unittest
 from unittest.mock import patch
 
-from RePoE import native_crafting_facts as crafting
+from RePoE.native import crafting_facts as crafting
 
 
 def fixture():
@@ -316,7 +316,7 @@ class CraftingFactsTests(unittest.TestCase):
             sys.executable,
             "-B",
             "-m",
-            "RePoE.native_crafting_facts",
+            "RePoE.native.crafting_facts",
             "--facts",
             str(self.input),
             "--expected-manifest-sha256",

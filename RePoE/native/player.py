@@ -6,14 +6,14 @@ import json
 from pathlib import Path, PurePosixPath
 import sys
 
-from RePoE import native_descriptions as io
-from RePoE import native_facts as facts
-from RePoE import native_metadata as metadata
-from RePoE import schema_candidate
-from RePoE.native_tools import pinned_pypoe
+from RePoE.native import descriptions as io
+from RePoE.native import facts
+from RePoE.native import metadata
+from RePoE.native import schema_candidate
+from RePoE.native.tools import pinned_pypoe
 
 
-ROOT = Path(__file__).resolve().parents[1]
+ROOT = Path(__file__).resolve().parents[2]
 TABLES = ("StartingPassiveSkills", "KeywordPopups")
 PARENT_TABLES = ("Characters", "PassiveSkills", "Stats", "ClassPassiveSkillOverrides")
 LIMITS = [
@@ -355,14 +355,15 @@ def create_candidate(
     )
     producer_paths = [
         "RePoE/__init__.py",
-        "RePoE/native_player.py",
-        "RePoE/native_metadata.py",
-        "RePoE/native_descriptions.py",
-        "RePoE/native_csd.py",
-        "RePoE/native_facts.py",
-        "RePoE/native_dat.py",
-        "RePoE/native_tools.py",
-        "RePoE/schema_candidate.py",
+        "RePoE/native/__init__.py",
+        "RePoE/native/player.py",
+        "RePoE/native/metadata.py",
+        "RePoE/native/descriptions.py",
+        "RePoE/native/csd.py",
+        "RePoE/native/facts.py",
+        "RePoE/native/dat.py",
+        "RePoE/native/tools.py",
+        "RePoE/native/schema_candidate.py",
         "pyproject.toml",
         "uv.lock",
         "schema/pypoe-sources.json",

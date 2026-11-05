@@ -91,7 +91,7 @@ def main():
     if args.schema_candidate:
         if not args.poe2 or not args.file or not args.outdir:
             parser.error("--schema-candidate requires --poe2, an explicit --file and --outdir")
-        from RePoE.schema_candidate import load_candidate
+        from RePoE.native.schema_candidate import load_candidate
 
         schema_spec = load_candidate(args.schema_candidate)
 

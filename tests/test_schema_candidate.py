@@ -11,7 +11,7 @@ import tempfile
 import unittest
 from unittest.mock import patch
 
-from RePoE import schema_candidate as candidate
+from RePoE.native import schema_candidate as candidate
 from RePoE.parser.util import create_relational_reader
 
 
@@ -20,7 +20,7 @@ class SchemaCandidateTests(unittest.TestCase):
         temporary = tempfile.TemporaryDirectory(prefix="repoe-schema-test-")
         self.addCleanup(temporary.cleanup)
         self.root = Path(temporary.name)
-        for name in ["pyproject.toml", "uv.lock", "RePoE/schema_candidate.py", "schema/source.json"]:
+        for name in ["pyproject.toml", "uv.lock", "RePoE/native/schema_candidate.py", "schema/source.json"]:
             path = self.root / name
             path.parent.mkdir(parents=True, exist_ok=True)
             shutil.copyfile(candidate.ROOT / name, path)
@@ -181,7 +181,7 @@ class RealSchemaReplayTests(unittest.TestCase):
             for index, seed in enumerate(["1", "49"]):
                 output = Path(temporary) / str(index)
                 result = subprocess.run(
-                    [sys.executable, "-m", "RePoE.schema_candidate", "--out", str(output)],
+                    [sys.executable, "-m", "RePoE.native.schema_candidate", "--out", str(output)],
                     cwd=candidate.ROOT,
                     env={**os.environ, "PYTHONHASHSEED": seed},
                     capture_output=True,

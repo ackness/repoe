@@ -6,7 +6,7 @@ import tempfile
 import unittest
 from unittest.mock import patch
 
-from RePoE import native_actor_templates as actor
+from RePoE.native import actor_templates as actor
 
 
 BASE = "Metadata/Monsters/Monster.ot"

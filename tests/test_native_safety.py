@@ -13,14 +13,14 @@ import subprocess
 import sys
 from unittest.mock import patch
 
-from RePoE import native_facts as facts, native_validate, schema_candidate
-from RePoE.native_tools import PIN
+from RePoE.native import facts, validate as native_validate, schema_candidate
+from RePoE.native.tools import PIN
 import test_native_facts as fixture
 
 
 def run_producer(test, out, *, pythonpath=None, code=None, executable=None):
     arguments = ["--source-lock", str(test.lock), "--source", "fixture", "--raw", str(test.raw), "--out", str(out)]
-    entry = ["-m", "RePoE.native_facts"] if code is None else ["-c", code]
+    entry = ["-m", "RePoE.native.facts"] if code is None else ["-c", code]
     return subprocess.run(
         [executable or sys.executable, "-B", *entry, *arguments],
         cwd=schema_candidate.ROOT,
@@ -196,7 +196,7 @@ class NativeBoundsTests(fixture.NativeFactsFixture):
         # The original find(-1) alignment loop never terminated for this input.
         code = """
 import json, struct
-from RePoE import native_facts as f, schema_candidate as s
+from RePoE.native import facts as f, schema_candidate as s
 schema = json.loads((s.ROOT / 'schema/poe2.json').read_bytes())
 table = next(t for t in schema['tables'] if t['name'] == 'PassiveSkills').copy()
 table.update(name='Proof', columns=[table['columns'][0]])

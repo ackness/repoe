@@ -28,7 +28,7 @@ run = "shasum -a 256 -c schema/SHA256SUMS"
 
 [tasks."schema:candidate"]
 description = "Generate a validated native schema candidate; --out must be inside .cache"
-run = "uv run --locked --offline python -m RePoE.schema_candidate"
+run = "uv run --locked --offline python -m RePoE.native.schema_candidate"
 
 [tasks."models:generate"]
 description = "Regenerate JSON-schema models explicitly (optional schema paths)"
@@ -68,19 +68,19 @@ run = "cargo run --locked --quiet --manifest-path {{config_root}}/tools/pobr-dat
 
 [tasks."facts:candidate"]
 description = "Export native facts; explicit source-lock/source/raw/out and optional core-skills-a0, gems-constraints-a1 or items-actors-bc profile"
-run = "uv run --locked --offline python -B -m RePoE.native_facts"
+run = "uv run --locked --offline python -B -m RePoE.native.facts"
 
 [tasks."facts:validate"]
 description = "Verify a facts candidate against pinned raw inputs and all graph instance fields"
-run = "uv run --locked --offline python -B -m RePoE.native_validate"
+run = "uv run --locked --offline python -B -m RePoE.native.validate"
 
 [tasks."descriptions:candidate"]
 description = "Export selected byte-pinned CSD branches offline without choosing translations or executing handlers"
-run = "uv run --locked --offline python -B -m RePoE.native_descriptions"
+run = "uv run --locked --offline python -B -m RePoE.native.descriptions"
 
 [tasks."tables:candidate"]
 description = "Export explicitly pinned supplemental DAT tables through the existing native reader"
-run = "uv run --locked --offline python -B -m RePoE.native_tables"
+run = "uv run --locked --offline python -B -m RePoE.native.tables"
 
 [tasks."release:build"]
 description = "Rebuild the game part from pinned inputs (Git blobs or Release assets) and classify every member against the reference package (--config release/<patch>[-<n>], default: highest; --fetch, --check)"
@@ -116,4 +116,4 @@ run = "python -B -m RePoE.client.version"
 
 [tasks."facts:player"]
 description = "Export pinned starting/keyword/metadata context; no actor binding or formulas"
-run = "uv run --locked --offline python -B -m RePoE.native_player"
+run = "uv run --locked --offline python -B -m RePoE.native.player"

@@ -7,9 +7,9 @@ import struct
 import unittest
 from unittest.mock import patch
 
-from RePoE import native_locale_probe as probe
-from RePoE import schema_candidate
-from RePoE.native_tools import pinned_pypoe
+from RePoE.native import locale_probe as probe
+from RePoE.native import schema_candidate
+from RePoE.native.tools import pinned_pypoe
 from test_native_facts import dat_bytes
 
 

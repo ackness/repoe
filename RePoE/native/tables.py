@@ -5,10 +5,10 @@ from pathlib import Path
 import re
 import sys
 
-from RePoE import native_descriptions as envelope
-from RePoE import native_facts as facts
-from RePoE import schema_candidate
-from RePoE.native_tools import pinned_pypoe
+from RePoE.native import descriptions as envelope
+from RePoE.native import facts
+from RePoE.native import schema_candidate
+from RePoE.native.tools import pinned_pypoe
 
 
 ROOT = schema_candidate.ROOT
@@ -148,11 +148,11 @@ def _payloads(lock_bytes, selected, verified, source, language="English"):
         **{
             name: envelope._sha((ROOT / name).read_bytes())
             for name in [
-                "RePoE/native_tables.py",
-                "RePoE/native_facts.py",
-                "RePoE/native_dat.py",
-                "RePoE/native_tools.py",
-                "RePoE/native_descriptions.py",
+                "RePoE/native/tables.py",
+                "RePoE/native/facts.py",
+                "RePoE/native/dat.py",
+                "RePoE/native/tools.py",
+                "RePoE/native/descriptions.py",
                 "schema/pypoe-sources.json",
             ]
         },

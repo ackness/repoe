@@ -6,7 +6,7 @@ import subprocess
 import sys
 from unittest.mock import patch
 
-from RePoE import native_facts as facts, native_validate, schema_candidate
+from RePoE.native import facts, validate as native_validate, schema_candidate
 import test_native_facts as fixture
 
 
@@ -209,7 +209,7 @@ class NativeSkillsTests(NativeSkillsFixture):
             self.validate()
         self.create_at_new_output()
         manifest = self.load("manifest.json")
-        manifest["producer"]["RePoE/native_skills.py"] = "b" * 64
+        manifest["producer"]["RePoE/native/skills.py"] = "b" * 64
         (self.out / "manifest.json").write_bytes(facts._json(manifest))
         with self.assertRaisesRegex(ValueError, "manifest.producer"):
             self.validate()
@@ -225,7 +225,7 @@ class NativeSkillsTests(NativeSkillsFixture):
                     sys.executable,
                     "-B",
                     "-m",
-                    "RePoE.native_facts",
+                    "RePoE.native.facts",
                     "--source-lock",
                     str(self.lock),
                     "--source",

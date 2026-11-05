@@ -12,12 +12,12 @@ import re
 import sys
 import zlib
 
-from RePoE import native_descriptions as env
-from RePoE import native_facts as facts
-from RePoE import native_locale_probe as probe
+from RePoE.native import descriptions as env
+from RePoE.native import facts
+from RePoE.native import locale_probe as probe
 
 
-ROOT = Path(__file__).resolve().parents[1]
+ROOT = Path(__file__).resolve().parents[2]
 FORMAT = "repoe-localized-tables/v2"
 POLICY = "stable-key-current-english-all-nontext/v1"
 SPEC_SHA = "c9417f03e2205ff649721c3dbf9620ee0c703bf905b3cf53469ce3eda86f1e25"
@@ -83,7 +83,7 @@ def _transfer(receipt_path, expected, parts_path):
         evidence=receipt["acquisition_evidence"],
     )
     if receipt["decoder"]["method"] != probe.METHOD or receipt["decoder"]["source_sha256"] != env._sha(
-        (ROOT / "RePoE/native_locale_probe.py").read_bytes()
+        (ROOT / "RePoE/native/locale_probe.py").read_bytes()
     ):
         raise ValueError("Transfer decoder differs from this reviewed memory decoder")
     entries = receipt["tables"]
@@ -426,10 +426,10 @@ def _payloads(receipt_raw, receipt, parts_raw, pairs, lock_raw, targets, target_
         "producer": {
             name: env._sha((ROOT / name).read_bytes())
             for name in [
-                "RePoE/native_decoded_tables.py",
-                "RePoE/native_locale_probe.py",
-                "RePoE/native_descriptions.py",
-                "RePoE/native_facts.py",
+                "RePoE/native/decoded_tables.py",
+                "RePoE/native/locale_probe.py",
+                "RePoE/native/descriptions.py",
+                "RePoE/native/facts.py",
                 "schema/poe2.json",
             ]
         },

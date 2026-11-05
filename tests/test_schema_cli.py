@@ -5,7 +5,7 @@ import unittest
 from unittest.mock import patch
 
 from RePoE import run_parser
-from RePoE import schema_candidate
+from RePoE.native import schema_candidate
 
 
 class SchemaCliTests(unittest.TestCase):

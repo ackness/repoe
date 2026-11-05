@@ -6,10 +6,10 @@ from pathlib import Path
 import re
 import sys
 
-from RePoE import native_descriptions as env
+from RePoE.native import descriptions as env
 
 
-ROOT = Path(__file__).resolve().parents[1]
+ROOT = Path(__file__).resolve().parents[2]
 FORMAT = "repoe-native-crafting-facts/v1"
 TABLES = (
     "BaseItemTypes",
@@ -28,7 +28,7 @@ SCHEMA = {
 }
 MAX_TABLE_BYTES = 64 * 1024 * 1024
 MAX_TOTAL_BYTES = 96 * 1024 * 1024
-PRODUCERS = ("RePoE/native_crafting_facts.py", "RePoE/native_descriptions.py")
+PRODUCERS = ("RePoE/native/crafting_facts.py", "RePoE/native/descriptions.py")
 
 
 def _read(path, limit):

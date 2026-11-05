@@ -5,10 +5,10 @@ from pathlib import Path
 import tempfile
 import unittest
 
-from RePoE import native_facts as facts
-from RePoE import native_tables as producer
-from RePoE import schema_candidate
-from RePoE.native_tools import pinned_pypoe
+from RePoE.native import facts
+from RePoE.native import tables as producer
+from RePoE.native import schema_candidate
+from RePoE.native.tools import pinned_pypoe
 from test_native_facts import dat_bytes
 
 

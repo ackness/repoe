@@ -5,10 +5,10 @@ from pathlib import Path
 import re
 import sys
 
-from RePoE import native_descriptions as envelope
+from RePoE.native import descriptions as envelope
 
 
-ROOT = Path(__file__).resolve().parents[1]
+ROOT = Path(__file__).resolve().parents[2]
 FORMAT = "repoe-item-inheritance/v1"
 POLICY = "pypoe-66d1d744-base-tag-child-first-ordered-union/v1"
 PYPOE = "66d1d7442c5718260e1a8efd24989d22987e91af"
@@ -259,8 +259,8 @@ def _payloads(lock_bytes, selected, verified, source):
         "producer": {
             name: envelope._sha((ROOT / name).read_bytes())
             for name in [
-                "RePoE/native_item_inheritance.py",
-                "RePoE/native_descriptions.py",
+                "RePoE/native/item_inheritance.py",
+                "RePoE/native/descriptions.py",
                 "schema/pypoe-sources.json",
             ]
         },

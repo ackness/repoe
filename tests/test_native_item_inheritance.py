@@ -6,7 +6,7 @@ import tempfile
 import unittest
 from unittest.mock import patch
 
-from RePoE import native_item_inheritance as producer
+from RePoE.native import item_inheritance as producer
 
 
 BASE = "Metadata/Items/Item.it"

@@ -5,9 +5,9 @@ from pathlib import Path
 import tempfile
 import unittest
 
-from RePoE import native_player as player
-from RePoE import schema_candidate
-from RePoE.native_tools import pinned_pypoe
+from RePoE.native import player
+from RePoE.native import schema_candidate
+from RePoE.native.tools import pinned_pypoe
 from tests.test_native_facts import dat_bytes
 
 
