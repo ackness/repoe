@@ -116,7 +116,7 @@ above; the exporter never truncates an array to manufacture agreement.
 tables/projections under the same pinned tools. This replay shares producer
 logic and is not independent gameplay verification. Real-source field/primitive
 comparison and independent review remain necessary before accepting an increment.
-The focused synthetic regression suite is `test_native_items_actors.py`; it
+The focused synthetic regression suite is `tests/native/test_items_actors.py`; it
 covers eight slots, owner ambiguity, unknown/empty/null distinctions, separate
 channels, exact floats/IDs, negative cases and fresh-process determinism.
 

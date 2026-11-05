@@ -1,7 +1,7 @@
 """Small standard-library file, JSON and fixed-source primitives.
 
 Shared by acquisition and portable envelope verification; no HTTP client, decoder
-or acquisition module is imported here. Public APIs are re-exported by client_sources.
+or acquisition module is imported here. Public APIs are re-exported by RePoE.client.sources.
 One-time source: ackness/pobr@0d6fe696d21fcc8ed60b42ad93e7cb5aaa40f819,
 pipeline/client_sources.py. Historical wire names remain compatible.
 """

@@ -6,6 +6,7 @@ import zipfile
 import unittest
 
 from RePoE.release import pins
+from RePoE.native import crafting_facts
 from RePoE.release import crafting_catalog as crafting
 
 TARGET = {"game": "poe2", "game_patch": "9.1", "realm": "international"}
@@ -73,10 +74,10 @@ def zip_bytes(members):
     return buffer.getvalue()
 
 
-def crafting_package(facts, target=TARGET):
+def crafting_package(facts, target=TARGET, producers=crafting.HISTORICAL_PRODUCERS):
     members = {f"{name}.json": b'{"synthetic":true}' for name in crafting.TABLES}
     members.update({"crafting.json": pins.encoded(facts), "input-manifest.json": b'{"synthetic_source":true}'})
-    producer = {name: "c" * 64 for name in crafting.PRODUCERS}
+    producer = {name: "c" * 64 for name in sorted(producers)}
     input_pin = pins.pin(members["input-manifest.json"])
     manifest = {
         "format": crafting.FORMAT,
@@ -195,6 +196,27 @@ class FactsDocumentTests(unittest.TestCase):
         spec, raw = crafting_package(facts)
         with zipfile.ZipFile(io.BytesIO(raw)) as archive:
             self.assertEqual(crafting.facts_document(archive, spec, TARGET), facts)
+
+    def test_historical_and_current_producer_keys_are_accepted(self):
+        # The current set must be what the exporter writes, or fresh exports would be refused.
+        self.assertEqual(crafting.CURRENT_PRODUCERS, frozenset(crafting_facts.PRODUCERS))
+        for producers in crafting.PRODUCER_KEY_SETS:
+            with self.subTest(producers=sorted(producers)):
+                facts = fixture()
+                spec, raw = crafting_package(facts, producers=producers)
+                with zipfile.ZipFile(io.BytesIO(raw)) as archive:
+                    self.assertEqual(crafting.facts_document(archive, spec, TARGET), facts)
+
+    def test_mixed_or_unknown_producer_keys_reject(self):
+        mixed = {"RePoE/native_crafting_facts.py", "RePoE/native/descriptions.py"}
+        for producers in (mixed, {"RePoE/native_crafting_facts.py"}, {*crafting.HISTORICAL_PRODUCERS, "extra.py"}):
+            with self.subTest(producers=sorted(producers)):
+                spec, raw = crafting_package(fixture(), producers=producers)
+                with (
+                    zipfile.ZipFile(io.BytesIO(raw)) as archive,
+                    self.assertRaisesRegex(ValueError, "producer closure"),
+                ):
+                    crafting.facts_document(archive, spec, TARGET)
 
     def test_foreign_or_mismatched_inputs_reject(self):
         for case in ("producer", "input", "owner", "publication", "target"):
