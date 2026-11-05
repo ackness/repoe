@@ -7,13 +7,9 @@ in [`policies/`](policies). The tool and the policies moved here from PoBR
 published packages through its `pipeline/data.lock.json`.
 
 It is a standalone Cargo workspace inside this Python repository. PoBR's data
-types come from the immutable contract tag `contract/1.0` of `ackness/pobr`
-(**temporarily**, on the game 0.5.5.5-2 branch, a `[patch]` to a local PoBR
-checkout carrying the unpublished contract 1.1 fields; `release:build` then
-records `tag: null` and the local crates in the receipt, and `release:publish`
-refuses the build until `Cargo.toml` names `tag = "contract/1.1"`)
+types come from the immutable contract tag `contract/1.1` of `ackness/pobr`
 (`contract/<n>.<m>`, where n is `pobr_data::CONTRACT_VERSION`); `Cargo.lock`
-pins the resolved commit `95d71c6f`. Production code depends on `pobr-data`
+pins the resolved commit `ac3c5c92`. Production code depends on `pobr-data`
 only. The engine crates `pobr-core`, `pobr-gamedata`, `pobr-item` and
 `pobr-tree` are dev-dependencies for the tests that check how PoBR consumes the
 output, and they must name the same tag: two tags compile two copies of
@@ -24,7 +20,7 @@ crate other than `pobr-data` reaches the normal dependency tree, or if the
 locked PoBR crates resolve to more than one commit.
 
 Changing the pin does not change the published bytes by itself: `contract/1.0`
-(from `engine-crates/20261102`, `174ca6fb`) reproduced the published game part
+(the previous pin, from `engine-crates/20261102`, `174ca6fb`) reproduced the published game part
 exactly. From game 0.5.5.5-2 the snapshot manifest records the
 `contract_version` the adapter was compiled against (`--contract-version`).
 
