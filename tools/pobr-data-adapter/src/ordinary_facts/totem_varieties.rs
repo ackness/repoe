@@ -3,6 +3,7 @@
 #[cfg(all(test, any(target_os = "linux", target_os = "macos")))]
 pub(super) mod tests;
 
+use crate::schema_id;
 use std::collections::{BTreeMap, BTreeSet};
 
 use pobr_data::catalog::totem_varieties::{TotemVarietiesDef, TotemVarietyDef};
@@ -220,7 +221,7 @@ pub(super) fn convert(input: &VerifiedFacts) -> Result<Converted, String> {
         })
         .collect();
     let document = json!({
-        "_meta":{"schema":"totem-varieties/v1","generator":"pobr-data-adapter ordinary-facts totem-varieties",
+        "_meta":{"schema":schema_id::TOTEM_VARIETIES,"generator":"pobr-data-adapter ordinary-facts totem-varieties",
             "poe_version":input.manifest["source_identity"]["game_patch"],"source_identity":input.manifest["source_identity"],
             "facts_manifest_sha256":sha256_hex(&input.manifest_bytes),"inputs":inputs},
         "totems":data.totems

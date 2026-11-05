@@ -568,7 +568,7 @@ fn flags_paths_manifest_payload_version_and_overwrite_are_guarded() {
         assert!(!out.exists());
     }
     let out = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
-        .join("../../publication")
+        .join("../../release")
         .canonicalize()
         .unwrap()
         .join(f.root.file_name().unwrap());

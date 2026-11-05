@@ -1,39 +1,24 @@
-"""Project PoBR's special-currency catalog and add it to a published game part.
+"""Project PoBR's special-currency catalog from the pinned crafting facts package.
 
 The catalog is a category/identified-regular-stat projection of the neutral
 crafting facts, not a complete effect packet, crafting simulator or source
-admission. `assemble` reads both published inputs from local Git objects only,
-adds the projected file to the game part and checks it against the part's own
-snapshot manifest. It never fetches, pushes or edits the publication index.
+admission. `release:build` runs it as the `crafting-catalog` job.
 """
 
-import argparse
-import hashlib
-import io
 import json
-from pathlib import Path
-import stat
-import tempfile
-import zipfile
 
-from RePoE import publication_index as pub
-from RePoE.data_publication import ROOT, archive_manifest, decode, encoded, pinned, require, safe_path
+from RePoE.pins import HEX, archive_manifest, byte_pin, decode, pinned, require
 
 FORMAT = "repoe-native-crafting-facts/v1"
 POLICY = "pobr-trade-crafting-catalog/v1"
-PART_SCHEMA = "pobr-build-data-part/v1"
 TABLES = ("BaseItemTypes", "ItemClasses", "Mods", "Stats", "Essences", "EssenceTargetItemCategories", "EssenceMods")
 PRODUCERS = {"RePoE/native_crafting_facts.py", "RePoE/native_descriptions.py"}
-POLICY_PATH = "RePoE/pobr_crafting_catalog.py"
+OWNER = "ackness/repoe"
 
 
 def runtime_encoded(value):
     """PoBR runtime JSON layout; the snapshot manifest pins these exact bytes."""
     return (json.dumps(value, ensure_ascii=False, indent=2, allow_nan=False) + "\n").encode()
-
-
-def sha(raw):
-    return hashlib.sha256(raw).hexdigest()
 
 
 def project(facts, *, source_manifest_sha256, facts_manifest_sha256, target):
@@ -229,15 +214,13 @@ def project(facts, *, source_manifest_sha256, facts_manifest_sha256, target):
 
 def facts_document(archive, spec, target):
     """Authenticate the whole crafting package before reading `crafting.json`."""
-    require(
-        spec.get("publication") == "published" and spec.get("repository") == pub.OWNER, "Unpublished crafting facts"
-    )
+    require(spec.get("publication") == "published" and spec.get("repository") == OWNER, "Unpublished crafting facts")
     require(
         set(spec.get("producer", {})) == PRODUCERS
-        and all(isinstance(value, str) and pub.SHA.fullmatch(value) for value in spec["producer"].values()),
+        and all(isinstance(value, str) and HEX.fullmatch(value) for value in spec["producer"].values()),
         "Invalid crafting producer closure",
     )
-    pub.byte_pin(spec["input_manifest"])
+    byte_pin(spec["input_manifest"])
     _, manifest = archive_manifest(archive, spec)
     source = manifest["source_identity"]
     require(
@@ -257,139 +240,3 @@ def facts_document(archive, spec, target):
     for name, expected_pin in manifest["files"].items():
         pinned(archive.read(name), expected_pin)
     return decode(archive.read("crafting.json"))
-
-
-def published_inputs(repo, index_path, sequence=None):
-    """Return the target, game and crafting declarations of one validated sequence."""
-    index = decode(pub.read_metadata(index_path))
-    pub.validate_index(index, repo)
-    chain = pub.read_chain(repo, index["head"])
-    found = [value for _, value in chain if sequence is None or value["sequence"] == sequence]
-    require(found, f"No sequence {sequence} in the publication chain")
-    value = found[0]
-    return value["target"], value["components"]["game"]["input"], value["components"]["crafting"]["input"]
-
-
-def assemble(repo, target, game, crafting, name, out):
-    """Write a game part that adds the projected catalog to `game`; no network or push."""
-    repo, out = pub.safe_path(repo), safe_path(out)
-    require(out.is_relative_to(ROOT / ".cache") and not out.exists(), "Fresh repository cache output required")
-    require(pub.TOKEN.fullmatch(name), "Invalid handoff name")
-    policy_raw = Path(__file__).read_bytes()
-    version = target["game_patch"]
-    destination = f"data/{version}/overlay/trade_crafting_sources.json"
-    game_raw = pub.tree_blob(repo, game["revision"], game["path"], game)
-    crafting_raw = pub.tree_blob(repo, crafting["revision"], crafting["path"], crafting)
-    with zipfile.ZipFile(io.BytesIO(crafting_raw)) as archive:
-        facts = facts_document(archive, crafting, target)
-    document, decisions = project(
-        facts,
-        source_manifest_sha256=crafting["manifest"]["sha256"],
-        facts_manifest_sha256=crafting["input_manifest"]["sha256"],
-        target=target,
-    )
-    projected = runtime_encoded(document)
-    with zipfile.ZipFile(io.BytesIO(game_raw)) as archive:
-        _, base = archive_manifest(archive, game)
-        require(
-            base.get("schema") == PART_SCHEMA and base.get("kind") == "game" and base.get("target") == target,
-            "Game part target/schema mismatch",
-        )
-        require(destination not in base["files"], "Game part already contains the crafting catalog")
-        members = {member: pinned(archive.read(member), pin) for member, pin in base["files"].items()}
-    snapshot = decode(members[f"data/{version}/manifest.json"])
-    require(
-        snapshot["files"].get("overlay/trade_crafting_sources.json") == sha(projected),
-        "Projected catalog differs from the game part's snapshot manifest",
-    )
-    members[destination] = projected
-    files = {member: pub.pin(raw) for member, raw in sorted(members.items())}
-    manifest = {
-        "schema": PART_SCHEMA,
-        "kind": "game",
-        "target": target,
-        "production_ready": False,
-        "retained_input_package": game,
-        "projection": {
-            "path": destination,
-            "policy": POLICY,
-            "producer": {POLICY_PATH: sha(policy_raw)},
-            "crafting_input": crafting,
-            "output": pub.pin(projected),
-            "summary": decisions["summary"],
-            "diagnostics": decisions["diagnostics"],
-        },
-        "limits": [
-            "Every other member is copied byte for byte from retained_input_package with its original limits.",
-            "The crafting catalog is an identified-regular-stat/category projection, "
-            "not complete effects, weights or eligibility.",
-            "Assembly does not acquire sources, certify gameplay semantics or publish remotely.",
-        ],
-        "files": files,
-    }
-    manifest_raw = encoded(manifest)
-    require(Path(__file__).read_bytes() == policy_raw, "Crafting projection changed during assembly")
-    out.parent.mkdir(parents=True, exist_ok=True)
-    with tempfile.TemporaryDirectory(prefix=".crafting-assembly-", dir=out.parent) as temporary:
-        stage = Path(temporary) / "result"
-        stage.mkdir()
-        with zipfile.ZipFile(stage / "data.zip", "x", compression=zipfile.ZIP_DEFLATED) as archive:
-            for member in sorted([*files, "manifest.json"]):
-                info = zipfile.ZipInfo(member, (1980, 1, 1, 0, 0, 0))
-                info.create_system = 3
-                info.external_attr = (stat.S_IFREG | 0o644) << 16
-                raw = manifest_raw if member == "manifest.json" else members[member]
-                archive.writestr(info, raw, compress_type=zipfile.ZIP_DEFLATED, compresslevel=9)
-        result = {
-            "schema": "repoe-data-package/v1",
-            "publication": "local-only",
-            "repository": pub.OWNER,
-            "path": f"handoff/{name}/game-build-part.zip",
-            "ref": f"refs/tags/handoff/{name}",
-            **pub.pin((stage / "data.zip").read_bytes()),
-            "manifest": pub.pin(manifest_raw),
-            "expanded_bytes": len(manifest_raw) + sum(value["bytes"] for value in files.values()),
-            "target": target,
-        }
-        (stage / "package.json").write_bytes(encoded(result))
-        (stage / "manifest.json").write_bytes(manifest_raw)
-        stage.rename(out)
-    return result
-
-
-def game_input(handoff):
-    """The publication index `game` input for a staged and pushed handoff."""
-    return {
-        "bytes": handoff["bytes"],
-        "expanded_bytes": handoff["expanded_bytes"],
-        "manifest": handoff["manifest"],
-        "path": handoff["path"],
-        "publication": "published",
-        "repository": handoff["repository"],
-        "revision": handoff["revision"],
-        "sha256": handoff["sha256"],
-    }
-
-
-def main(argv=None):
-    parser = argparse.ArgumentParser(description=__doc__)
-    sub = parser.add_subparsers(dest="command", required=True)
-    build = sub.add_parser("assemble", help="Add the projected catalog to the game part of one sequence")
-    build.add_argument("--repo", type=Path, default=ROOT)
-    build.add_argument("--index", type=Path, default=ROOT / "publication/index.json")
-    build.add_argument("--sequence", type=int, help="Source sequence (default: the index head)")
-    build.add_argument("--name", required=True, help="Handoff name, e.g. game-crafting-20261103")
-    build.add_argument("--out", type=Path, required=True)
-    declare = sub.add_parser("game-input", help="Print the index game input of a staged handoff")
-    declare.add_argument("--package", type=Path, required=True)
-    args = parser.parse_args(argv)
-    if args.command == "assemble":
-        target, game, crafting = published_inputs(args.repo, args.index, args.sequence)
-        result = assemble(args.repo, target, game, crafting, args.name, args.out)
-    else:
-        result = game_input(decode(pub.read_metadata(safe_path(args.package) / "git-handoff.json")))
-    print(json.dumps(result, ensure_ascii=False, sort_keys=True))
-
-
-if __name__ == "__main__":
-    main()

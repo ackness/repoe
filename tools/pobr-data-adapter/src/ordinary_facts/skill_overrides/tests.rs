@@ -1001,7 +1001,7 @@ fn source_and_output_guards_hold_for_the_new_domain() {
         assert!(!out.exists());
     }
     let out = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
-        .join("../../publication")
+        .join("../../release")
         .canonicalize()
         .unwrap()
         .join(format!(

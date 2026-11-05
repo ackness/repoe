@@ -1218,7 +1218,7 @@ fn actor_output_guards_protect_sources_policy_production_and_existing_paths() {
             assert!(!out.exists());
         }
         let out = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
-            .join("../../publication")
+            .join("../../release")
             .canonicalize()
             .unwrap()
             .join(format!(

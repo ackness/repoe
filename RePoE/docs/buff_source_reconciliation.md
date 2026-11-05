@@ -1,6 +1,6 @@
 # Retained buff reference source reconciliation
 
-`publication/retained-buff-source-reconciliation.v1.json` is independently owned
+`sources/retained-buff-source-reconciliation.v1.json` is independently owned
 RePoE source metadata, schema `repoe-retained-buff-source-reconciliation/v1`.
 It binds the retained 14,694-byte definition, SHA-256
 `0fd267716e0e4d1bee9dadf76c2a794b28f0941c1dd301b5c6b2ec3bf9009026`, to actual
@@ -104,7 +104,7 @@ above is accepted as `output-annotation-only`.
 
 ```sh
 mise exec -- python -B -m RePoE.buff_source_reconciliation \
-  --metadata publication/retained-buff-source-reconciliation.v1.json \
+  --metadata sources/retained-buff-source-reconciliation.v1.json \
   --metadata-sha256 aeb62b23fdd9504f3d0c05b602b05a8a73e7dbf837071080a1f42b1f6267608d \
   --defs /path/to/exact/buff_definitions.json \
   --source-git /path/to/local/community-source.git

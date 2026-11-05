@@ -1,5 +1,6 @@
 //! Exact archival identities and exceptions, separate from target numeric facts.
 
+use crate::schema_id;
 use std::collections::BTreeSet;
 
 use pobr_data::catalog::skill_overrides::SkillOverrideEntry;
@@ -154,9 +155,9 @@ impl Policy {
             return Err("skill-overrides policy target patch / manifest mismatch".into());
         }
         self.source
-            .validate("skill_overrides.json", "skill_overrides/v1")?;
+            .validate("skill_overrides.json", schema_id::SKILL_OVERRIDES)?;
         self.branch_codec
-            .validate("stat_set_labels.json", "stat_set_labels/v1")?;
+            .validate("stat_set_labels.json", schema_id::STAT_SET_LABELS)?;
         identity(&self.evidence.source_check.path, "evidence path")?;
         hex(&self.evidence.source_check.sha256, 64, "evidence SHA256")?;
         if self.statement.trim().is_empty() {

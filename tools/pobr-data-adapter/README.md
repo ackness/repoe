@@ -42,15 +42,15 @@ while retaining original hashes and provenance; it is separate from the complete
 policy move.
 
 The separate special-currency catalog projector, including currency prefixes and
-selection/aggregation policy, now runs in RePoE (`mise run publication:crafting-catalog`,
-see [RePoE/docs/pobr_crafting_catalog.md](../../RePoE/docs/pobr_crafting_catalog.md));
+selection/aggregation policy, now runs in RePoE as the `crafting-catalog` job of
+`mise run release:build` (see [RePoE/docs/pobr_crafting_catalog.md](../../RePoE/docs/pobr_crafting_catalog.md));
 the game part carries the projected catalog.
 
 The bounded [historical attribute selector projection](../../RePoE/docs/pobr_historical_trees.md)
-also runs in RePoE (`mise run publication:historical-trees`). It repairs the four
-byte-pinned retained `base/passive_trees/0_1..0_4.json` trees using a reviewed
-identity policy, without reviving the retired Lua extractor or reading a consumer
-snapshot/vendor. It produces a local game-part candidate, not an index update.
+also runs in RePoE, as the `historical-trees` job of `mise run release:build`. It
+repairs the four byte-pinned retained `base/passive_trees/0_1..0_4.json` trees
+using a reviewed identity policy, without reviving the retired Lua extractor or
+reading a consumer snapshot/vendor.
 
 ## Commands
 
@@ -76,16 +76,25 @@ pinned RePoE facts envelope (`repoe-native-facts/v4`) and its source lock, the
 selected-table and supplement readers, the player context archive verifier and
 the guarded output directory.
 
+Each domain candidate's receipt names its output by a schema ID from the one
+registry in `src/schema_id.rs` (`adapter.output_schema`, for example
+`runes/v1` or `passive_tree/v1`), in the contract crate's `<name>/v1` style and
+never as a `pobr_data` Rust type path. Where a member declares its own
+`_meta.schema`, the converter writes it from the same constant, so the two
+agree (spellings are kept as published, e.g. `monster-resistances/v1`).
+Policies pinned before the registry still spell selected-file schemas as type
+paths; the adapter accepts those as legacy aliases.
+
 The schema-4 (native runtime) modes `--native-facts` and `--native-runtime` were
 removed on 2026-11-04, after PoBR deleted its schema-4 loader; Git history keeps
 them.
 
-`adapter:keystones` checks the `game` input of the descriptor that
-[`publication/index.json`](../../publication/index.json) names as head, by
-commit, path, bytes and SHA-256, and requires its `handoff/<name>` tag on
-`origin` to peel to that commit. A pull request that advances the index to a
-new release therefore runs the check on the new package. To check a candidate
-before publishing it, pass
+`adapter:keystones` checks the `reference` package of the highest
+`release/<patch>/inputs.lock.json` (the published game package), by commit,
+path, bytes and SHA-256, and requires its `handoff/<name>` tag on `origin` to
+peel to that commit. A pull request that moves `reference` to a new release
+therefore runs the check on the new package. To check a candidate before
+publishing it, pass
 `--pin <file>` with `{revision, path, bytes, sha256[, tag]}`.
 
 ## Assembling a package
@@ -99,8 +108,9 @@ declared domain against pinned inputs and assembles the complete game part; see
 The mode documents were written in PoBR and keep their wording. In this
 repository:
 
-- "production `data/`" is the tracked `publication/` directory. The output
-  guards refuse to write under it, as they refused PoBR's `data/`.
+- "production `data/`" is the tracked `release/` directory (formerly
+  `publication/`, retired with the publication index). The output guards
+  refuse to write under it, as they refused PoBR's `data/`.
 - `CURRENT` is PoBR's runtime pointer. This tool never reads or writes it.
 - Links to PoBR source point at the `engine-crates/20261102` tag, the pin
   when they were moved; `contract/1.0` replaced it.

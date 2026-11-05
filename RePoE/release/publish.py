@@ -24,7 +24,7 @@ import subprocess
 import sys
 import zipfile
 
-from RePoE.data_publication import decode, pin, require
+from RePoE.pins import decode, pin, require
 from RePoE.release import build
 
 REPOSITORY = "ackness/repoe"

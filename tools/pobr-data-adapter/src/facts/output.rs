@@ -121,8 +121,10 @@ mod supported {
                 .to_owned();
             let directories = Directories::open(parent)?;
             let input = Directories::open(input)?;
+            // The tracked release declarations (`release/`) stand where the
+            // retired `publication/` directory (PoBR's production `data/`) was.
             let production_path = Path::new(env!("CARGO_MANIFEST_DIR"))
-                .join("../../publication")
+                .join("../../release")
                 .canonicalize()
                 .map_err(|e| e.to_string())?;
             let production = Directories::open(&production_path)?;
@@ -174,7 +176,7 @@ mod supported {
             }
             self.directories.excludes(
                 &self.production,
-                "native facts output must remain outside tracked publication/",
+                "native facts output must remain outside tracked release/",
             )
         }
 

@@ -32,7 +32,7 @@ from urllib.parse import parse_qs, urlsplit
 import zipfile
 
 from RePoE import pobr_crafting_catalog, pobr_historical_trees, source_rebinding
-from RePoE.data_publication import archive_manifest, decode, encoded, pin, pinned, relative, require
+from RePoE.pins import archive_manifest, decode, encoded, pin, pinned, relative, require
 
 ROOT = Path(__file__).resolve().parents[2]
 RELEASES = ROOT / "release"
@@ -72,8 +72,7 @@ CODE = (
     "RePoE/release/build.py",
     "RePoE/source_rebinding.py",
     "RePoE/source_io.py",
-    "RePoE/data_publication.py",
-    "RePoE/publication_index.py",
+    "RePoE/pins.py",
     "RePoE/pobr_historical_trees.py",
     "RePoE/pobr_crafting_catalog.py",
     "tools/pobr-data-adapter/Cargo.lock",
@@ -479,7 +478,7 @@ def run_special_derived(ctx, job, out):
 
 
 def run_historical_trees(ctx, job, out):
-    """``publication:historical-trees`` projection applied to the pinned historical tree inputs."""
+    """Historical-tree selector projection applied to the pinned historical tree inputs."""
     policy = decode(ctx.resolve(job["policy"], job).read_bytes())
     require(policy.get("schema") == pobr_historical_trees.POLICY, f"{job['id']}: unsupported policy")
     require(set(job["trees"]) == set(policy["versions"]), f"{job['id']}: tree versions differ from policy")
@@ -496,7 +495,7 @@ def run_historical_trees(ctx, job, out):
 
 
 def run_crafting_catalog(ctx, job, out):
-    """``publication:crafting-catalog`` projection of the pinned crafting facts package."""
+    """Crafting-catalog projection of the pinned crafting facts package."""
     package = ctx.packages[job["package"]]
     with zipfile.ZipFile(io.BytesIO(package.raw)) as archive:
         facts = pobr_crafting_catalog.facts_document(archive, package.spec, ctx.target)

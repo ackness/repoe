@@ -653,7 +653,7 @@ fn codec_protects_both_input_parents_production_and_fresh_output() {
         f.root.join("policy/new"),
         f.root.join("input/new"),
         std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
-            .join("../../publication")
+            .join("../../release")
             .canonicalize()
             .unwrap()
             .join(format!(

@@ -638,7 +638,7 @@ fn output_rejects_input_parents_production_symlinks_and_overwrite() {
         f.root.join("policy/new"),
         f.root.join("input/new"),
         std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
-            .join("../../publication")
+            .join("../../release")
             .canonicalize()
             .unwrap()
             .join(format!(

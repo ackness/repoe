@@ -3,23 +3,18 @@
 use super::super::stat_set_codec::policy::hex;
 use crate::facts::reader::VerifiedFacts;
 use crate::raw_source::sha256_hex;
+use crate::schema_id::{self, SchemaId};
 use serde::{Deserialize, Serialize};
 use std::collections::BTreeSet;
 
-pub(super) const FILES: [(&str, &str); 3] = [
-    (
-        "game_constants.json",
-        "pobr_data::catalog::GameConstantsDef",
-    ),
-    (
-        "character_constants.json",
-        "pobr_data::catalog::CharacterConstantsDef",
-    ),
-    ("jewel_radii.json", "pobr_data::catalog::JewelRadiiDef"),
+pub(super) const FILES: [(&str, SchemaId); 3] = [
+    ("game_constants.json", schema_id::GAME_CONSTANTS),
+    ("character_constants.json", schema_id::CHARACTER_CONSTANTS),
+    ("jewel_radii.json", schema_id::JEWEL_RADII),
 ];
-const OPTIONAL_FILES: [(&str, &str); 1] = [(
+const OPTIONAL_FILES: [(&str, SchemaId); 1] = [(
     "non_damaging_ailments.json",
-    "pobr_data::catalog::non_damaging_ailments::NonDamagingAilmentsDef",
+    schema_id::NON_DAMAGING_AILMENTS,
 )];
 #[derive(Deserialize)]
 #[serde(deny_unknown_fields)]
@@ -119,7 +114,7 @@ impl Policy {
                 .ok_or("unknown selected constants file")?;
             if !files.insert(f.file.as_str())
                 || f.relative_path != format!("base/{}", f.file)
-                || f.schema != schema
+                || !schema.accepts(&f.schema)
             {
                 return Err("duplicate/invalid selected constants path/schema".into());
             }

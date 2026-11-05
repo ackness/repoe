@@ -3,6 +3,7 @@
 use super::super::stat_set_codec::policy::hex;
 use crate::facts::reader::VerifiedFacts;
 use crate::raw_source::sha256_hex;
+use crate::schema_id;
 use pobr_data::native_stat::NativeStat;
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
@@ -176,14 +177,14 @@ impl Policy {
             64,
             "declared snapshot manifest SHA256",
         )?;
-        if self.source.schema != "pobr_data::catalog::PassiveNodeDef[]" {
+        if !schema_id::PASSIVE_TREE.accepts(&self.source.schema) {
             return Err("unsupported prepared tree schema".into());
         }
         let meta = &self.legacy_metadata.source_declaration;
         path(&meta.snapshot_version, &meta.path, "passive_tree_meta.json")?;
         hex(&meta.sha256, 64, "declared metadata SHA256")?;
         if meta.snapshot_version != self.source.snapshot_version
-            || meta.schema != "pobr_data::catalog::PassiveTreeMeta"
+            || !schema_id::PASSIVE_TREE_META.accepts(&meta.schema)
             || meta.role
                 != "policy-owned compatibility metadata; authoring file declared, not producer-provided or file-hash-verified"
         {

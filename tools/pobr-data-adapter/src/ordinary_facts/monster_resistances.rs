@@ -3,6 +3,7 @@
 #[cfg(all(test, any(target_os = "linux", target_os = "macos")))]
 pub(super) mod tests;
 
+use crate::schema_id;
 use std::collections::BTreeMap;
 
 use serde::de::DeserializeOwned;
@@ -70,7 +71,7 @@ pub(super) fn convert(input: &VerifiedFacts) -> Result<Converted, String> {
         .collect();
     let document = json!({
         "_meta":{
-            "schema":"monster-resistances/v1",
+            "schema":schema_id::MONSTER_RESISTANCES,
             "generator":"pobr-data-adapter ordinary-facts monster-resistances",
             "poe_version":input.manifest["source_identity"]["game_patch"],
             "source_identity":input.manifest["source_identity"],

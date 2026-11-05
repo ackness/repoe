@@ -5,12 +5,13 @@ file is derived from the same package's ``base/passive_tree.json`` by
 ``pobr-data-adapter --emit-special-derived``. This check rebuilds it in a
 temporary directory and compares bytes; it never writes into the checkout.
 
-By default the package is the ``game`` input of the descriptor that
-``publication/index.json`` names as head, so advancing the index to a new
-release makes CI check the new package. ``--pin`` checks a candidate package
-before it is published. Either way the package is addressed by Git commit,
-path, byte count and SHA-256, and its ``handoff/<name>`` tag on ``origin`` must
-peel to that commit. A shallow checkout fetches only the commits it needs.
+By default the package is the ``reference`` package of the release
+declaration ``release:build`` uses by default (the highest ``release/<patch>/``),
+which is the published game package, so moving ``reference`` to a new release
+makes CI check the new package. ``--pin`` checks a candidate package before it
+is published. Either way the package is addressed by Git commit, path, byte
+count and SHA-256, and its ``handoff/<name>`` tag on ``origin`` must peel to
+that commit. A shallow checkout fetches only the commits it needs.
 """
 
 from __future__ import annotations
@@ -28,12 +29,12 @@ from pathlib import Path
 
 ADAPTER = Path(__file__).resolve().parents[1]
 ROOT = ADAPTER.parents[1]
-INDEX = ROOT / "publication" / "index.json"
 TREE = re.compile(r"^data/([^/]+)/base/passive_tree\.json$")
 HANDOFF = re.compile(r"^(handoff/[A-Za-z0-9._-]+)/")
 
 sys.path.insert(0, str(ROOT))
-from RePoE.publication_index import decode, git_blob, read_metadata, validate_descriptor  # noqa: E402
+from RePoE.pins import decode  # noqa: E402
+from RePoE.release.build import default_config  # noqa: E402
 
 
 def fail(message: str) -> SystemExit:
@@ -52,17 +53,14 @@ def ensure_commit(revision: str) -> None:
 
 
 def published_game_package() -> tuple[dict, str]:
-    index = decode(read_metadata(INDEX))
-    if not isinstance(index, dict) or index.get("schema") != "owned-data-publication-index/v2":
-        raise fail(f"{INDEX.relative_to(ROOT)} is not an owned-data-publication-index/v2")
-    head = index["head"]
-    ensure_commit(head["revision"])
-    descriptor = validate_descriptor(decode(git_blob(ROOT, head)))
-    if descriptor["sequence"] != index["sequence"]:
-        raise fail("index sequence differs from its head descriptor")
-    game = descriptor["components"]["game"]["input"]
-    source = f"{head['path']} (sequence {descriptor['sequence']})"
-    return {k: game[k] for k in ("revision", "path", "bytes", "sha256")}, source
+    lock_path = default_config() / "inputs.lock.json"
+    lock = decode(lock_path.read_bytes())
+    if not isinstance(lock, dict) or lock.get("schema") != "repoe-release-inputs/v1":
+        raise fail(f"{lock_path.relative_to(ROOT)} is not a repoe-release-inputs/v1 declaration")
+    name = lock["reference"]
+    game = lock["packages"][name]
+    source = f"{lock_path.relative_to(ROOT)} (reference package {name!r})"
+    return {k: game[k] for k in ("tag", "revision", "path", "bytes", "sha256")}, source
 
 
 def check_tag(pin: dict) -> str:
@@ -94,7 +92,7 @@ def main() -> int:
     parser.add_argument(
         "--pin",
         type=Path,
-        help="candidate package JSON {revision, path, bytes, sha256[, tag]} (default: the published game input)",
+        help="candidate package JSON {revision, path, bytes, sha256[, tag]} (default: the reference package of the default release declaration)",
     )
     parser.add_argument("--adapter", type=Path, help="prebuilt pobr-data-adapter binary (default: cargo run --locked)")
     args = parser.parse_args()

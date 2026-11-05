@@ -11,7 +11,7 @@ import tempfile
 import unittest
 
 from RePoE import buff_source_reconciliation as rec
-from RePoE.data_publication import ROOT, pin
+from RePoE.pins import ROOT, pin
 
 PERFORM = "Modules/CalcPerform.lua"
 DEFENCE = "Modules/CalcDefence.lua"
@@ -256,7 +256,7 @@ class BuffSourceReconciliationTests(unittest.TestCase):
                 rec.segment(b"one\n", {"line_start": start, "line_end": end})
 
     def test_committed_metadata_keeps_exact_retained_boundary(self):
-        metadata = json.loads((ROOT / "publication/retained-buff-source-reconciliation.v1.json").read_bytes())
+        metadata = json.loads((ROOT / "sources/retained-buff-source-reconciliation.v1.json").read_bytes())
         self.assertEqual(len(metadata["entries"]), 15)
         self.assertEqual(
             metadata["definitions"],

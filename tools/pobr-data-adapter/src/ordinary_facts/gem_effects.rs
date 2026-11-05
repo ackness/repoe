@@ -5,6 +5,7 @@ mod policy;
 #[cfg(all(test, any(target_os = "linux", target_os = "macos")))]
 pub(super) mod tests;
 
+use crate::schema_id;
 use std::collections::{BTreeMap, BTreeSet};
 use std::path::PathBuf;
 
@@ -180,7 +181,7 @@ pub(super) fn convert(input: &VerifiedFacts, args: &super::CodecArgs) -> Result<
     });
     let overlay = json!({
         "_meta":{
-            "schema":"gem_effects/v1", "generator":"pobr-data-adapter ordinary-facts gem-effects",
+            "schema":schema_id::GEM_EFFECTS, "generator":"pobr-data-adapter ordinary-facts gem-effects",
             "game_patch":input.manifest["source_identity"]["game_patch"],
             "source_identity":input.manifest["source_identity"],
             "facts_manifest_sha256":sha256_hex(&input.manifest_bytes),

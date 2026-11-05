@@ -12,7 +12,7 @@ import re
 import subprocess
 import sys
 
-from RePoE.data_publication import decode, pin, pinned, relative, require
+from RePoE.pins import decode, pin, pinned, relative, require
 
 SCHEMA = "repoe-retained-buff-source-reconciliation/v1"
 REVISIONS = ("old", "new")

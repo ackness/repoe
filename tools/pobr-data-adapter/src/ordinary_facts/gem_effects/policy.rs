@@ -1,5 +1,6 @@
 //! Pinned compatibility decisions, separate from target relationship facts.
 
+use crate::schema_id;
 use serde::{Deserialize, Serialize};
 use serde_json::{Value, json};
 
@@ -102,7 +103,7 @@ impl Policy {
 }
 
 pub(super) fn validate_metadata(meta: &Value) -> Result<(), String> {
-    if meta["schema"] != "gem_effects/v1"
+    if meta["schema"] != schema_id::GEM_EFFECTS
         || meta["generator"] != "sync-pob-catalog extract-lua"
         || meta["vendor"] != "PathOfBuilding-PoE2"
         || meta["extracted_files"] != json!(["Data/Gems.lua"])

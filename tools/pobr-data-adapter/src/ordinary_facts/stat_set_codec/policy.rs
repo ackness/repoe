@@ -1,5 +1,6 @@
 //! Explicit legacy codec provenance and target raw-membership exception decisions.
 
+use crate::schema_id;
 use std::collections::BTreeSet;
 
 use serde::{Deserialize, Serialize};
@@ -159,7 +160,7 @@ impl Policy {
 }
 
 pub(super) fn validate_metadata(meta: &Value) -> Result<(), String> {
-    validate_extraction_metadata(meta, "stat_set_labels/v1")
+    validate_extraction_metadata(meta, schema_id::STAT_SET_LABELS)
 }
 
 pub(in crate::ordinary_facts) fn validate_extraction_metadata(

@@ -431,15 +431,11 @@ fn refuses_existing_output_production_and_input_directories() {
     assert!(run(args).unwrap_err().contains("canonical input package"));
     let mut args = f.args();
     args.out = PathBuf::from(env!("CARGO_MANIFEST_DIR"))
-        .join("../../publication")
+        .join("../../release")
         .canonicalize()
         .unwrap()
         .join(format!("ordinary-facts-forbidden-{}", std::process::id()));
-    assert!(
-        run(args)
-            .unwrap_err()
-            .contains("outside tracked publication")
-    );
+    assert!(run(args).unwrap_err().contains("outside tracked release"));
 }
 
 #[test]

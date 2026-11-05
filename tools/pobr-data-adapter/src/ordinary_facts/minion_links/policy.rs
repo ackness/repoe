@@ -1,5 +1,6 @@
 //! Fixed relationship/alias curation, with explicitly unprovided authoring evidence.
 
+use crate::schema_id;
 use std::collections::BTreeSet;
 
 use serde::{Deserialize, Serialize};
@@ -97,7 +98,7 @@ impl Policy {
             sha256: declaration.sha256.clone(),
             metadata: declaration.metadata.clone(),
         }
-        .validate("minions.json", "minions/v1")?;
+        .validate("minions.json", schema_id::MINIONS)?;
         if declaration.role
             != "parent-verified policy authoring only; not a future producer-read input"
         {

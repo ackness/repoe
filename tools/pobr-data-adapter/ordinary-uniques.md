@@ -89,41 +89,24 @@ The published `0.5.5.5` game part already ships the codec source byte-for-byte
 (`data/0.5.5.5/overlay/uniques.json`), so the relations policy above and the
 domain archive make every compatibility byte traceable from a fixed published
 member. To carry the codec source inside the ordinary inputs package the same
-way the other codec domains carry theirs, the candidate plan
-[publication/0.5.5.5-ordinary-uniques.plan.json](../../publication/0.5.5.5-ordinary-uniques.plan.json)
-derives only from RePoE-published, tag-retained artifacts: the published
-ordinary package (`handoff/independent-ordinary-20261101` @
-`aed5f7348f41dcff6abd526d882c6a95d8acce0b`,
-`handoff/independent-0.5.5.5/ordinary-inputs.zip`), whose stored bytes already
-carry the field selections, and the published game part
-(`handoff/game-crafting-20261103` @ `c804bfc764da2cb9eebcb6d418744e09bf5c005d`,
-`handoff/game-crafting-20261103/game-build-part.zip`), which supplies the
+way the other codec domains carry theirs, a publication plan
+(`publication/0.5.5.5-ordinary-uniques.plan.json`, SHA-256
+`10b4992e8bb2d908eaec48db052a08cd785c252a75de3c969aa0e455113a6de2`) derived
+the current ordinary inputs package only from RePoE-published, tag-retained
+artifacts: the earlier ordinary package (`handoff/independent-ordinary-20261101`
+@ `aed5f7348f41dcff6abd526d882c6a95d8acce0b`), whose stored bytes already carry
+the field selections, and the game part (`handoff/game-crafting-20261103` @
+`c804bfc764da2cb9eebcb6d418744e09bf5c005d`), which supplies the
 `uniques/codec-source/uniques.json` bytes. No `ackness/pobr` source is needed.
+The result, `ordinary-inputs.zip` (40020250 bytes, SHA-256
+`a1290a172e280f08bd46722684e9ac7304634f906cfa400cfed34f9eebb84141`), is
+retained at `0f68afc31192bc23c734ec1439789244aedec25a` by
+`handoff/ordinary-uniques-20261103`; `release/0.5.5.5/inputs.lock.json` pins it
+as the `ordinary` package. The plan and its packager (`RePoE.data_publication`)
+were retired with the publication index; both remain in Git history (for
+example at `bd4c1994e3932ed914219dac4d2495878e826cf6`), and the relations policy
+still names the plan as the provenance of its codec source.
 
-```sh
-mkdir -p .cache/publication/inputs
-git fetch --depth=1 origin aed5f7348f41dcff6abd526d882c6a95d8acce0b \
-  c804bfc764da2cb9eebcb6d418744e09bf5c005d
-git cat-file blob aed5f7348f41dcff6abd526d882c6a95d8acce0b:handoff/independent-0.5.5.5/ordinary-inputs.zip \
-  > .cache/publication/inputs/previous.zip
-git cat-file blob c804bfc764da2cb9eebcb6d418744e09bf5c005d:handoff/game-crafting-20261103/game-build-part.zip \
-  > .cache/publication/inputs/game.zip
-mise run publication:package -- \
-  --plan publication/0.5.5.5-ordinary-uniques.plan.json --plan-sha256 10b4992e8bb2d908eaec48db052a08cd785c252a75de3c969aa0e455113a6de2 \
-  --input previous=.cache/publication/inputs/previous.zip \
-  --input game=.cache/publication/inputs/game.zip \
-  --out .cache/publication/ordinary-uniques
-mise run publication:git-handoff -- --package .cache/publication/ordinary-uniques
-```
-
-A verified replay produced `ordinary-inputs.zip` (40020250 bytes, SHA-256
-`a1290a172e280f08bd46722684e9ac7304634f906cfa400cfed34f9eebb84141`).
-The published handoff is `0f68afc31192bc23c734ec1439789244aedec25a`, retained by
-`handoff/ordinary-uniques-20261103`; a fresh remote fetch verified the archive,
-manifest and all member pins before sequence 4 registration. Sequence 4 advances
-only `ordinary`, preserving all other roles and the descriptor scope.
-The obsolete local handoff `9fc8bc1159e11877f16fc91b716fa0b778fabe15` came from
-the superseded PoBR-sourced plan and must not replace the published tag.
 The projected
 `overlay/unique_relations.json` is produced by the ordinary domain output, not
 by a game-part member: it is a candidate artifact for consumer adoption, not a
