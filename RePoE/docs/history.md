@@ -30,25 +30,27 @@ of this explicit migration:
 
 - `handoff/mac-fk-targets-20261101` (since retired; no live lock names it)
 - `handoff/native-crafting-20261101`
-- `handoff/rollback-0.5.5.4.2-20261101` (since retired with the 0.5.5.4.2
-  rollback)
+- `handoff/rollback-0.5.5.4.2-20261101` (still read: it is the `legacy`
+  package of `release/0.5.5.5-2/inputs.lock.json`)
 - `handoff/windows-sc-20261101`
 
 Their files, archive bytes, SHA-256 values and manifest contents are unchanged.
 The six other artifact tags already had independent histories and retain their
-original targets. Future publications continue to use immutable artifact tags.
+original targets. Later packages and inputs also use immutable tags
+(`game/*`, `inputs/*`).
 
-Publication sequence 2 updates the four affected RePoE role locations and the
-translation owner's display-source binding. PoBR's current and rollback locks,
-publication references and version-observer pin use the migrated locations.
-The game runtime and release identities remain unchanged.
+The consumers that named the four moved tags switched to the migrated commits
+at the same time: the translation owner's display-source binding and PoBR's
+data locks and version-observer pin. The game runtime and release identities
+remain unchanged.
 
-Old publication declarations, source locks, manifests and frozen decoder
-receipts preserve the producer IDs recorded when they were created. Those IDs
-are historical evidence, not current retrieval locations. To inspect the same
-producer source after this cut, resolve its original ID through the commit map;
-the source bytes and recorded file digests are identical. New publication
-descriptors point directly at retrievable new commits.
+Old declarations, source locks, manifests and frozen decoder receipts preserve
+the producer IDs recorded when they were created. Those IDs are historical
+evidence, not current retrieval locations. To inspect the same producer source
+after this cut, resolve its original ID through the commit map; the source
+bytes and recorded file digests are identical. Current declarations
+(`release/<patch>[-<n>]/inputs.lock.json`) point directly at retrievable
+commits and Release assets.
 
 ## Updating an existing checkout
 
@@ -61,8 +63,8 @@ git clone https://github.com/ackness/repoe.git
 
 Preserve any local work before replacing an older checkout. A normal fetch
 does not delete its old objects or automatically accept the four moved tags.
-Consumers must update the pinned commit together with its tag and publication
-descriptor; changing a tag name alone is insufficient.
+Consumers must update the pinned commit together with its tag; changing a tag
+name alone is insufficient.
 
 For source-only work, a partial clone can defer blobs until needed:
 
@@ -70,6 +72,7 @@ For source-only work, a partial clone can defer blobs until needed:
 git clone --filter=blob:none https://github.com/ackness/repoe.git
 ```
 
-Offline publication checks may require additional pinned artifact objects.
+An offline `release:build` (without `--fetch`) may need pinned artifact
+objects that a partial clone has not downloaded.
 Clone size and GitHub's reported storage can differ: server-side retention of
 pull-request refs and unreachable objects is managed by GitHub.

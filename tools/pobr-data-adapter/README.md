@@ -19,10 +19,9 @@ changes; never move an existing tag. `mise run adapter:check` fails if a PoBR
 crate other than `pobr-data` reaches the normal dependency tree, or if the
 locked PoBR crates resolve to more than one commit.
 
-Changing the pin does not change the published bytes by itself: `contract/1.0`
-(the previous pin, from `engine-crates/20261102`, `174ca6fb`) reproduced the published game part
-exactly. From game 0.5.5.5-2 the snapshot manifest records the
-`contract_version` the adapter was compiled against (`--contract-version`).
+A pin bump changes the release receipt, not the published bytes; the
+snapshot manifest records the `contract_version` the adapter was compiled
+against (`--contract-version`).
 
 ## Configuration ownership
 
@@ -34,12 +33,10 @@ exactly. From game 0.5.5.5-2 the snapshot manifest records the
 | Language pairing, reviewed supplements and display projections | The translation repository |
 | Consumer artifact pins, expected runtime/release identities and local adoption | PoBR's `pipeline/data.lock.json` and consumer tooling |
 
-PoBR's historical `pipeline/imports/sources.lock.json` still combines raw-source
-and acquisition evidence with downstream retained-input acceptance decisions.
-It is not an adapter policy or a runtime input of PoBR's import pipeline.
-Rehoming that ledger must separate producer evidence from consumer acceptance
-while retaining original hashes and provenance; it is separate from the completed
-policy move.
+The raw-material source ledger lives in this repository as
+[`sources/sources.lock.json`](../../sources/README.md), copied on 2026-11-03
+from PoBR's `pipeline/imports/sources.lock.json` with its entries, hashes and
+provenance unchanged. It is not an adapter policy or an adapter input.
 
 The separate special-currency catalog projector, including currency prefixes and
 selection/aggregation policy, now runs in RePoE as the `crafting-catalog` job of
@@ -70,6 +67,11 @@ prepared `passive_tree.json`). Each mode documents its arguments and guards:
 - ordinary domains: [ordinary-facts.md](docs/ordinary-facts.md) and the
   `ordinary-*.md` file for each domain;
 - passive tree: [ordinary-passive-tree.md](docs/ordinary-passive-tree.md).
+
+These documents came from PoBR. Their "production `data/`" is this
+repository's tracked `release/`, which the output guards refuse to write
+under; `CURRENT` is PoBR's runtime pointer, which the adapter never reads or
+writes; their PoBR source links point at the `engine-crates/20261102` tag.
 
 The ordinary domains read their input through `src/facts/`: the verifier of the
 pinned RePoE facts envelope (`repoe-native-facts/v4`) and its source lock, the
@@ -105,33 +107,5 @@ Each domain run produces one domain candidate. `mise run release:build` runs eve
 declared domain against pinned inputs and assembles the complete game part; see
 [RELEASING.md](../../RELEASING.md).
 
-## Reading the moved documents
-
-The mode documents were written in PoBR and keep their wording. In this
-repository:
-
-- "production `data/`" is the tracked `release/` directory (formerly
-  `publication/`, retired with the publication index). The output guards
-  refuse to write under it, as they refused PoBR's `data/`.
-- `CURRENT` is PoBR's runtime pointer. This tool never reads or writes it.
-- Links to PoBR source point at the `engine-crates/20261102` tag, the pin
-  when they were moved; `contract/1.0` replaced it.
-
-One scope decision from the move applies to every mode: the PoB2-derived
-parser and special-rule bytes in the published game package are frozen. New
-parser capability goes into PoBR's Rust rules, not here.
-
-## Move verification (2026-11-02)
-
-- `mise run adapter:check`: 380 Rust tests (the same count as in PoBR), fmt and
-  clippy clean, 9 Python smoke tests.
-- The ordinary replay used PoBR's last orchestrator (`7cb90dce:pipeline/runtime/ordinary`)
-  with this build of the binary. It produced the six declared domains
-  (stat-descriptions, passive-tree, base-items, minions, spectres,
-  skill-overrides), and their 8 output files are byte-identical to PoBR's
-  prepared `handoff/native-crafting-20261101` data.
-- `mise run adapter:keystones`: `special_derived.json` (11909 B, `d18157d9…`) is
-  byte-identical to the one in that package.
-- The implementation fingerprints in receipts changed by design. They no longer
-  hash PoBR crate sources, which a git dependency cannot `include_bytes!`. They
-  hash this crate's sources and `Cargo.lock`, and the lock fixes the PoBR commit.
+The PoB2-derived parser and special-rule bytes in the published game package
+are frozen. New parser capability goes into PoBR's Rust rules, not here.
