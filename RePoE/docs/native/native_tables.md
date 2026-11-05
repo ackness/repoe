@@ -59,4 +59,4 @@ text and ambiguity policy. In particular, Traditional Chinese is not Simplified
 Chinese or evidence of a China-realm numeric version.
 
 Focused regression: `mise exec -- uv run --locked --offline python -B -m unittest
-discover -s tests -p test_native_tables.py -v`.
+tests.native.test_tables -v`.

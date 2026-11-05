@@ -94,7 +94,7 @@ segment pins deliberately distinguish that recipe. Complete file pins agree.
 
 ## Offline verifier
 
-`RePoE.buff_source_reconciliation` uses only the standard library and local
+`RePoE.release.buff_source_reconciliation` uses only the standard library and local
 Git objects. It reads precisely these two regular files at both full commit
 IDs, disables replacement objects and lazy fetching, and never reads a source
 checkout, downloads data or changes Git refs. Complete function bounds are
@@ -103,7 +103,7 @@ not a general Lua parser. Only the exact single annotation insertion described
 above is accepted as `output-annotation-only`.
 
 ```sh
-mise exec -- python -B -m RePoE.buff_source_reconciliation \
+mise exec -- python -B -m RePoE.release.buff_source_reconciliation \
   --metadata sources/retained-buff-source-reconciliation.v1.json \
   --metadata-sha256 aeb62b23fdd9504f3d0c05b602b05a8a73e7dbf837071080a1f42b1f6267608d \
   --defs /path/to/exact/buff_definitions.json \
@@ -122,7 +122,7 @@ to stderr. Consumers must inspect the result and exit status, not just the
 continues to fail on its old ranges; this artifact does not authorize a bypass.
 
 ```sh
-mise exec -- python -B -m unittest discover -s tests -p test_buff_source_reconciliation.py -v
+mise exec -- python -B -m unittest tests.release.test_buff_source_reconciliation -v
 ```
 
 Tests use small synthetic source strings and bare Git objects without checkouts.

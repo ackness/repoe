@@ -12,7 +12,7 @@ RePoE reads client resources, preserves their identities and relationships, and 
 | Set up the exporters or run a local export | [Development](#development) and [exporting data](#exporting-data) below |
 | Convert facts into PoBR runtime JSON | [Rust data adapter](tools/pobr-data-adapter/README.md) |
 | Build and publish a new PoBR game package | [RELEASING.md](RELEASING.md) (`release:build` → `release:publish` → PoBR `data:bump`) |
-| Inspect client resources and their provenance | [Client acquisition](RePoE/docs/client-sources.md) and [resource lookup](RePoE/docs/client-index.md) |
+| Inspect client resources and their provenance | [Client acquisition](RePoE/docs/client/client-sources.md) and [resource lookup](RePoE/docs/client/client-index.md) |
 | Find a domain's schema or validation limits | [Data contracts](#data-contracts) below |
 
 ## Role in the PoBR ecosystem
@@ -89,9 +89,8 @@ Client decoding uses a separately selected, fingerprinted environment. Keep rece
 
 ```text
 RePoE/parser/                 Upstream PoE1 and PoE2 exporters
-RePoE/native_*.py             Native facts, descriptions and metadata exporters
-RePoE/client_*.py             Client discovery, acquisition and resource lookup
-RePoE/source_rebinding.py     Offline source verification
+RePoE/native/                 Native facts, descriptions and metadata exporters
+RePoE/client/                 Client discovery, acquisition, resource lookup and source verification
 RePoE/docs/                   Domain formats and producer contracts
 schema/                       Pinned decoding schema and provenance
 tools/pobr-data-adapter/      Rust runtime-data adapter and domain policies
@@ -106,11 +105,11 @@ RePoE/data/                   Default legacy export directory; ignored by Git
 
 | Topic | Documentation |
 | --- | --- |
-| Client acquisition and patch observation | [Sources](RePoE/docs/client-sources.md), [version](RePoE/docs/client-version.md), [drafts](RePoE/docs/client-source-draft.md), [lookup](RePoE/docs/client-index.md), [verification](RePoE/docs/source-rebinding.md) |
-| Native skills and gems | [Base facts](RePoE/docs/native_facts.md), [core skills](RePoE/docs/native_core_skills.md), [gem constraints](RePoE/docs/native_gems.md) |
-| Items and actors | [Item/actor facts](RePoE/docs/native_items_actors.md), [item inheritance](RePoE/docs/native_item_inheritance.md), [actor templates](RePoE/docs/native_actor_templates.md), [player context](RePoE/docs/native_player_context.md) |
-| Descriptions and languages | [CSD branches](RePoE/docs/native_descriptions.md), [supplemental/localized tables](RePoE/docs/native_tables.md), [description relationships](RePoE/docs/description_relations.md) |
-| Crafting and trees | [Crafting facts](RePoE/docs/native_crafting_facts.md), [PoBR crafting catalog](RePoE/docs/pobr_crafting_catalog.md), [historical tree selectors](RePoE/docs/pobr_historical_trees.md) |
+| Client acquisition and patch observation | [Sources](RePoE/docs/client/client-sources.md), [version](RePoE/docs/client/client-version.md), [drafts](RePoE/docs/client/client-source-draft.md), [lookup](RePoE/docs/client/client-index.md), [verification](RePoE/docs/client/source-rebinding.md) |
+| Native skills and gems | [Base facts](RePoE/docs/native/native_facts.md), [core skills](RePoE/docs/native/native_core_skills.md), [gem constraints](RePoE/docs/native/native_gems.md) |
+| Items and actors | [Item/actor facts](RePoE/docs/native/native_items_actors.md), [item inheritance](RePoE/docs/native/native_item_inheritance.md), [actor templates](RePoE/docs/native/native_actor_templates.md), [player context](RePoE/docs/native/native_player_context.md) |
+| Descriptions and languages | [CSD branches](RePoE/docs/native/native_descriptions.md), [supplemental/localized tables](RePoE/docs/native/native_tables.md), [description relationships](RePoE/docs/native/description_relations.md) |
+| Crafting and trees | [Crafting facts](RePoE/docs/native/native_crafting_facts.md), [PoBR crafting catalog](RePoE/docs/release/pobr_crafting_catalog.md), [historical tree selectors](RePoE/docs/release/pobr_historical_trees.md) |
 | PoBR runtime conversion | [Adapter modes](tools/pobr-data-adapter/README.md) and [domain policies](tools/pobr-data-adapter/policies/README.md) |
 | Legacy JSON formats | [Stats](RePoE/docs/stats.md), [mods](RePoE/docs/mods.md), [items](RePoE/docs/base_items.md), [gems](RePoE/docs/gems.md), [augments](RePoE/docs/augments.md), and [other domain files](RePoE/docs) |
 

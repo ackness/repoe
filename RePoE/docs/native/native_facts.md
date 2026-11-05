@@ -29,7 +29,7 @@ mise run facts:candidate -- \
   --raw /path/to/candidate-0.5.5.5/raw \
   --out .cache/native-facts/replay-a
 # Equivalent entry point:
-mise exec -- uv run --locked --offline python -B -m RePoE.native_facts \
+mise exec -- uv run --locked --offline python -B -m RePoE.native.facts \
   --source-lock /path/to/sources.lock.json \
   --source official-client-0.5.5.5 \
   --raw /path/to/candidate-0.5.5.5/raw \
@@ -144,6 +144,35 @@ before consuming it. Reject traversal, extra/unexpected manifest paths or missin
 files; do not discover inputs by glob. Internal hashes establish consistency, not
 source authenticity: the caller must trust/pin the source lock and receipt. These
 are candidate source bytes, not a publication approval or raw redistribution grant.
+
+## Producer identity and re-validation
+
+`producer` names each producing file by its repository path at export time and
+pins its SHA-256. A package keeps the identity it was sealed with: everything
+exported before the exporters moved into `RePoE/native/` names the former
+top-level paths (`RePoE/native_facts.py`, `RePoE/schema_candidate.py`, ...).
+That includes the pinned 0.5.5.5 facts envelope (producer `e4140122`, retained
+as `ebcfa93be668109e576c80c2bdf2c44b23d523c6`; see the
+[commit map](../history-rewrite-20261103.json)) and every package derived from
+it. Consumers compare these maps with fixed copies, which are historical
+identities too and never follow a rename or edit: in `tools/pobr-data-adapter/`,
+`src/facts/trust.rs`, `tests/fixtures/ordinary-facts/*-producer*.json` and
+`tests/fixtures/native-facts/player-context-manifest.json`; in this package's
+release, `RePoE/release/crafting_catalog.py` `PRODUCERS`.
+
+`facts:validate` replays the export with the current tree and, for every
+profile beyond v1, requires the replayed `producer` to equal the package's.
+The current files are moved and edited, so re-validate a historical package at
+its producer commit, in a separate worktree with its own environment:
+
+```sh
+git worktree add ../repoe-ebcfa93 ebcfa93be668109e576c80c2bdf2c44b23d523c6
+cd ../repoe-ebcfa93 && mise run setup && mise run facts:validate -- ...
+```
+
+A new export from the current tree records the new paths and hashes; accepting
+it means adding its identity to those consumers (see the new-patch runbook in
+[RELEASING.md](../../../RELEASING.md#a-new-game-patch)).
 
 ## Physical tables
 

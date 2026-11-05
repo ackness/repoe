@@ -8,8 +8,8 @@ An accepted text binding does not certify the source patch, realm or numerical
 equivalence. Existing v1 exporters and their known-identity guards are unchanged.
 
 The two stages have distinct provenance: Windows executes the reviewed
-`native_locale_probe.py` standard-library memory decoder; Mac runs
-`native_decoded_tables.py` to validate a decoded transfer. Mac does not claim to
+`RePoE/native/locale_probe.py` standard-library memory decoder; Mac runs
+`RePoE/native/decoded_tables.py` to validate a decoded transfer. Mac does not claim to
 redecode original raw DAT bytes or execute PyPoE for this transfer. The pinned
 native reader is used separately for local oracle validation and English targets.
 
@@ -100,7 +100,7 @@ game/patch/realm, complete columns, schema and payload/raw pins. Target locks
 must exactly cover the transfer's selected tables.
 
 ```sh
-python -B -m RePoE.native_decoded_tables \
+python -B -m RePoE.native.decoded_tables \
   --transfer-receipt /path/to/receipt.json \
   --expected-transfer-receipt-sha256 <external-sha256> \
   --parts /path/to/parts.jsonl \

@@ -18,7 +18,7 @@ and fresh `--out`, plus all four pinned compatibility arguments:
 `--codec-source`, `--codec-source-sha256`, `--codec-policy`, and
 `--codec-policy-sha256`. The compatibility source is the exact published
 `0.5.5.5/overlay/uniques.json` member of the game part; the
-[relations policy](policies/uniques/0.5.5.5-relations-policy.json)
+[relations policy](../policies/uniques/0.5.5.5-relations-policy.json)
 binds its bytes, declared member path, vendor repository/revision and
 `uniques/v1` source metadata. Policy version, source hash/size and vendor
 identity must match before parsing; unexpected `_meta` vendor fields are kept

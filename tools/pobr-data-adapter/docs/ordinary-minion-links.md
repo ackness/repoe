@@ -24,7 +24,7 @@ quality flags are rejected, as are duplicate, missing and mixed-mode arguments.
   --out /absolute/existing/external-parent/fresh-minion-links
 ```
 
-The initial [policy](policies/actors/0.5.5.5-minion-links-policy.json) is the
+The initial [policy](../policies/actors/0.5.5.5-minion-links-policy.json) is the
 verbatim frozen applicability template. It binds target patch/manifest,
 domain/file/schema, one owned field, original source hash/version/metadata,
 supported projection and an explicit alias inventory. Unknown policy schema,

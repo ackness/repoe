@@ -1,16 +1,16 @@
 # Fixed official-client resource acquisition
 
-Implementation: `python -B -m RePoE.client_sources`.
+Implementation: `python -B -m RePoE.client.sources`.
 See [ownership and compatibility](client-sources.md#ownership-and-compatibility)
 for the one-time source and historical protocol names.
 For a separate endpoint-advertised version observation, use
 [official PoE2 version discovery](client-version.md); it does not select or approve
 the fixed source used here.
 
-`client_sources.py` acquires **every resource in one explicitly selected source**
+`RePoE/client/sources.py` acquires **every resource in one explicitly selected source**
 from `sources.lock.json`. It produces a new raw root with direct game-relative
 paths (`Data/Balance/*.datc64`, `Metadata/PassiveSkillGraph.psg`) suitable for
-`RePoE.native_facts --raw`. It does not run the fact exporter or Rust adapter.
+`RePoE.native.facts --raw`. It does not run the fact exporter or Rust adapter.
 A selected source is a bounded input, not a claim of complete domain or
 foreign-key coverage. Production `data/`, `CURRENT`, schema and defaults are untouched.
 
@@ -68,7 +68,7 @@ already dispatches stream type 6 to Kraken. Acceptance passes the original chunk
 bytes unchanged to the same `ExternalDecoder`; it does not translate IDs, rewrite
 payloads, upgrade the decoder, or admit other compressor enums.
 
-The [retained actual header/table fixtures](../../tests/test_client_sources.py) preserve
+The [retained actual header/table fixtures](../../../tests/client/test_sources.py) preserve
 the 0.5.5.5 international `Folders/data/F5` and `Folders/data/4C` framing. The
 corresponding selected stat, passive-skill and skill description roots were
 reconstructed with the existing pyooz 0.0.8 native module and replayed byte-for-byte
@@ -151,7 +151,7 @@ are separate commands; scheduling, full-domain export and production adoption
 remain separate work.
 
 ```sh
-python -B -m unittest discover -s tests -p 'test_client_sources.py' -v
+python -B -m unittest tests.client.test_sources -v
 ```
 
 Tests use synthetic framing and fake HTTP, including offline replay, 200 responses,
@@ -173,28 +173,30 @@ One-time migration source: [ackness/pobr commit
 0d6fe696d21fcc8ed60b42ad93e7cb5aaa40f819](https://github.com/ackness/pobr/commit/0d6fe696d21fcc8ed60b42ad93e7cb5aaa40f819).
 The original `pipeline/client_sources.py`, `client_source_draft.py`,
 `client_index.py` and `source_rebinding.py` were migrated with their four test
-suites and topic contracts. The observed encoder-8 header/table fixture from that
-same commit is retained inline in `tests/test_client_sources.py`; it contains no
+suites and topic contracts (now `RePoE/client/` `sources.py`, `source_draft.py`,
+`index.py` and `source_rebinding.py`). The observed encoder-8 header/table
+fixture from that same commit is retained inline in `tests/client/test_sources.py`; it contains no
 compressed resource payload. MurmurHash64A retains Austin Appleby’s public-domain
 attribution and reference in the [index contract](client-index.md).
 
 Historical `pobr-*` schema identifiers, cache layout, receipt fields and the HTTP
 User-Agent are protocol names retained for old inputs. They do not imply a PoBR
 runtime dependency. Original public function signatures and default strict
-behavior remain compatible. `RePoE.client_sources` re-exports `decode`, `digest`,
+behavior remain compatible. `RePoE.client.sources` re-exports `decode`, `digest`,
 `encoded`, `official_url`, `read_file`, `relative`, `safe_path`, `sha256` and
-`write_new` from `RePoE.source_io`. The latter contains only the small standard
+`write_new` from `RePoE.client.source_io`. The latter contains only the small standard
 library file/JSON/URL primitives; `source_rebinding` uses it directly. Draft and
 index tool fingerprints and final code checks cover the helper as well.
 
-Python API mapping (replace old top-level imports):
+Python API (the PoBR `pipeline/` modules and the former top-level `RePoE.client_*`
+modules map one to one):
 
 ```python
-from RePoE import client_sources, client_source_draft, client_index, source_rebinding
+from RePoE.client import index, source_draft, source_rebinding, sources
 # Existing argument order/defaults are unchanged:
-# client_sources.acquire(...) / import_archive(...)
-# client_source_draft.collect(...)
-# client_index.locations(...) / discover(...)
+# sources.acquire(...) / import_archive(...)
+# source_draft.collect(...)
+# index.locations(...) / discover(...)
 # source_rebinding.create(...) / verify(...)
 ```
 

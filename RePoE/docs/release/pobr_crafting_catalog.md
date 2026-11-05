@@ -1,10 +1,10 @@
 # PoBR special-currency catalog
 
-`RePoE.pobr_crafting_catalog` projects the neutral
-[seven-table crafting facts](native_crafting_facts.md) into PoBR's runtime file
+`RePoE.release.crafting_catalog` projects the neutral
+[seven-table crafting facts](../native/native_crafting_facts.md) into PoBR's runtime file
 `data/<patch>/overlay/trade_crafting_sources.json`. `mise run release:build`
 runs it as the `crafting-catalog` job of `release/<patch>/domains.json` (see
-[RELEASING.md](../../RELEASING.md)); PoBR imports the resulting game package and
+[RELEASING.md](../../../RELEASING.md)); PoBR imports the resulting game package and
 no longer projects crafting data itself. The projector moved here from PoBR's
 `pipeline/imports/crafting_inputs.py` (PoBR `897463d5`) without changing its
 policy or output bytes.

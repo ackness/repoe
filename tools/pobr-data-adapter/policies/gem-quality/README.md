@@ -15,7 +15,7 @@ adapter 从六张已认证的物理表核对完整品质 owner 与宝石关系�
 
 `reference` 与 vendor 摘要仅是历史迁移证据。发布完整性不代表所有机制已被引擎支持；
 品质计算与作用域解释仍由 PoBR 负责。现有 JSON metadata 已兼容其 typed reader，无需升级依赖。
-命令、输入 pin、收据、历史重放和测试范围见 [ordinary quality](../../ordinary-quality.md)。
+命令、输入 pin、收据、历史重放和测试范围见 [ordinary quality](../../docs/ordinary-quality.md)。
 
 更新来源时新建固定政策，核对所有 owner、主／附加向量与关系，输出到新的 `.cache/`，
 再准备不可变完整游戏包。owner 发布、PoBR 更新数据锁与活动数据采用是独立步骤。

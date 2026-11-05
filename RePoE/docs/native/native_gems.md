@@ -27,7 +27,7 @@ PassiveSkillStatCategories   ItemClassCategories       ItemStances
 ```
 
 Each is `Data/Balance/<Table>.datc64`. The exact selected table list is maintained
-in [`native_gems.TABLES`](../native_gems.py). Every raw size/hash is checked before
+in [`RePoE.native.gems.TABLES`](../../native/gems.py). Every raw size/hash is checked before
 decoding, all acquired foreign rows/string-ID joins must resolve, and exact row
 widths, variable spans and decoder warnings retain the existing rejection rules.
 
@@ -55,7 +55,7 @@ Output has **47 payloads plus the manifest**: 39 complete physical tables, the
 existing graph/passive/quality/diagnostics/skill-core documents, exact source-lock
 bytes, `gems.json` and `constraints.json`. Physical fields, unknown flags, source
 row order and arrays are retained. No data row is removed because PoB lacks it.
-The manifest also fingerprints `native_gems.py`, the current replay producer and
+The manifest also fingerprints `RePoE/native/gems.py`, the current replay producer and
 all 117 trusted decoder sources. Existing-output refusal and completion-last
 publication are unchanged.
 

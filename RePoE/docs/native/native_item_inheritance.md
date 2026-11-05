@@ -5,7 +5,7 @@ complementing physical `BaseItemTypes.InheritsFrom` and `Tags`. It excludes acto
 `.ot`, unique affix membership, units and mod applicability.
 
 ```sh
-python -B -m RePoE.native_item_inheritance \
+python -B -m RePoE.native.item_inheritance \
   --source-lock /path/to/lock.json --expected-source-lock-sha256 <external-sha256> \
   --source <key> --raw /path/to/raw --out .cache/inheritance/new-candidate
 ```

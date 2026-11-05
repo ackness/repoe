@@ -5,7 +5,7 @@ The interface now supports the fixed nine tables and a separately identified
 invocation below remains usable for a bounded first probe. Historical receipts
 retain their original two-table source hashes and comparison policy.
 
-`native_locale_probe.py` is a bounded diagnostic interface for already-extracted
+`RePoE/native/locale_probe.py` is a bounded diagnostic interface for already-extracted
 Words/Ascendancy DAT64 buffers. It uses only hashlib/json/struct, defines functions
 without executing acquisition or IO, and can be injected as source into an existing
 Python process. No Windows installation or disk copy is needed. This is not a

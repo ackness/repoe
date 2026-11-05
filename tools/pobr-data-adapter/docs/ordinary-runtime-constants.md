@@ -118,7 +118,7 @@ measure complete-package or ordinary BD/Web coverage.
 ## Optional existing ailment domain
 
 The original three-file policy remains unchanged and replayable. The separate
-[`0.5.5.5-with-ailments-policy.json`](policies/runtime-constants/0.5.5.5-with-ailments-policy.json)
+[`0.5.5.5-with-ailments-policy.json`](../policies/runtime-constants/0.5.5.5-with-ailments-policy.json)
 selects the same three files plus `base/non_damaging_ailments.json` (pin verified
 against the supplied legacy manifest). Use that policy and its SHA256 with the
 same command. It adds these six destinations, for 37 total, plus
@@ -149,7 +149,7 @@ byte-identical outputs for the original three domains.
 
 ## Optional verified player baselines
 
-[`0.5.5.5-with-player-baselines-policy.json`](policies/runtime-constants/0.5.5.5-with-player-baselines-policy.json) retains the 37 existing GameConstants
+[`0.5.5.5-with-player-baselines-policy.json`](../policies/runtime-constants/0.5.5.5-with-player-baselines-policy.json) retains the 37 existing GameConstants
 bindings and adds 16 leaves in the **existing** character/game constant DTOs.
 Supply `--player-context <root> --player-manifest-sha256 <sha>` together; the
 policy also fixes that archive's source-lock SHA. Omitting context continues the

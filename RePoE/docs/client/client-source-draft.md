@@ -1,10 +1,10 @@
 # Unreviewed first acquisition
 
-Implementation: `python -B -m RePoE.client_source_draft`.
+Implementation: `python -B -m RePoE.client.source_draft`.
 See [ownership and compatibility](client-sources.md#ownership-and-compatibility)
 for the one-time source and historical protocol names.
 
-`client_source_draft.py` fills the stage before [strict source-lock replay](client-sources.md):
+`RePoE/client/source_draft.py` fills the stage before [strict source-lock replay](client-sources.md):
 discovery evidence → **unreviewed acquisition draft** → reviewed source-lock
 promotion and strict replay → separate production adoption. It does not discover
 versions, scan indexes, schedule updates, promote locks or adopt data. Existing
@@ -115,7 +115,7 @@ producer/schema results before proposing a source-lock entry; use the unchanged
 strict replay command against reviewed pins in another new root. Production
 adoption remains a separate decision.
 
-`python -B -m unittest discover -s tests -p 'test_client_source_draft.py' -v` runs synthetic HTTP failure and cache-only replay
+`python -B -m unittest tests.client.test_source_draft -v` runs synthetic HTTP failure and cache-only replay
 contracts without native decoder dependencies. It is also part of RePoE’s offline test suite.
 
 For an already acquired facts package with separately accepted replacement
@@ -124,8 +124,8 @@ produces a fresh scope/evidence proposal without collecting again or admitting
 the source. Historical manifests and receipts remain immutable.
 
 The reviewed raw-material ledger lives at
-[`sources/sources.lock.json`](../../sources/sources.lock.json): the admitted
+[`sources/sources.lock.json`](../../../sources/sources.lock.json): the admitted
 `sources` entries these commands consume and the bounded
 `acquisition_acceptances` decisions that admitted exact observed bytes. See
-[its README](../../sources/README.md) for the recorded decisions and the
+[its README](../../../sources/README.md) for the recorded decisions and the
 ownership boundary with PoBR's retained-input acceptances.

@@ -1,7 +1,7 @@
 # Official PoE2 client version observation
 
 RePoE owns patch discovery alongside the [source acquisition SDK](client-sources.md).
-`RePoE.client_version` uses only the Python standard library and `RePoE.source_io`;
+`RePoE.client.version` uses only the Python standard library and `RePoE.client.source_io`;
 it imports no PyPoE, requests, decoder, Node helper or consumer checkout. The
 one-time protocol reference is `ackness/pobr@8cfcd68b64ee579b7b002dec46e060f7cd88ef82`,
 `pipeline/query-patch-version.mjs` and its tests. The Python implementation requires
@@ -10,7 +10,7 @@ HTTPS and ASCII numeric patch components.
 ## Query and parser integration
 
 ```python
-from RePoE.client_version import parse_response, query
+from RePoE.client.version import parse_response, query
 
 result = query()  # Explicit network operation: {"cdn": "https://.../", "version": "..."}
 # Pure offline parser; returns the same two fields or None while incomplete:
@@ -46,12 +46,12 @@ behavior; this module implements only PoE2.
 Run from this checkout with any supported Python, without environment setup:
 
 ```sh
-python -B -m RePoE.client_version --help
+python -B -m RePoE.client.version --help
 # These commands perform a network query when explicitly invoked:
-python -B -m RePoE.client_version
+python -B -m RePoE.client.version
 mise run client:version -- --out .cache/client-version/new-observation
 # Local test endpoint override:
-python -B -m RePoE.client_version --host 127.0.0.1 --port 13060 --timeout 1
+python -B -m RePoE.client.version --host 127.0.0.1 --port 13060 --timeout 1
 ```
 
 Successful stdout is exactly one JSON object with `cdn` and `version`, also when
@@ -74,8 +74,8 @@ The optional directory contains:
   written last after rechecking response bytes and producer pins. It records
   requested host/port, connected peer, handshake hex, start/observation UTC times,
   deadline, cap, discovered root/version, actual received byte count and SHA-256,
-  and producer code SHA-256s for `RePoE/__init__.py`, `RePoE/client_version.py` and
-  `RePoE/source_io.py`, plus the running Python version. These pins identify the
+  and producer code SHA-256s for `RePoE/__init__.py`, `RePoE/client/__init__.py`,
+  `RePoE/client/version.py` and `RePoE/client/source_io.py`, plus the running Python version. These pins identify the
   implementation bytes, not an independently authenticated environment. Consumers
   must select their own exact repository revision and file pins.
 
@@ -91,9 +91,9 @@ historical bytes is never a new freshness observation.
 
 ```sh
 # Standard library only; fake TCP binds exclusively to loopback:
-python -B -S -m unittest discover -s tests -p test_client_version.py -v
+python -B -S -m unittest tests.client.test_version -v
 # Separately, in an already prepared exporter environment:
-python -B -m unittest discover -s tests -p test_client_version_util.py -v
+python -B -m unittest tests.parser.test_util -v
 ```
 
 Tests cover the original five protocol cases, every prefix split on both UTF-16

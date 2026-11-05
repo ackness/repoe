@@ -10,8 +10,8 @@ their behavior and exact selected resource inventories.
 ## Input and output boundary
 
 Exactly **77 DATs and the Default PSG** are required. The previous 39 DATs are
-extended by the 25 names in `native_items.TABLES` and 13 names in
-`native_actor_facts.TABLES`. Inputs remain the fixed PoE2 international 0.5.5.5
+extended by the 25 names in `RePoE.native.items.TABLES` and 13 names in
+`RePoE.native.actor_facts.TABLES`. Inputs remain the fixed PoE2 international 0.5.5.5
 candidate, native schema and full trusted decoder profile described in the base
 contract. No API, network, compatibility views or legacy specification loading
 is used by this exporter. Existing raw bytes are verified before decoding.
@@ -38,8 +38,8 @@ There are **87 payloads plus the manifest**: 77 complete physical tables, the
 four base documents, `source-lock.json`, `skill_core.json`, `gems.json`,
 `constraints.json`, `items.json` and `actors.json`. All physical fields,
 unknowns, schema metadata, source order and null values remain in the canonical
-tables. The thirteen producer fingerprints include `native_items.py` and
-`native_actor_facts.py`. These are source fingerprints, not a claim that an
+tables. The thirteen producer fingerprints include `RePoE/native/items.py` and
+`RePoE/native/actor_facts.py`. These are source fingerprints, not a claim that an
 unsigned manifest authenticates a client installation.
 
 Domain references use source table, physical row and actual string IDs where

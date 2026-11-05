@@ -113,7 +113,7 @@ The existing Snipe scope discrepancy and absent-base graph relations remain.
 
 The manifest records `profile`, complete payload hashes, source-lock/selection
 identity, acquisition metadata, schema, trusted decoder inventory and producer
-file hashes, including `native_skills.py`. The acceptance command checks this
+file hashes, including the skill projector's (`RePoE/native/skills.py`). The acceptance command checks this
 profile explicitly, verifies the exact source-lock bytes, requires all 117
 trusted decoder files, replays all physical tables and projections, and retains
 the independent repeated-graph invariant from v1. A rehashed projection cannot

@@ -1,13 +1,13 @@
 # Native crafting relationship facts
 
-`RePoE.native_crafting_facts` is an offline, standard-library-only projection of
+`RePoE.native.crafting_facts` is an offline, standard-library-only projection of
 exactly seven already exported F77 tables. It emits
 `repoe-native-crafting-facts/v1`, `status: partial-candidate` and
 `production_ready: false`. It performs no raw decoding or acquisition and does
 not validate the other F77 payloads, the full foreign-key closure or gameplay.
 
 ```sh
-mise exec -- python -B -m RePoE.native_crafting_facts \
+mise exec -- python -B -m RePoE.native.crafting_facts \
   --facts /path/to/pinned/facts \
   --expected-manifest-sha256 <externally-recorded-sha256> \
   --out .cache/crafting/new-candidate
@@ -123,7 +123,7 @@ completed candidate, and it cannot be overwritten by a retry.
 
 This export carries no currency prefixes, essence/alloy labels, aggregation or
 Mod/OutcomeMods choice. Those consumer policies live in the separate
-[PoBR catalog projection](pobr_crafting_catalog.md); PoBR keeps text rendering and
+[PoBR catalog projection](../release/pobr_crafting_catalog.md); PoBR keeps text rendering and
 numerical interpretation. This export does not certify official crafting eligibility, success probabilities,
 craft coexistence or runtime adoption. A self-consistent manifest does not
 accept a source or update global locks or CURRENT.
@@ -137,9 +137,9 @@ or equivalence. The historical output is not an input or fallback here.
 ## Focused verification
 
 ```sh
-mise exec -- python -B -m unittest discover -s tests -p test_native_crafting_facts.py -v
-mise exec -- uv run --locked --offline ruff check RePoE/native_crafting_facts.py tests/test_native_crafting_facts.py
-mise exec -- uv run --locked --offline ruff format --check RePoE/native_crafting_facts.py tests/test_native_crafting_facts.py
+mise exec -- python -B -m unittest tests.native.test_crafting_facts -v
+mise exec -- uv run --locked --offline ruff check RePoE/native/crafting_facts.py tests/native/test_crafting_facts.py
+mise exec -- uv run --locked --offline ruff format --check RePoE/native/crafting_facts.py tests/native/test_crafting_facts.py
 ```
 
 Synthetic tests cover all eight slots and hardmode values, null/zero/negative and

@@ -29,7 +29,7 @@ quality flags are rejected. Duplicate, missing or cross-domain options fail.
   --out /absolute/path/to/existing-parent/fresh-overrides
 ```
 
-The initial [policy](policies/skill-overrides/0.5.5.5-facts-compat-policy.json)
+The initial [policy](../policies/skill-overrides/0.5.5.5-facts-compat-policy.json)
 is the frozen target applicability template verbatim. It binds the target patch
 and exact manifest, both archival hashes, original metadata, snapshot versions
 and archived paths. The two legacy files retain their `0.5.5.4.2` / `bb52d6b3…`
@@ -134,7 +134,7 @@ new target, source acquisition or CI is required for this handoff.
 
 ## Raw-owned implicit-stat membership
 
-The optional [v2 implicit ownership policy](policies/skill-overrides/0.5.5.5-implicit-ownership-policy.json)
+The optional [v2 implicit ownership policy](../policies/skill-overrides/0.5.5.5-implicit-ownership-policy.json)
 delegates each target-bound `implicit_stat` entry to the existing ordinary-skills
 producer. That producer already fills `SkillStatSetDef.implicit_stats` from
 `GrantedEffectStatSets.ImplicitStats` and `IgnoredStats`, including its existing

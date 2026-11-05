@@ -1,27 +1,27 @@
 # Draft source evidence rebinding and portable ordinary input
 
-Implementation: `python -B -m RePoE.source_rebinding`.
+Implementation: `python -B -m RePoE.client.source_rebinding`.
 See [ownership and compatibility](client-sources.md#ownership-and-compatibility)
 for the one-time source and historical protocol names.
 
-`source_rebinding.py` makes a new, explicitly **draft** source lock and facts
+`RePoE/client/source_rebinding.py` makes a new, explicitly **draft** source lock and facts
 manifest from an externally pinned existing facts package and an externally
 pinned evidence recipe. It runs offline using the Python standard library and
 the existing client-source primitives. It performs no acquisition, decoding,
 source admission, ordinary domain production, runtime assembly or publication.
 
 ```sh
-python -B -m RePoE.source_rebinding create \
+python -B -m RePoE.client.source_rebinding create \
   --source /absolute/existing-facts \
   --recipe .cache/rebinding/recipe.json --recipe-sha256 <full-sha256> \
   --out .cache/rebinding/fresh-a
 
-python -B -m RePoE.source_rebinding verify \
+python -B -m RePoE.client.source_rebinding verify \
   --archive .cache/rebinding/fresh-a/ordinary-input.zip \
   --handoff .cache/rebinding/fresh-a/handoff.json --handoff-sha256 <full-sha256> \
   --out .cache/rebinding/extracted
 
-python -B -m unittest discover -s tests -p 'test_source_rebinding.py' -v
+python -B -m unittest tests.client.test_source_rebinding -v
 ```
 
 Output directories must be absent and disjoint from inputs. Inputs, output paths
@@ -137,7 +137,7 @@ does not retroactively change frozen downstream receipts.
 
 For integration, use the new `create`/`verify` CLI directly or import
 `verify(archive_path, authenticated_handoff, optional_absent_output)` from
-`RePoE.source_rebinding`. The lightweight `RePoE.client_sources.load_source` and
+`RePoE.client.source_rebinding`. The lightweight `RePoE.client.sources.load_source` and
 the consumer’s complete-facts envelope validator can check the new lock and complete facts envelope.
 Those checks do not run the Rust physical decoder or ordinary domain producers.
 The focused tests cover count/scope drift, receipt pin replacement, payload changes,
@@ -147,7 +147,7 @@ mixed identities, path attacks, deterministic replay and larger retained JSON.
 
 `absent`, `inventory`, `paths`, `pin`, `portable` and `verify` retain their original
 signatures and strict behavior. This module depends only on the standard library
-and `RePoE.source_io`; verifying an old portable F77 envelope does not import
+and `RePoE.client.source_io`; verifying an old portable F77 envelope does not import
 HTTP acquisition or decoder code. Consumers may still need this verifier inside
 a newer outer package. PoBR’s `ordinary_inputs` / `runtime_ordinary` consumer
 split is separate work; this migration does not claim those imports are removed.

@@ -76,7 +76,7 @@ line terminators; spans retain them. Placeholder character spans count Unicode
 code points within the original template. They describe recognized placeholder
 syntax only; the raw template always remains authoritative.
 
-`native_csd.iter_records(files, root)` traverses includes at their lexical position
+`RePoE.native.csd.iter_records(files, root)` traverses includes at their lexical position
 and yields occurrence references with their complete include chain. Repeated
 includes remain repeated occurrences, exposing local versus inherited origins.
 It does not apply a cache's precedence, suppression or formatter policy. A future

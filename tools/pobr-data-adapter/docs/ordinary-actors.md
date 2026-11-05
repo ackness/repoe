@@ -18,8 +18,8 @@ the frozen applicability templates:
 | minions | `338aa6da92aa85143b3e4f0478c9c498ad52a154826ed1c15754573dee20799a` | `9fda2d0b8293e1d04c65684cdc486b5625ad8f22c8d3db40e7356465245c2efe` |
 | spectres | `50b98756c340cadbaba1ff5d503e79cc06e744d5a100719941c6e1fc765fdd94` | `24118a1eebc7d46e03887f2332c983c6143c9f27ce265129ec70a3803336ead0` |
 
-Policies: [minions](policies/actors/0.5.5.5-minions-policy.json) and
-[spectres](policies/actors/0.5.5.5-spectres-policy.json). They bind the mode,
+Policies: [minions](../policies/actors/0.5.5.5-minions-policy.json) and
+[spectres](../policies/actors/0.5.5.5-spectres-policy.json). They bind the mode,
 file/schema, variety identity field, 22-field projection version, original source
 hash/metadata/version/path and exact target patch/manifest. Archived projection
 reference hashes describe the fixed recipe; neither those files nor evidence
@@ -159,8 +159,8 @@ rebuild is performed.
 
 ## Target-owned actor skill lists
 
-The optional [minions v2](policies/actors/0.5.5.5-minions-skills-policy.json)
-and [spectres v2](policies/actors/0.5.5.5-spectres-skills-policy.json)
+The optional [minions v2](../policies/actors/0.5.5.5-minions-skills-policy.json)
+and [spectres v2](../policies/actors/0.5.5.5-spectres-skills-policy.json)
 policies additionally own `skill_list`. They use the same invocation, five F
 tables, original DTO and ordinary loaders. Existing v1 policies preserve their
 original behavior. The v2 schema and projection ID must agree with the exact
@@ -199,8 +199,8 @@ until the integration owner executes the focused actor tests.
 
 ## Remaining source-backed prepared actor fields
 
-The [minions v3](policies/actors/0.5.5.5-minions-prepared-policy.json) and
-[spectres v3](policies/actors/0.5.5.5-spectres-prepared-policy.json) policies
+The [minions v3](../policies/actors/0.5.5.5-minions-prepared-policy.json) and
+[spectres v3](../policies/actors/0.5.5.5-spectres-prepared-policy.json) policies
 own 27 fields: the v2 fields plus `monster_category`, `weapon_type1`,
 `weapon_type2` and `base_damage_ignores_attack_speed`. They require paired
 `--supplement`/`--supplement-manifest-sha256` arguments for the exact selected
@@ -256,7 +256,7 @@ The international 0.5.5.5 fact manifest
 `050fcf93ce2cdc763d32fc9336516e25ee8791b0feb360bc811c835213712603`
 already contains the six ordered DAT groups `Mods`, `Mods2`, `Special_Mods`,
 `Part1_Mods`, `Part2_Mods` and `Endgame_Mods`. RePoE's
-`RePoE/native_actor_facts.py` retains them separately in `actors.json`.
+`RePoE/native/actor_facts.py` retains them separately in `actors.json`.
 `tables/MonsterVarieties.json` is 7,492,728 bytes, SHA256
 `87f788a94347a4f30735f6d929b270a8075eda3b4a33ffc5127eacdcf7a2e4e4`.
 These groups are available facts; they do not close the actor OT or authored
@@ -281,7 +281,7 @@ effects.
 
 ### Observed three-root OT draft
 
-RePoE's [actor-template contract](https://github.com/ackness/repoe/blob/master/RePoE/docs/native_actor_templates.md)
+RePoE's [actor-template contract](../../../RePoE/docs/native/native_actor_templates.md)
 records six observed OT resources, 11,172 raw bytes, for three exact varieties.
 BearCompanion (row 1722) and LivingLightning (row 2309) extend
 PlayerFollowingMinionBase, then PlayerSummonedMinionBase and Monster;

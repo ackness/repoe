@@ -1,6 +1,6 @@
 # Fixed client index discovery
 
-Implementation: `python -B -m RePoE.client_index`.
+Implementation: `python -B -m RePoE.client.index`.
 See [ownership and compatibility](client-sources.md#ownership-and-compatibility)
 for the one-time source and historical protocol names.
 
@@ -126,7 +126,7 @@ inspection is valid diagnostic evidence; malformed or conflicting input fails.
 
 For the full explicit request/cache/decoder interface, use `inspect_index(...)`
 with the same arguments as `discover(...)`, or add `--diagnostic` to
-`python -B -m RePoE.client_index` / `mise run client:locate`. It writes only the
+`python -B -m RePoE.client.index` / `mise run client:locate`. It writes only the
 exact `request.json` and `index-diagnostic.json`. The latter has schema
 `repoe-client-index-diagnostic/v1`, status `diagnostic-index-inspection`,
 `diagnostic: true`, `production_ready: false`, `source_approval_claimed: false`

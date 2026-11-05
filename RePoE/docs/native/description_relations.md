@@ -17,7 +17,7 @@ responses, serialized headers, range records, selected index evidence, draft loc
 typed rows and failure diagnostics are preserved in the independent package.
 Serialized headers are not claimed to be exact wire bytes.
 
-The existing `RePoE.native_tables` exporter was used unchanged. The support table's
+The existing `RePoE.native.tables` exporter was used unchanged. The support table's
 zero rows do not validate its declared nonempty row layout. The reward observation
 establishes raw key `0` only; physical row zero, an enum's declared indexing and a
 stat ID suffix do not establish a general key conversion.
@@ -49,7 +49,7 @@ locked decoder with the existing API:
 
 ```python
 from pathlib import Path
-from RePoE.native_tables import create_candidate
+from RePoE.native.tables import create_candidate
 
 restored = Path("/temporary/authenticated-observation-package")
 create_candidate(

@@ -5,11 +5,11 @@ inventory, separately from the DAT actor projection and item `.it` inheritance.
 It exports literal syntax and parent links. It does not evaluate scripts, merge
 fields, interpret stat names, project a PoBR `mod_list`, or approve/adopt a source.
 
-The offline Python API is `RePoE.native_actor_templates.create_candidate`, with
-the same keyword arguments as `native_item_inheritance.create_candidate`:
+The offline Python API is `RePoE.native.actor_templates.create_candidate`, with
+the same keyword arguments as `RePoE.native.item_inheritance.create_candidate`:
 `source_lock`, `source`, `raw`, `out`, `expected_source_lock_sha256`. There is no
 new command or default exporter integration. It reuses the item exporter's
-`native_descriptions` JSON, byte verification and completion-last publisher.
+`RePoE.native.descriptions` JSON, byte verification and completion-last publisher.
 The item parser itself remains unchanged: its path/key grammar cannot represent
 these actor paths, punctuation-bearing stat keys and multiline event assignments.
 
@@ -100,7 +100,7 @@ Using the pinned `producer_revision`, replay without network access:
 
 ```python
 from pathlib import Path
-from RePoE.native_actor_templates import create_candidate
+from RePoE.native.actor_templates import create_candidate
 
 restored = Path("/temporary/authenticated-source-package")
 create_candidate(

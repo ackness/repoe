@@ -1,9 +1,9 @@
 # Historical attribute selector projection
 
-`RePoE.pobr_historical_trees` repairs the four retained historical trees in a
+`RePoE.release.historical_trees` repairs the four retained historical trees in a
 **pinned RePoE game part**; `mise run release:build` runs it as the
-`historical-trees` job (see [RELEASING.md](../../RELEASING.md)), using
-[`historical-attributes-v1.json`](../../tools/pobr-data-adapter/policies/passive-tree/historical-attributes-v1.json).
+`historical-trees` job (see [RELEASING.md](../../../RELEASING.md)), using
+[`historical-attributes-v1.json`](../../../tools/pobr-data-adapter/policies/passive-tree/historical-attributes-v1.json).
 It is an owner-side compatibility projection, not a new client export or a
 consumer rule that treats all fixed Strength nodes as selectors.
 
@@ -58,7 +58,7 @@ The retired Lua extractor is not reintroduced into the owner production path.
 
 The policy pins the complete owner input package, its manifest and each tree.
 For each exact tree it binds the node count and the sorted numeric selector
-identity set (`RePoE.pins.encoded(ids)`, compact JSON plus LF).
+identity set (`RePoE.release.pins.encoded(ids)`, compact JSON plus LF).
 The retained `Attribute` name is only an index into those reviewed bytes,
 **not a global heuristic**. Both identity membership and expected shape must
 match: numeric string ID, normal kind, exactly `["+5 to Strength"]`, no native
@@ -78,7 +78,7 @@ trees change; the snapshot manifest job re-pins them in
 input/output pins and selector counts.
 
 ```sh
-mise exec -- python -B -m unittest discover -s tests -p test_pobr_historical_trees.py -v
+mise exec -- python -B -m unittest tests.release.test_historical_trees -v
 ```
 
 Synthetic tests cover same-text fixed nodes, guarded identities, unknown-field
