@@ -220,7 +220,7 @@ clock on the development host, warm Cargo and download caches unless noted.
    3.9 s including the build) and `-- --yes`.
 6. **Language owner**: the translation repository publishes
    `locale/<patch>-<n>` for the same target, with `display_texts.json`, and a
-   support-display publication for the new trade catalog (blockers 2 and 3).
+   support-display publication for the new trade catalog (see blockers 2 and 3).
 7. **PoBR**: `mise run data:bump ackness/repoe game/<patch>-<n>
    ackness/poe2-zh-cn-stats locale/<patch>-<n>` (a new target needs both
    owners in one call; verification and lock rewrite 1.1 s with
@@ -238,28 +238,29 @@ clock on the development host, warm Cargo and download caches unless noted.
 
 ### Blockers a real new patch must clear
 
-1. **Contract declaration** (PoBR, every new package): PoBR refuses a newly
-   locked snapshot without `contract_version` (only 0.5.5.5-1's snapshot is
-   exempt), so a byte-identical replay of a pre-contract package cannot be
-   locked. The snapshot job must declare `contract_version: "adapter"`, which
-   makes the package a fresh one.
-2. **Display texts** (language owner): PoBR's compact release (recorded
-   `release_id`) needs `i18n/<locale>/display_texts.json` in the language
-   part; the 0.5.5.4.2 language part has none. On master the game snapshot
-   also pins the language files, so adding one also changes the game
-   package; the 0.5.5.5-2 batch removes that coupling (PoBR
-   `feat/data-batch-consume`).
-3. **Support display** (language owner + PoBR): `support_display` in PoBR's
-   lock is a Git pin for one target and one trade-catalog SHA-256; it must be
-   republished for the new patch, and `data:bump` does not move it (follow-up
-   in PoBR).
+The first real cycle after the rehearsal (2026-11-05: `game/0.5.5.5-2` and
+`locale/0.5.5.5-2` published, then adopted by PoBR `data:bump` and full CI)
+cleared blockers 2, 3 and 5. Blockers 1 and 4 still apply to a new patch.
+
+1. **Contract declaration** (every new package): PoBR refuses a newly locked
+   snapshot without `contract_version`, so a byte-identical replay of a
+   pre-contract package cannot be locked. The snapshot job must declare
+   `contract_version: "adapter"`, which makes the package a fresh one.
+2. **Display texts** (cleared): PoBR composes the runtime manifest per owner,
+   so the game snapshot no longer pins the language files. A new patch still
+   needs a language Release with `i18n/<locale>/display_texts.json` for the
+   same target, but adding it no longer changes the game package.
+3. **Support display** (cleared): the translation repository attaches it to
+   `locale/<patch>-<n>` (bound to the game package's trade catalog by
+   `catalog_sha256`), and PoBR `data:bump` moves it with the language package.
+   A new trade catalog needs a new support-display publication.
 4. **Client facts** (RePoE): only a patch with an exported facts envelope can
    regenerate its adapter domains; without one (0.5.5.4.2) a replay
    regenerates only package-derived members and freezes the rest (`facts`
    omitted, no `adapter` jobs).
-5. **Publishing from the 0.5.5.5-2 branch**: its temporary Cargo `[patch]`
-   to a local PoBR checkout blocks `release:publish -- --yes` until PoBR tags
-   `contract/1.1`.
+5. **Contract tag** (cleared): the adapter depends on `contract/1.1`; a local
+   `[patch]` to a PoBR checkout still blocks `release:publish -- --yes`, so a
+   batch that needs new contract fields waits for PoBR to tag them first.
 
 ## Troubleshooting
 
