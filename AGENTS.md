@@ -129,8 +129,9 @@ tests) are not run by CI; state when they were skipped.
 | | `adapter` | `mise run adapter:check`, `mise run adapter:keystones` |
 | `release-build.yml` (only when a path the build reads changes; the workflow's `paths` list is guarded by `tests/release/test_build.py`, which compares it with `build.CODE`) | `release` | `release:build -- --config release/<dir> --fetch --check` for every declaration |
 
-`release-build.yml` does not run for changes outside what the build reads, so
-documentation-only changes skip it.
+`release-build.yml` does not run for changes outside its `paths`, so edits to
+`RePoE/docs/` or root documents skip it; documents under `release/` or
+`tools/pobr-data-adapter/` (for example the adapter's `docs/`) still trigger it.
 
 ## Commits and pull requests
 
