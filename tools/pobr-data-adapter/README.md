@@ -95,12 +95,13 @@ removed on 2026-11-04, after PoBR deleted its schema-4 loader; Git history keeps
 them.
 
 `adapter:keystones` checks the `reference` package of the highest
-`release/<patch>/inputs.lock.json` (the published game package), by commit,
-path, bytes and SHA-256, and requires its `handoff/<name>` tag on `origin` to
-peel to that commit. A pull request that moves `reference` to a new release
-therefore runs the check on the new package. To check a candidate before
-publishing it, pass
-`--pin <file>` with `{revision, path, bytes, sha256[, tag]}`.
+`release/<patch>[-<n>]/inputs.lock.json` (the published game package). A
+Release asset `{repository, tag, asset, bytes, sha256}` is downloaded
+anonymously and verified; a Git blob `{revision, path, bytes, sha256}` must
+have a `handoff/<name>` tag on `origin` that peels to its commit. A pull
+request that moves `reference` to a new release therefore runs the check on
+the new package. To check a candidate before publishing it, pass `--pin
+<file>` with either shape.
 
 ## Assembling a package
 

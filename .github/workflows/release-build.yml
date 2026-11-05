@@ -49,9 +49,10 @@ jobs:
           workspaces: tools/pobr-data-adapter
           cache-bin: 'false'
           save-if: ${{ github.event_name != 'pull_request' }}
-      # Pinned handoff commits and tags are fetched from origin (Git only, no game CDN).
-      # --check fails unless each zip is byte-identical to its lock's reference package.
-      - name: Rebuild every declared patch's game package from pinned inputs
+      # Pinned handoff commits and tags are fetched from origin and pinned Release
+      # assets downloaded anonymously (never the game CDN). --check fails unless each
+      # zip equals its lock's expect pin (without one: its reference package).
+      - name: Rebuild every declared game package from pinned inputs
         run: |
           for config in release/*/; do
             mise run release:build -- --config "${config%/}" --fetch --check

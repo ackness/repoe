@@ -350,6 +350,39 @@ class MainTest(GitRepoCase):
         self.assertIn("differs from the reference package", output)
         self.assertEqual(self.main("--allow-different")[0], 0)
 
+    def test_an_expect_pin_replaces_allow_different(self):
+        package = json.loads((self.fixture.build_dir / "package.json").read_text())
+        expect = {k: package["package"][k] for k in ("bytes", "sha256")}
+        package["package"].update(identical_to_reference=False, expect=expect, matches_expect=True)
+        (self.fixture.build_dir / "package.json").write_text(json.dumps(package))
+        code, output, _ = self.main()
+        self.assertEqual(code, 0, output)
+        notes = (Path(self.temporary.name) / "stage/poe2-international-9.9/release-notes.md").read_text()
+        self.assertIn("Equal to the declaration's `expect` pin: yes", notes)
+        package["package"]["matches_expect"] = False
+        (self.fixture.build_dir / "package.json").write_text(json.dumps(package))
+        code, output, _ = self.main("--allow-different")
+        self.assertEqual(code, 1)
+        self.assertIn("differs from the declaration's expect pin", output)
+
+    def test_a_sequenced_declaration_gets_exactly_its_number(self):
+        def run(name):
+            with mock.patch.object(publish, "STAGE", Path(self.temporary.name) / "stage"):
+                stdout, stderr = io.StringIO(), io.StringIO()
+                with contextlib.redirect_stdout(stdout), contextlib.redirect_stderr(stderr):
+                    try:
+                        publish.main(["--repo", str(self.repo), "--config", name], runner=Runner(self.repo))
+                        return 0, stdout.getvalue()
+                    except SystemExit as exit:
+                        return exit.code, stdout.getvalue() + stderr.getvalue()
+
+        self.assertEqual(run("9.9-1"), (0, mock.ANY))
+        code, output = run("9.9-2")
+        self.assertEqual(code, 1)
+        self.assertIn("9.9-2 declares game/9.9-2, but HEAD would be published as game/9.9-1", output)
+        self.assertIsNone(publish.sequence_problem(Path("9.9"), TARGET, 4))
+        self.assertIsNone(publish.sequence_problem(Path("9.9-4"), TARGET, None))
+
     def test_refuses_a_package_not_built_from_clean_head(self):
         self.fixture.receipt["producer"]["commit"] = "f" * 40
         self.fixture.write_build()
