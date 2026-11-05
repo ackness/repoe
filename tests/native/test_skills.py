@@ -7,7 +7,7 @@ import sys
 from unittest.mock import patch
 
 from RePoE.native import facts, validate as native_validate, schema_candidate
-import test_native_facts as fixture
+from tests.native import test_facts as fixture
 
 
 class NativeSkillsFixture(fixture.NativeFactsFixture):

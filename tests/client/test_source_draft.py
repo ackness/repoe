@@ -14,7 +14,7 @@ from RePoE.client import source_draft as draft
 
 # Reuse the strict collector's synthetic framing/HTTP fixtures, not a second
 # downloader or a pretend ooz implementation in production code.
-SPEC = importlib.util.spec_from_file_location("client_fixtures", Path(__file__).with_name("test_client_sources.py"))
+SPEC = importlib.util.spec_from_file_location("client_fixtures", Path(__file__).with_name("test_sources.py"))
 fixtures = importlib.util.module_from_spec(SPEC)
 SPEC.loader.exec_module(fixtures)
 client = draft.client

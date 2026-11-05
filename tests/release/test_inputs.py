@@ -12,8 +12,8 @@ import zipfile
 
 from RePoE.release.pins import decode, pin
 from RePoE.release import assets, build, inputs, publish
-from tests.test_release_build import serve
-from tests.test_release_publish import GitRepoCase, Runner, git
+from tests.release.test_build import serve
+from tests.release.test_publish import GitRepoCase, Runner, git
 
 TARGET = {"game": "poe2", "game_patch": "9.9", "realm": "international"}
 

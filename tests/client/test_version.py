@@ -17,7 +17,7 @@ from unittest.mock import MagicMock, patch
 from RePoE.client import version as client
 
 
-ROOT = Path(__file__).resolve().parents[1]
+ROOT = Path(__file__).resolve().parents[2]
 CDN = "https://patch-poe2.poecdn.com/9.12.345.6/"
 RESULT = {"cdn": CDN, "version": "9.12.345.6"}
 RAW = b"\x00\x02\x00" + CDN.encode("utf-16le")

@@ -10,7 +10,7 @@ from unittest.mock import patch
 from RePoE.native import locale_probe as probe
 from RePoE.native import schema_candidate
 from RePoE.native.tools import pinned_pypoe
-from test_native_facts import dat_bytes
+from tests.native.test_facts import dat_bytes
 
 
 class LocaleProbeTests(unittest.TestCase):

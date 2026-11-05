@@ -9,7 +9,7 @@ from RePoE.native import facts
 from RePoE.native import tables as producer
 from RePoE.native import schema_candidate
 from RePoE.native.tools import pinned_pypoe
-from test_native_facts import dat_bytes
+from tests.native.test_facts import dat_bytes
 
 
 class SelectedTablesTests(unittest.TestCase):

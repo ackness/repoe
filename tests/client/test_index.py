@@ -14,7 +14,7 @@ from unittest.mock import patch
 
 from RePoE.client import index
 
-SPEC = importlib.util.spec_from_file_location("draft_fixtures", Path(__file__).with_name("test_client_source_draft.py"))
+SPEC = importlib.util.spec_from_file_location("draft_fixtures", Path(__file__).with_name("test_source_draft.py"))
 fixtures = importlib.util.module_from_spec(SPEC)
 SPEC.loader.exec_module(fixtures)
 client = index.client

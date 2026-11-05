@@ -8,7 +8,7 @@ import unittest
 from RePoE.native import player
 from RePoE.native import schema_candidate
 from RePoE.native.tools import pinned_pypoe
-from tests.test_native_facts import dat_bytes
+from tests.native.test_facts import dat_bytes
 
 
 class NativePlayerTests(unittest.TestCase):

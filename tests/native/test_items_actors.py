@@ -7,7 +7,7 @@ import sys
 from unittest.mock import patch
 
 from RePoE.native import actor_facts as native_actor_facts, facts, items as native_items, validate as native_validate
-from test_native_gems import NativeGemFixture
+from tests.native.test_gems import NativeGemFixture
 
 
 class NativeItemsActorsTests(NativeGemFixture):

@@ -358,7 +358,7 @@ assert 'urllib.request' not in sys.modules
 """
         result = subprocess.run(
             [sys.executable, "-B", "-c", code],
-            cwd=Path(__file__).resolve().parent.parent,
+            cwd=Path(__file__).resolve().parents[2],
             capture_output=True,
             text=True,
         )

@@ -15,7 +15,7 @@ from unittest.mock import patch
 
 from RePoE.native import facts, validate as native_validate, schema_candidate
 from RePoE.native.tools import PIN
-import test_native_facts as fixture
+from tests.native import test_facts as fixture
 
 
 def run_producer(test, out, *, pythonpath=None, code=None, executable=None):

@@ -7,7 +7,7 @@ import sys
 from unittest.mock import patch
 
 from RePoE.native import facts, gems as native_gems, validate as native_validate, schema_candidate
-from test_native_skills import NativeSkillsFixture
+from tests.native.test_skills import NativeSkillsFixture
 
 
 class NativeGemFixture(NativeSkillsFixture):

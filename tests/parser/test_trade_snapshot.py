@@ -22,7 +22,7 @@ from RePoE import trade_snapshot as snapshot
 
 
 FIXTURE = Path(__file__).parent / "fixtures/trade-snapshot"
-ROOT = Path(__file__).resolve().parents[1]
+ROOT = Path(__file__).resolve().parents[2]
 
 
 def client_fixture():
@@ -365,8 +365,8 @@ class TradeSnapshotTests(unittest.TestCase):
         for seed, directory in (("1", self.directory), ("49", alternate)):
             output = self.root / seed
             script = (
-                "import sys; from pathlib import Path; sys.path.insert(0, 'tests'); "
-                "from test_trade_snapshot import export_fixture; "
+                "import sys; from pathlib import Path; "
+                "from tests.parser.test_trade_snapshot import export_fixture; "
                 "from RePoE.trade_snapshot import load_trade_snapshot; "
                 "export_fixture(Path(sys.argv[1]), load_trade_snapshot(sys.argv[2]))"
             )
