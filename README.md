@@ -34,7 +34,7 @@ Packages have different scopes. A successful facts export does not establish com
 
 Each game package is a GitHub Release `game/<patch>-<n>` with three assets: `pobr-game-<patch>.zip`, its `receipt.json` (producer commit, contract, every input pin and the provenance class of every member) and `SHA256SUMS`. PoBR pins one Release in `pipeline/data.lock.json` with `mise run data:bump ackness/repoe game/<patch>-<n>`. Consumers need no Python, Rust, client installation or checkout of this repository.
 
-Packages published before Releases (and the inputs `release:build` reads) live on orphan commits kept reachable by `handoff/*` tags. Those tags are never moved or deleted: PoBR's lock and `release/<patch>/inputs.lock.json` address them by commit, path and SHA-256.
+Packages published before Releases (and most inputs `release:build` reads) live on orphan commits kept reachable by `handoff/*` tags. Those tags are never moved or deleted: `release/<patch>[-<n>]/inputs.lock.json` addresses them by commit, path and SHA-256. New inputs are GitHub Releases `inputs/<patch>-<n>` (`mise run release:inputs`), addressed like game packages by repository, tag, asset and SHA-256.
 
 ## Development
 

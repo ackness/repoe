@@ -128,6 +128,33 @@ zip that differs from the declaration's `expect` pin, and (without `expect`)
 a zip that differs from the reference unless `--allow-different` is given.
 Then pin the tag in PoBR with `mise run data:bump ackness/repoe game/<patch>-<n>`.
 
+## Input packages
+
+`release:inputs` packages a patch's extracted inputs (the facts envelope,
+codec sources, supplements, tree references: whatever the declaration's jobs
+read) and publishes them as the GitHub Release `inputs/<patch>-<n>`, so a
+declaration pins them like a game package:
+
+```sh
+mise run release:inputs -- --patch <patch> --package ordinary=<dir> [--package crafting=<dir> ...]
+mise run release:inputs -- --patch <patch> --package ordinary=<dir> --yes
+```
+
+| Item | Value |
+| --- | --- |
+| Assets | one `repoe-input-<name>-<patch>.zip` per `--package`, and `SHA256SUMS` |
+| Zip | every regular file under `<dir>` at its relative path plus a root `manifest.json` (`repoe-release-input/v1`: `name`, `target`, `files` pins); sorted members, fixed timestamps, so the bytes depend only on the files (symlinks and a `manifest.json` in `<dir>` refuse) |
+| Tag | `inputs/<patch>-<n>`, annotated, on HEAD; `<n>` is one above the highest `inputs/<patch>-*` on `origin` (game tags are a separate sequence) |
+| Output | `.cache/release/publish/inputs-<game>-<realm>-<patch>/`: `assets/`, `release-notes.md`, `tag-message.txt`, and `lock.json`, the `inputs.lock.json` `packages` entries to paste (`{repository, tag, asset, bytes, sha256, manifest, expanded_bytes}`) |
+
+Without `--yes` it only stages and prints the commands. `--yes` has the same
+safety and resume rules as `release:publish` (clean tree, HEAD on
+`origin/master`, `gh` logged in, no stray local tag, never a second number for
+one commit; see [Troubleshooting](#troubleshooting)), so publishing a second
+input batch of a patch needs a new commit. Package members are named by the
+directory layout: a job option `ordinary:passive-tree/supplement` reads
+`passive-tree/supplement/` of the `ordinary` package.
+
 ## Frozen inputs and how to replace one
 
 `frozen-inputs.json` lists each member still copied from an earlier package,
