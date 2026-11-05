@@ -923,7 +923,7 @@ fn cli_and_paths_reject_inapplicable_options_pins_version_and_overwrites() {
         assert!(!out.exists());
     }
     let out = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
-        .join("../../publication")
+        .join("../../release")
         .canonicalize()
         .unwrap()
         .join(f.root.file_name().unwrap());

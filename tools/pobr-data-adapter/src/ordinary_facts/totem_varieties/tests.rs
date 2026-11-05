@@ -567,7 +567,7 @@ fn pins_patch_cli_and_protected_output_reject_before_any_candidate() {
     for out in [
         f.root.join("input/new"),
         std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
-            .join("../../publication")
+            .join("../../release")
             .canonicalize()
             .unwrap()
             .join(format!(

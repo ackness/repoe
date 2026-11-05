@@ -395,7 +395,7 @@ fn pin_patch_argument_and_output_guards_apply_without_auxiliary_inputs() {
     for out in [
         f.root.join("input/new"),
         std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
-            .join("../../publication")
+            .join("../../release")
             .canonicalize()
             .unwrap()
             .join(format!(

@@ -871,7 +871,7 @@ fn cli_source_and_output_boundaries_fail_before_reservation() {
         assert!(!out.exists());
     }
     let out = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
-        .join("../../publication")
+        .join("../../release")
         .canonicalize()
         .unwrap()
         .join(f.root.file_name().unwrap());

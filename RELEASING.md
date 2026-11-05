@@ -239,6 +239,6 @@ A failed step prints the commands that remain; rerunning resumes the same
 way. The maintainer needs push access to `origin` and an authenticated `gh`.
 
 Existing `handoff/*` tags stay: PoBR's lock already references them, and
-release:build still reads its inputs from them. `publication/index.json`, the
-`releases/<n>.json` chain and the handoff directory convention are no longer
-part of publishing a game package; they are removed separately (roadmap 3.5).
+release:build still reads its inputs from them. The publication index, its
+`releases/<n>.json` chain and the publication plans were removed (roadmap 3.5);
+Git history keeps them.

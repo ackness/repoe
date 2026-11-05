@@ -58,7 +58,7 @@ run = [
 ]
 
 [tasks."adapter:keystones"]
-description = "Rebuild the published game package's keystone rules from its passive tree and compare bytes (default: the game input of the publication index head)"
+description = "Rebuild the published game package's keystone rules from its passive tree and compare bytes (default: the reference package of the highest release/<patch>/)"
 run = "python3 -B tools/pobr-data-adapter/tests/check_package_keystones.py"
 
 [tasks.adapter]
@@ -82,22 +82,6 @@ run = "uv run --locked --offline python -B -m RePoE.native_descriptions"
 description = "Export explicitly pinned supplemental DAT tables through the existing native reader"
 run = "uv run --locked --offline python -B -m RePoE.native_tables"
 
-[tasks."publication:package"]
-description = "Package explicit pinned local exports; no decoding, networking or snapshot fallback"
-run = "python -B -m RePoE.data_publication package"
-
-[tasks."publication:git-handoff"]
-description = "Stage a local orphan RePoE artifact without a checkout, remote or push"
-run = "python -B -m RePoE.data_publication git-handoff"
-
-[tasks."publication:crafting-catalog"]
-description = "Add PoBR's projected crafting catalog to a published game part from local Git objects (assemble / game-input)"
-run = "python -B -m RePoE.pobr_crafting_catalog"
-
-[tasks."publication:historical-trees"]
-description = "Restore reviewed historical attribute selectors from a pinned owner game part; local candidate only"
-run = "python -B -m RePoE.pobr_historical_trees"
-
 [tasks."release:build"]
 description = "Rebuild the game part from pinned handoff inputs and classify every member against the reference package (--config release/<patch>, default: highest patch)"
 run = "cargo build --locked --release --quiet --manifest-path tools/pobr-data-adapter/Cargo.toml && python -B -m RePoE.release.build"
@@ -105,10 +89,6 @@ run = "cargo build --locked --release --quiet --manifest-path tools/pobr-data-ad
 [tasks."release:publish"]
 description = "Stage a release:build package as the game/<patch>-<n> GitHub Release assets and print the plan; --yes tags, pushes and creates the Release (--config release/<patch>, --dry-run, --reuse)"
 run = "cargo build --locked --release --quiet --manifest-path tools/pobr-data-adapter/Cargo.toml && python -B -m RePoE.release.publish"
-
-[tasks."tree:input"]
-description = "Acquire/export explicit historical official Git tree bytes; offline unless --online"
-run = "python -B -S -m RePoE.official_tree_input"
 
 [tasks."client:source"]
 description = "Acquire one fixed source or import archived ranges with explicit inputs"

@@ -454,7 +454,7 @@ fn cli_pins_patch_and_existing_output_protection_remain_strict() {
     for out in [
         f.root.join("input/new"),
         std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
-            .join("../../publication")
+            .join("../../release")
             .canonicalize()
             .unwrap()
             .join(format!(

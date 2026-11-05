@@ -2,45 +2,16 @@
 
 `RePoE.pobr_crafting_catalog` projects the neutral
 [seven-table crafting facts](native_crafting_facts.md) into PoBR's runtime file
-`data/<patch>/overlay/trade_crafting_sources.json` and adds it to a published game
-part. PoBR then imports the game part as a fixed artifact; it no longer projects
-crafting data itself. The projector moved here from PoBR's
+`data/<patch>/overlay/trade_crafting_sources.json`. `mise run release:build`
+runs it as the `crafting-catalog` job of `release/<patch>/domains.json` (see
+[RELEASING.md](../../RELEASING.md)); PoBR imports the resulting game package and
+no longer projects crafting data itself. The projector moved here from PoBR's
 `pipeline/imports/crafting_inputs.py` (PoBR `897463d5`) without changing its
 policy or output bytes.
 
-## Assembly
-
-```sh
-git fetch origin tag handoff/native-crafting-20261101
-mise run publication:crafting-catalog -- assemble \
-  --sequence 2 --name game-crafting-20261103 --out .cache/publication/game-crafting
-mise run publication:git-handoff -- --package .cache/publication/game-crafting
-mise run publication:crafting-catalog -- game-input --package .cache/publication/game-crafting
-```
-
-`assemble` takes the `game` and `crafting` inputs of one validated sequence of
-`publication/index.json` (default: the head) and reads both archives from local
-Git objects; it never fetches. It authenticates the whole crafting package,
-including the seven original tables, before reading `crafting.json`. The new
-part copies every original game member byte for byte and adds only the projected
-file. Assembly fails unless the projected bytes equal the SHA-256 that the game
-part's own snapshot manifest (`data/<patch>/manifest.json`) already declares, so
-the consumer's snapshot and runtime identities cannot change by accident. A part
-that already contains the catalog is rejected. The ZIP is deterministic: a replay
-of the same inputs and module produces the same bytes and, through
-`publication:git-handoff`, the same orphan commit.
-
-The part's `manifest.json` keeps the consumer contract `pobr-build-data-part/v1`
-and records:
-
-- `retained_input_package`: the complete source game declaration;
-- `projection.crafting_input`: the complete crafting declaration;
-- `projection.producer`: the SHA-256 of this module at assembly time;
-- `projection.output`, `summary` and the projection `diagnostics`.
-
-Source diagnostics stay in the crafting package's `crafting.json`. `game-input`
-prints the index `game` input for `publication_index draft` after the handoff tag
-has been pushed. Publishing remains a separate coordinator action.
+`facts_document` authenticates the whole crafting package, including the seven
+original tables, before reading `crafting.json`; `project` applies the policy
+below. Source diagnostics stay in the crafting package's `crafting.json`.
 
 ## Catalog policy
 

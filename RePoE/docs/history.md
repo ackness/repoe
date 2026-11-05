@@ -20,7 +20,7 @@ exports, rather than a requirement of the current source checkout.
 
 ## Commit and artifact migration
 
-[`publication/history-rewrite-20261103.json`](../../publication/history-rewrite-20261103.json)
+[`history-rewrite-20261103.json`](history-rewrite-20261103.json)
 maps retained original commits to their new IDs. For any retained historical
 commit `old`, `commits[old]` locates a commit with exactly the same Git tree.
 The file also records the old and new annotated tag objects and their targets.

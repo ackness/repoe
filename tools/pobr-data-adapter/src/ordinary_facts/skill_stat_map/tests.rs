@@ -653,7 +653,7 @@ fn fresh_leaf_protects_all_auxiliary_parents_and_source_data_paths() {
         assert!(!out.exists());
     }
     let out = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
-        .join("../../publication")
+        .join("../../release")
         .canonicalize()
         .unwrap()
         .join(format!(
