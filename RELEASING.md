@@ -154,6 +154,53 @@ input batch of a patch needs a new commit. Package members are named by the
 directory layout: a job option `ordinary:passive-tree/supplement` reads
 `passive-tree/supplement/` of the `ordinary` package.
 
+## China client capture input
+
+The China (Tencent) client's official text has no CDN, so it reaches PoBR as
+an input package built from the owner's local capture
+([client capture](RePoE/docs/client/client-capture.md)). Only derived text is
+published: the raw DAT, CSD and bundle bytes stay under `.cache/` (a licence
+constraint), and the receipt carries no install path. One `inputs/<patch>-<n>`
+Release is made per China update; older ones are never touched.
+
+```sh
+CAP=.cache/china-capture-<patch>; PKG=.cache/china-text-<patch>
+# 1. The owner runs RePoE/client/capture-sc.ps1 and sends the folder and the capture.json SHA-256.
+mise run client:capture -- --capture <folder> --expect-capture-sha256 <sha> \
+  --request RePoE/client/china-text-request.json --game-patch <patch> --out $CAP \
+  --decoder-python "$PWD/.venv/bin/python" --decoder-lock uv.lock
+L=$CAP/source-lock.json; S=$(shasum -a 256 $L | cut -d' ' -f1)
+# 2. Derived candidates, written straight into the package directory.
+mise run descriptions:candidate -- --source-lock $L --expected-source-lock-sha256 $S \
+  --source china-stat-descriptions --raw $CAP/raw --out $PKG/stat-descriptions/china
+mise run tables:candidate -- --source-lock $L --expected-source-lock-sha256 $S \
+  --source china-default --raw $CAP/raw --out $PKG/display-tables/default
+mise run tables:candidate -- --source-lock $L --expected-source-lock-sha256 $S \
+  --source china-simplified-chinese --language "Simplified Chinese" \
+  --raw $CAP/raw --out $PKG/display-tables/simplified-chinese
+# 3. The capture identity, then the package (dry run; --yes on a clean master commit).
+mkdir $PKG/capture && cp $CAP/capture-receipt.json $CAP/request.json $CAP/SHA256SUMS $PKG/capture/
+mise run release:inputs -- --realm china --patch <patch> --package china_text=$PKG
+```
+
+| Package member | Producer |
+| --- | --- |
+| `capture/capture-receipt.json`, `capture/request.json`, `capture/SHA256SUMS` | `client:capture` (hashes and the path list; `capture.json` itself is pinned by SHA-256 only, because it names the install path) |
+| `stat-descriptions/china/{descriptions,diagnostics,source-lock,manifest}.json` | `descriptions:candidate`: the four files the translation repository's native reader requires |
+| `display-tables/{default,simplified-chinese}/{tables,source-lock,manifest}.json` | `tables:candidate`: `repoe-native-tables/v1` and `repoe-localized-tables/v1`, derived JSON, not `.datc64` |
+
+`release:inputs` enforces this exact derived-file allowlist for `china_text`,
+checks the candidate formats and their manifest file pins, and requires both
+capture JSON files to have the expected schemas. It rejects extra or missing
+members before staging, naming the file; passing `$CAP` itself or adding any
+raw CSD, DAT or bundle member fails. The capture's original `capture.json`
+is also refused because it contains the install path.
+The package name becomes the lock key, so it is `china_text` (letters, digits
+and underscores). `--realm china` sets the package target's realm; the patch is
+the owner's declared target. Publishing a second input batch for the same patch
+(for example the international Traditional Chinese tables) needs a new master
+commit, because `--yes` never gives one commit a second `inputs/` number.
+
 ## Frozen inputs and how to replace one
 
 `frozen-inputs.json` lists each member still copied from an earlier package,

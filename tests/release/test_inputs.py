@@ -10,7 +10,7 @@ import unittest
 from unittest import mock
 import zipfile
 
-from RePoE.release.pins import decode, pin
+from RePoE.release.pins import decode, encoded, pin
 from RePoE.release import assets, build, inputs, publish
 from tests.release.test_build import serve
 from tests.release.test_publish import GitRepoCase, Runner, git
@@ -23,6 +23,30 @@ def tree(root, files):
         (root / name).parent.mkdir(parents=True, exist_ok=True)
         (root / name).write_bytes(raw)
     return root
+
+
+def china_files():
+    """The documented descriptions:candidate / tables:candidate layout, without any raw resources."""
+    files = {
+        "capture/capture-receipt.json": encoded({"schema": "repoe-client-capture-receipt/v1"}),
+        "capture/request.json": encoded({"schema": "repoe-client-capture-request/v1", "resources": []}),
+        "capture/SHA256SUMS": b"a" * 64 + b"  Bundles2/_.index.bin\n",
+    }
+    candidates = {
+        "stat-descriptions/china": (
+            "repoe-native-descriptions/v1",
+            {"descriptions.json": b"{}\n", "diagnostics.json": b"{}\n"},
+        ),
+        "display-tables/default": ("repoe-native-tables/v1", {"tables.json": b"{}\n"}),
+        "display-tables/simplified-chinese": ("repoe-localized-tables/v1", {"tables.json": b"{}\n"}),
+    }
+    for directory, (format_, payloads) in candidates.items():
+        payloads = {**payloads, "source-lock.json": b'{"schema_version": 1}\n'}
+        files.update({f"{directory}/{name}": raw for name, raw in payloads.items()})
+        files[f"{directory}/manifest.json"] = encoded(
+            {"format": format_, "files": {name: pin(raw) for name, raw in payloads.items()}}
+        )
+    return files
 
 
 class PackageTest(unittest.TestCase):
@@ -98,6 +122,61 @@ class PackageTest(unittest.TestCase):
             inputs.collect(self.source)
         with self.assertRaisesRegex(ValueError, "Invalid input package name"):
             inputs.package("bad-name", self.source, TARGET, self.root)
+
+    def test_china_text_accepts_the_current_derived_package_layout(self):
+        files = china_files()
+        source = tree(self.root / "china-text", files)
+        staged = inputs.stage({"china_text": source}, {**TARGET, "realm": "china"}, self.root / "china-stage")
+        spec = staged["packages"]["china_text"]
+        with zipfile.ZipFile(staged["directory"] / "assets" / spec["asset"]) as archive:
+            self.assertEqual(set(archive.namelist()), {*files, "manifest.json"})
+            self.assertEqual(decode(archive.read("manifest.json"))["files"], {n: pin(r) for n, r in files.items()})
+
+    def test_china_text_refuses_a_capture_directory_before_staging(self):
+        source = tree(
+            self.root / "capture",
+            {
+                "raw/Data/StatDescriptions/gem_stat_descriptions.csd": b"raw CSD",
+                "raw/Data/Balance/GemEffects.datc64": b"raw DAT",
+                "capture-receipt.json": b"{}\n",
+                "source-lock.json": b"{}\n",
+            },
+        )
+        out = self.root / "refused-stage"
+        with self.assertRaisesRegex(ValueError, r"china_text: unexpected file capture-receipt.json"):
+            inputs.stage({"china_text": source}, TARGET, out)
+        self.assertFalse(out.exists())
+
+    def test_china_text_refuses_any_extra_member_and_names_it(self):
+        for number, member in enumerate(
+            (
+                "raw/Data/StatDescriptions/gem_stat_descriptions.csd",
+                "display-tables/default/GemEffects.datc64",
+                "capture/Bundles2/_.index.bin",
+                "capture/capture.json",
+                "stat-descriptions/china/unknown.json",
+            )
+        ):
+            with self.subTest(member=member):
+                source = tree(self.root / f"unsafe-{number}", {**china_files(), member: b"raw client bytes"})
+                with self.assertRaises(ValueError) as error:
+                    inputs.package("china_text", source, TARGET, self.root)
+                self.assertIn(f"china_text: unexpected file {member};", str(error.exception))
+                self.assertFalse((self.root / inputs.asset_name("china_text", TARGET["game_patch"])).exists())
+
+    def test_china_text_requires_complete_pinned_candidates_and_receipts(self):
+        source = tree(self.root / "china-text", china_files())
+        member = "display-tables/default/tables.json"
+        (source / member).unlink()
+        with self.assertRaisesRegex(ValueError, f"missing derived file {member}"):
+            inputs.collect(source, "china_text")
+        (source / member).write_bytes(b"changed")
+        with self.assertRaisesRegex(ValueError, "derived file pins differ in display-tables/default/manifest.json"):
+            inputs.collect(source, "china_text")
+        tree(source, china_files())
+        (source / "capture/capture-receipt.json").write_bytes(b"not JSON")
+        with self.assertRaisesRegex(ValueError, "invalid derived file capture/capture-receipt.json"):
+            inputs.collect(source, "china_text")
 
 
 class MainTest(GitRepoCase):

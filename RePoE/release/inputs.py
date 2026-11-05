@@ -26,12 +26,24 @@ import shutil
 import stat
 import zipfile
 
-from RePoE.release.pins import archive_manifest, encoded, pin, relative, require
+from RePoE.release.pins import archive_manifest, decode, encoded, pin, relative, require
 from RePoE.release import build, publish
 
 SCHEMA = "repoe-release-input/v1"
 TAG_PREFIX = "inputs/"
 NAME = re.compile(r"[A-Za-z_][A-Za-z0-9_]*")
+# Exact output layout from the China capture procedure. Raw client resources have no place here.
+CHINA_CANDIDATES = {
+    "stat-descriptions/china": ("repoe-native-descriptions/v1", ("descriptions.json", "diagnostics.json")),
+    "display-tables/default": ("repoe-native-tables/v1", ("tables.json",)),
+    "display-tables/simplified-chinese": ("repoe-localized-tables/v1", ("tables.json",)),
+}
+CHINA_CAPTURE = {"capture/capture-receipt.json", "capture/request.json", "capture/SHA256SUMS"}
+CHINA_MEMBERS = CHINA_CAPTURE | {
+    f"{directory}/{member}"
+    for directory, (_, payloads) in CHINA_CANDIDATES.items()
+    for member in (*payloads, "source-lock.json", "manifest.json")
+}
 
 
 def asset_name(name, patch):
@@ -42,7 +54,37 @@ def raise_error(error):
     raise error
 
 
-def collect(directory):
+def validate_china_text(files):
+    """Allow only the complete derived layout, with candidates pinned by their own manifests."""
+    for member in sorted(set(files) - CHINA_MEMBERS):
+        raise ValueError(
+            f"china_text: unexpected file {member}; only allowlisted derived text and receipts may be published"
+        )
+    for member in sorted(CHINA_MEMBERS - set(files)):
+        raise ValueError(f"china_text: missing derived file {member}")
+
+    def document(member):
+        try:
+            result = decode(files[member].read_bytes())
+            require(isinstance(result, dict), "Expected a JSON object")
+            return result
+        except (ValueError, UnicodeError) as error:
+            raise ValueError(f"china_text: invalid derived file {member}: {error}") from error
+
+    for directory, (format_, payloads) in CHINA_CANDIDATES.items():
+        member = f"{directory}/manifest.json"
+        manifest = document(member)
+        require(manifest.get("format") == format_, f"china_text: invalid candidate format in {member}")
+        expected = {name: build.file_pin(files[f"{directory}/{name}"]) for name in (*payloads, "source-lock.json")}
+        require(manifest.get("files") == expected, f"china_text: derived file pins differ in {member}")
+    for member, schema in (
+        ("capture/capture-receipt.json", "repoe-client-capture-receipt/v1"),
+        ("capture/request.json", "repoe-client-capture-request/v1"),
+    ):
+        require(document(member).get("schema") == schema, f"china_text: invalid schema in {member}")
+
+
+def collect(directory, package_name=None):
     """``{relative path: Path}`` of every regular file under ``directory``.
 
     Symlinks, special files, dot files and directories (e.g. a cache's
@@ -65,6 +107,8 @@ def collect(directory):
             relative(name)
             files[name] = path
     require(files, f"{directory}: no files")
+    if package_name == "china_text":
+        validate_china_text(files)
     require("manifest.json" not in files, f"{directory}: manifest.json is reserved for the package manifest")
     return dict(sorted(files.items()))
 
@@ -72,7 +116,7 @@ def collect(directory):
 def package(name, directory, target, out):
     """Write ``out/<asset>`` and return its lock fields (asset, pins, manifest pin, expanded bytes)."""
     require(NAME.fullmatch(name), f"Invalid input package name: {name!r} (it becomes the lock key)")
-    files = collect(directory)
+    files = collect(directory, name)
     pins = {member: build.file_pin(path) for member, path in files.items()}
     manifest_raw = encoded({"schema": SCHEMA, "name": name, "target": target, "files": pins})
     path = Path(out) / asset_name(name, target["game_patch"])
@@ -98,6 +142,9 @@ def stage(packages, target, out):
         source, target_dir = Path(directory).resolve(), out.resolve()
         require(not target_dir.is_relative_to(source), f"The stage {out} is inside the input {directory}")
         require(not source.is_relative_to(target_dir), f"The input {directory} is inside the stage {out}")
+    # Refuse unsafe China inputs before creating or replacing any staged assets.
+    if "china_text" in packages:
+        collect(packages["china_text"], "china_text")
     if out.exists():
         require((out / publish.MARKER).is_file(), f"Refusing to replace a non-publish directory: {out}")
         shutil.rmtree(out)
