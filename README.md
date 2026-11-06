@@ -118,14 +118,16 @@ Which paths are upstream, where new code goes and which files must keep their by
 
 | Topic | Documentation |
 | --- | --- |
-| Client acquisition and patch observation | [Sources](RePoE/docs/client/client-sources.md), [version](RePoE/docs/client/client-version.md), [drafts](RePoE/docs/client/client-source-draft.md), [lookup](RePoE/docs/client/client-index.md), [verification](RePoE/docs/client/source-rebinding.md) |
+| Client acquisition and patch observation | [Sources](RePoE/docs/client/client-sources.md), [version](RePoE/docs/client/client-version.md), [drafts](RePoE/docs/client/client-source-draft.md), [lookup](RePoE/docs/client/client-index.md), [verification](RePoE/docs/client/source-rebinding.md), [capture](RePoE/docs/client/client-capture.md) |
 | Native skills and gems | [Base facts](RePoE/docs/native/native_facts.md), [core skills](RePoE/docs/native/native_core_skills.md), [gem constraints](RePoE/docs/native/native_gems.md) |
 | Items and actors | [Item/actor facts](RePoE/docs/native/native_items_actors.md), [item inheritance](RePoE/docs/native/native_item_inheritance.md), [actor templates](RePoE/docs/native/native_actor_templates.md), [player context](RePoE/docs/native/native_player_context.md) |
-| Descriptions and languages | [CSD branches](RePoE/docs/native/native_descriptions.md), [supplemental/localized tables](RePoE/docs/native/native_tables.md), [description relationships](RePoE/docs/native/description_relations.md) |
+| Descriptions and languages | [CSD branches](RePoE/docs/native/native_descriptions.md), [supplemental/localized tables](RePoE/docs/native/native_tables.md), [description relationships](RePoE/docs/native/description_relations.md), [English gem descriptions](RePoE/docs/release/pobr_gem_descriptions.md) |
 | Crafting and trees | [Crafting facts](RePoE/docs/native/native_crafting_facts.md), [PoBR crafting catalog](RePoE/docs/release/pobr_crafting_catalog.md), [historical tree selectors](RePoE/docs/release/pobr_historical_trees.md) |
 | PoBR runtime conversion | [Adapter modes](tools/pobr-data-adapter/README.md) and [domain policies](tools/pobr-data-adapter/policies/README.md) |
 | PoBR runtime domains | [Ordinary-facts domains](tools/pobr-data-adapter/docs/ordinary-facts.md), one `docs/ordinary-<domain>.md` each |
 | Legacy JSON formats | [Stats](RePoE/docs/stats.md), [mods](RePoE/docs/mods.md), [items](RePoE/docs/base_items.md), [gems](RePoE/docs/gems.md), [augments](RePoE/docs/augments.md), and [other domain files](RePoE/docs/README.md#legacy-json-formats-repoeparser) |
+
+Apart from [README.zh-CN.md](README.zh-CN.md), the documentation is in English.
 
 ## Upstream and credits
 

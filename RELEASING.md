@@ -64,9 +64,9 @@ Either way the bytes are used only after they match the pin. Game packages
 [Input packages](#input-packages)) are Release assets; older inputs stay Git
 blobs.
 
-- `reference` names the package members are compared with: the last
-  published game package. It is usually also the `frozen-inputs.json`
-  `source` and the `snapshot-manifest` template.
+- `reference` names the published game package members are compared with
+  (the one before this declaration's package). It is usually also the
+  `frozen-inputs.json` `source` and the `snapshot-manifest` template.
 - `expect.package` (`{bytes, sha256}`) pins the zip this declaration must
   produce. Write it after the first build, from the printed pin; change it
   whenever an intended change moves the bytes, so review sees the move.
@@ -96,9 +96,9 @@ CI (`.github/workflows/release-build.yml`, described in
 [AGENTS.md](AGENTS.md#ci)) rebuilds and checks every declaration directory.
 Every directory under `release/` is a claim that the current code still
 produces its `expect` pin (or its reference); when a code or policy change moves a published package's
-bytes on purpose, add the next `release/<patch>-<n>/` and delete the
-superseded directory in the same change rather than let it fail (Git history
-and the Release receipt keep it).
+bytes on purpose, add the next `release/<patch>-<n>/` and, if the superseded
+directory no longer reproduces, delete it in the same change rather than let it
+fail (Git history and the Release receipt keep it).
 
 ## Publish
 
@@ -198,15 +198,23 @@ is also refused because it contains the install path.
 The package name becomes the lock key, so it is `china_text` (letters, digits
 and underscores). `--realm china` sets the package target's realm; the patch is
 the owner's declared target. Publishing a second input batch for the same patch
-(for example the international Traditional Chinese tables) needs a new master
-commit, because `--yes` never gives one commit a second `inputs/` number.
+(as for `inputs/0.5.5.5-2`, the international Traditional Chinese tables) needs
+a new master commit, because `--yes` never gives one commit a second `inputs/`
+number.
 
-Published China inputs (the translation repository's `official_*` jobs pin
-these):
+Published client-text inputs (the translation repository's `official_*` jobs
+pin these):
 
-| Tag | Asset | Bytes | SHA-256 | Root manifest SHA-256 |
-| --- | --- | --- | --- | --- |
-| `inputs/0.5.5.5-1` | `repoe-input-china_text-0.5.5.5.zip` | 20301700 | `56dd27a77fad3c505188f7f696db7763ca28436725db454a4360cdbd4e1ce234` | `90806f0996568683b775a3d88fec847a83fd65a60026bca0427c3e90da50c333` |
+| Tag | Realm | Asset | Bytes | SHA-256 | Root manifest SHA-256 |
+| --- | --- | --- | --- | --- | --- |
+| `inputs/0.5.5.5-1` | china | `repoe-input-china_text-0.5.5.5.zip` | 20301700 | `56dd27a77fad3c505188f7f696db7763ca28436725db454a4360cdbd4e1ce234` | `90806f0996568683b775a3d88fec847a83fd65a60026bca0427c3e90da50c333` |
+| `inputs/0.5.5.5-2` | international | `repoe-input-intl_text-0.5.5.5.zip` | 926093 | `8ef802ff76a449329908c7ab8af6f7957d818887550c479db5586c4d65afd95b` | `586293a4d940b450c57446ab50190747ec29d45b9e6b55cf60c8826aa8b3eb13` |
+
+`inputs/0.5.5.5-2` (package `intl_text`) holds the 0.5.5.5 international
+default and Traditional Chinese `GemEffects`, `ActiveSkills` and
+`MonsterVarieties` tables as
+`display-tables/{default,traditional-chinese}/{tables,source-lock,manifest}.json`.
+Only `china_text` has the allowlist check above.
 
 ## Frozen inputs and how to replace one
 
@@ -233,7 +241,7 @@ change like any other.
 
 Several checks still name 0.5.5.5 or the identity of the exporter that
 produced its facts, so the first new patch starts with code changes. Below,
-`<new>` is the new patch and `game/0.5.5.5-2` the last published package. The
+`<new>` is the new patch and `game/0.5.5.5-3` the last published package. The
 work lands as separate PRs, each merged before the
 next step:
 
@@ -256,7 +264,7 @@ This table lists only the checks that gate accepting a new patch. Other
 | Exporter identity | the producer map in `trust.rs`; the `include_bytes!` fixtures `tests/fixtures/ordinary-facts/selected-tables-producer*.json`, `item-inheritance-producer.json` and `tests/fixtures/native-facts/player-context-manifest.json` | Add the new export's identity (current `RePoE/native/` paths and hashes) beside the historical one; never edit the historical bytes ([fixed producer identities](tools/pobr-data-adapter/tests/fixtures/ordinary-facts/README.md#fixed-producer-identities)) |
 | Crafting producer | `PRODUCER_KEY_SETS` in `RePoE/release/crafting_catalog.py` | Nothing while the exporters stay where they are: it already accepts the historical keys and the current `RePoE/native/` keys (a test keeps them equal to `native/crafting_facts.PRODUCERS`); add a set only if the exporters move again |
 | Crafting package transport | `crafting_catalog.facts_document`, `release:inputs` | The crafting job reads the package's own root `manifest.json` (`repoe-native-crafting-facts/v1`) and needs `publication`, `producer` and `input_manifest` on the lock entry, while `release:inputs` reserves the root `manifest.json` and prints none of those keys: decide how a new crafting package is published |
-| Frozen members and snapshot template | `RePoE/release/build.py` | A frozen member is read at its own path (`data/<new>/…`) from the single `frozen-inputs.json` `source`, and the snapshot template must have `poe_version == <new>`; `game/0.5.5.5-2` holds `data/0.5.5.5/…` with `poe_version` 0.5.5.5. Either map the old paths in code or carry the frozen bytes and the template in an input package under `data/<new>/` |
+| Frozen members and snapshot template | `RePoE/release/build.py` | A frozen member is read at its own path (`data/<new>/…`) from the single `frozen-inputs.json` `source`, and the snapshot template must have `poe_version == <new>`; `game/0.5.5.5-3` holds `data/0.5.5.5/…` with `poe_version` 0.5.5.5. Either map the old paths in code or carry the frozen bytes and the template in an input package under `data/<new>/` |
 | Schema constants (only if the dat schema changes) | `trust.rs` (`DECODER_PIN_SHA`, `SCHEMA_REVISION`, `SCHEMA_SHA`, the native specification pin), `RePoE/native/decoded_tables.py` (`SPEC_SHA`), `native/locale_probe.py` (`SCHEMA_REVISION`, `SCHEMA_SHA256`), `native/crafting_facts.py` (`SCHEMA`), `native/facts.py` (`SCHEMA`, `SCHEMA_SHA`) | Add the new schema beside the pinned one |
 
 `RePoE/native/locale_probe.py` is pinned by its own bytes (`decoded_tables.py`
@@ -298,25 +306,26 @@ entries into the new declaration's `packages`.
 
 ### 3. Declare the package
 
-Copy `release/0.5.5.5-2/` to `release/<new>/` and change what names the patch,
-and only that. Once `game/0.5.5.5-3` is published, copy `release/0.5.5.5-3/`
-instead: it is -2 plus the `gem-descriptions` job, with `game/0.5.5.5-2` as its
-`previous`, so read the table below with -3 and its `previous` in place of -2:
+Copy `release/0.5.5.5-3/` to `release/<new>/` and change what names the patch,
+and only that. It is `release/0.5.5.5-2/` plus the `gem-descriptions` job
+(`overlay/gem_descriptions.json`). In the new declaration `previous` is
+`game/0.5.5.5-3`:
 
 | Occurrence | In `release/<new>/` |
 | --- | --- |
 | `target.game_patch` in the three files | `<new>` |
 | Job outputs and frozen keys `data/0.5.5.5/…`, the `snapshot-manifest` `member` | `data/<new>/…` |
-| `policy:<domain>/0.5.5.5-*.json` | New `policy:<domain>/<new>-*.json` files whose `version` / `target.game_patch` is `<new>` (the adapter checks them against the facts). Never edit the 0.5.5.5 policies: `release/0.5.5.5-2/` and the adapter tests pin their bytes |
+| `policy:<domain>/0.5.5.5-*.json` | New `policy:<domain>/<new>-*.json` files whose `version` / `target.game_patch` is `<new>` (the adapter checks them against the facts). Never edit the 0.5.5.5 policies: `release/0.5.5.5-2/`, `release/0.5.5.5-3/` and the adapter tests pin their bytes |
 | Policy templates (`rebind`, `expect`) | New `expect` pins of the rebound policies |
 | `packages.ordinary`, `packages.crafting`, `facts` (including `identities`) | The new input packages and envelope |
-| `packages.previous` | `game/0.5.5.5-2` (the `reference` and the frozen `source`) |
+| `packages.previous` | `game/0.5.5.5-3` (the `reference` and the frozen `source`) |
 | `packages.legacy` and its `legacy:data/0.5.5.4.2/…` options, `historical-attributes-v1.json` | Unchanged: the 0.5.5.4.2 inputs (codec sources, historical trees) stay |
 | The snapshot template `previous:data/0.5.5.5/manifest.json` | A template with `poe_version` `<new>` (see step 0) |
 | `contract_version: "adapter"` and the `omit` of `i18n/`/`languages` | Unchanged |
-| `handoff/*` paths and tags in `release/0.5.5.5-2/` | Unchanged: they are historical and stay readable |
+| `handoff/*` paths and tags in `release/0.5.5.5-2/` and `release/0.5.5.5-3/` | Unchanged: they are historical and stay readable |
 
-Keep `release/0.5.5.5-2/` while it still reproduces; CI builds both.
+Keep `release/0.5.5.5-2/` and `release/0.5.5.5-3/` while they still reproduce;
+CI builds every declaration.
 
 ### 4. Build, check and dry-run
 

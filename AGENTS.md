@@ -22,8 +22,8 @@ defined once, in PoBR's
 
 | Repository | Owns |
 | --- | --- |
-| `ackness/repoe` (here) | Client acquisition and decoding, native facts, `tools/pobr-data-adapter` and its policies, the `game/<patch>-<n>` Releases |
-| [`ackness/poe2-zh-cn-stats`](https://github.com/ackness/poe2-zh-cn-stats) | Term templates, translations, the `locale/<patch>-<n>` Releases and their support display |
+| `ackness/repoe` (here) | Client acquisition and decoding, native facts, `tools/pobr-data-adapter` and its policies, the `game/<patch>-<n>` and `inputs/<patch>-<n>` Releases |
+| [`ackness/poe2-zh-cn-stats`](https://github.com/ackness/poe2-zh-cn-stats) | Term templates, translations and the `locale/<patch>-<n>` Releases |
 | [`ackness/pobr`](https://github.com/ackness/pobr) | Data contracts (`contract/*` tags), stat meaning, the engine and app; pins both owners' Releases in `pipeline/data.lock.json` |
 
 ## Layout
