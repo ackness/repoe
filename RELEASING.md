@@ -214,7 +214,11 @@ pin these):
 default and Traditional Chinese `GemEffects`, `ActiveSkills` and
 `MonsterVarieties` tables as
 `display-tables/{default,traditional-chinese}/{tables,source-lock,manifest}.json`.
-Only `china_text` has the allowlist check above.
+It has no capture members: the tables come from `tables:candidate` on a source
+lock of the international CDN (`patch-poe2.poecdn.com`, sources `intl-default`
+and `intl-traditional-chinese`), packaged with
+`release:inputs -- --realm international --package intl_text=<dir>`. Only
+`china_text` has the allowlist check above.
 
 ## Frozen inputs and how to replace one
 
@@ -349,8 +353,8 @@ and `mise run release:publish -- --yes`.
 ### 6. Language owner and PoBR
 
 The translation repository publishes `locale/<new>-<m>` for the same target,
-with its display texts and a support-display publication bound to the new
-trade catalog
+with its display texts, gem descriptions and monster names built from
+`game/<new>-<n>` and the `inputs/<new>-<k>` client-text Releases
 ([its RELEASING.md](https://github.com/ackness/poe2-zh-cn-stats/blob/main/RELEASING.md)).
 Then in `ackness/pobr`:
 

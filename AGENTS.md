@@ -59,7 +59,7 @@ from the edit.
 
 | What | Why |
 | --- | --- |
-| `release/` (directory names and files) | Each declaration is a claim CI rebuilds; the fresh root manifest embeds the declaration path (`release/0.5.5.5-2/frozen-inputs.json`), so moving it changes the zip |
+| `release/` (directory names and files) | Each declaration is a claim CI rebuilds; the fresh root manifest embeds the declaration path (`release/0.5.5.5-3/frozen-inputs.json`), so moving it changes the zip |
 | `schema/` | `SHA256SUMS` and the native exporters pin `poe2.json`; update it only by the procedure in [schema/README.md](schema/README.md) |
 | Adapter policies (`tools/pobr-data-adapter/policies/**`), including the `/Users/claw/...` strings in the passive-tree policies | Declarations, receipts and adapter tests pin their bytes; those strings are recorded provenance, not configuration. A change is a new policy file |
 | Historical producer identities: the producer map in `src/facts/trust.rs`, `tests/fixtures/ordinary-facts/*-producer*.json`, `tests/fixtures/native-facts/player-context-manifest.json`, `HISTORICAL_PRODUCERS` in `RePoE/release/crafting_catalog.py` | Keyed by the `RePoE/native_*.py` paths of the commits that sealed the pinned packages; a new export adds its identity beside them ([fixed producer identities](tools/pobr-data-adapter/tests/fixtures/ordinary-facts/README.md#fixed-producer-identities)) |
@@ -143,6 +143,8 @@ tests) are not run by CI; state when they were skipped.
 - Merge with a merge commit, once the branch is up to date with master and CI
   passed on its head. Releases and tags are published from master only
   ([RELEASING.md](RELEASING.md)).
-- Code, comments and documentation are in English; `README.zh-CN.md` mirrors
+- Code, comments and documentation are in English (the Chinese gem-quality
+  policy notes under `tools/pobr-data-adapter/policies/gem-quality/` are an
+  older exception); `README.zh-CN.md` mirrors
   `README.md` in Simplified Chinese, with the language switcher under both
   titles.

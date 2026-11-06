@@ -127,7 +127,7 @@ Which paths are upstream, where new code goes and which files must keep their by
 | PoBR runtime domains | [Ordinary-facts domains](tools/pobr-data-adapter/docs/ordinary-facts.md), one `docs/ordinary-<domain>.md` each |
 | Legacy JSON formats | [Stats](RePoE/docs/stats.md), [mods](RePoE/docs/mods.md), [items](RePoE/docs/base_items.md), [gems](RePoE/docs/gems.md), [augments](RePoE/docs/augments.md), and [other domain files](RePoE/docs/README.md#legacy-json-formats-repoeparser) |
 
-Apart from [README.zh-CN.md](README.zh-CN.md), the documentation is in English.
+Apart from [README.zh-CN.md](README.zh-CN.md) and the [gem-quality policy notes](tools/pobr-data-adapter/policies/gem-quality/README.md), the documentation is in English.
 
 ## Upstream and credits
 

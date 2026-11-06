@@ -127,7 +127,7 @@ RePoE/data/                   旧版导出的默认目录；Git 忽略
 | PoBR 运行时领域 | [ordinary-facts 领域](tools/pobr-data-adapter/docs/ordinary-facts.md)，每个领域一个 `docs/ordinary-<domain>.md` |
 | 旧版 JSON 格式 | [属性](RePoE/docs/stats.md)、[词缀](RePoE/docs/mods.md)、[物品](RePoE/docs/base_items.md)、[宝石](RePoE/docs/gems.md)、[augments](RePoE/docs/augments.md)，以及[其他领域文件](RePoE/docs/README.md#legacy-json-formats-repoeparser) |
 
-文档（除本页外）均为英文。
+除本页与[宝石品质 policy 说明](tools/pobr-data-adapter/policies/gem-quality/README.md)外，文档均为英文。
 
 ## 上游与致谢
 
