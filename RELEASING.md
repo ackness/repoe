@@ -201,6 +201,13 @@ the owner's declared target. Publishing a second input batch for the same patch
 (for example the international Traditional Chinese tables) needs a new master
 commit, because `--yes` never gives one commit a second `inputs/` number.
 
+Published China inputs (the translation repository's `official_*` jobs pin
+these):
+
+| Tag | Asset | Bytes | SHA-256 | Root manifest SHA-256 |
+| --- | --- | --- | --- | --- |
+| `inputs/0.5.5.5-1` | `repoe-input-china_text-0.5.5.5.zip` | 20301700 | `56dd27a77fad3c505188f7f696db7763ca28436725db454a4360cdbd4e1ce234` | `90806f0996568683b775a3d88fec847a83fd65a60026bca0427c3e90da50c333` |
+
 ## Frozen inputs and how to replace one
 
 `frozen-inputs.json` lists each member still copied from an earlier package,
