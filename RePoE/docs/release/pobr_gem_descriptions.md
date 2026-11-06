@@ -5,7 +5,9 @@ English description of every player gem, for PoBR's data contract 1.3 (defined i
 PoBR's [data architecture](https://github.com/ackness/pobr/blob/master/docs/data-architecture.md#3-发布与导入契约)).
 `mise run release:build` runs it as the `gem-descriptions` job, only in a
 declaration that lists it (`release/0.5.5.5-3/` onwards); `release/0.5.5.5-2/`
-has no such job and still reproduces `game/0.5.5.5-2` byte for byte.
+has no such job and still reproduces `game/0.5.5.5-2` byte for byte. The job
+is Python in this repository and needs no `pobr-data` code, so the adapter stays
+pinned to `contract/1.1`; `contract/1.3` only adds the optional file and scopes.
 
 PoBR's English web loads no language package, so the English text has to come
 from the game package. The translations are the language owner's: the

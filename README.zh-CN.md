@@ -118,16 +118,16 @@ RePoE/data/                   旧版导出的默认目录；Git 忽略
 
 | 主题 | 文档 |
 | --- | --- |
-| 客户端获取与补丁观测 | [来源](RePoE/docs/client/client-sources.md)、[版本](RePoE/docs/client/client-version.md)、[草稿](RePoE/docs/client/client-source-draft.md)、[查找](RePoE/docs/client/client-index.md)、[校验](RePoE/docs/client/source-rebinding.md) |
+| 客户端获取与补丁观测 | [来源](RePoE/docs/client/client-sources.md)、[版本](RePoE/docs/client/client-version.md)、[草稿](RePoE/docs/client/client-source-draft.md)、[查找](RePoE/docs/client/client-index.md)、[校验](RePoE/docs/client/source-rebinding.md)、[本地捕获](RePoE/docs/client/client-capture.md) |
 | 原生技能与宝石 | [基础事实](RePoE/docs/native/native_facts.md)、[核心技能](RePoE/docs/native/native_core_skills.md)、[宝石约束](RePoE/docs/native/native_gems.md) |
 | 物品与角色 | [物品／角色事实](RePoE/docs/native/native_items_actors.md)、[物品继承](RePoE/docs/native/native_item_inheritance.md)、[角色模板](RePoE/docs/native/native_actor_templates.md)、[玩家上下文](RePoE/docs/native/native_player_context.md) |
-| 描述与语言 | [CSD 分支](RePoE/docs/native/native_descriptions.md)、[补充／本地化表](RePoE/docs/native/native_tables.md)、[描述关系](RePoE/docs/native/description_relations.md) |
+| 描述与语言 | [CSD 分支](RePoE/docs/native/native_descriptions.md)、[补充／本地化表](RePoE/docs/native/native_tables.md)、[描述关系](RePoE/docs/native/description_relations.md)、[英文宝石说明](RePoE/docs/release/pobr_gem_descriptions.md) |
 | 制作与天赋树 | [制作事实](RePoE/docs/native/native_crafting_facts.md)、[PoBR 制作目录](RePoE/docs/release/pobr_crafting_catalog.md)、[历史天赋树选择器](RePoE/docs/release/pobr_historical_trees.md) |
 | PoBR 运行时转换 | [适配器模式](tools/pobr-data-adapter/README.md)与[领域 policy](tools/pobr-data-adapter/policies/README.md) |
 | PoBR 运行时领域 | [ordinary-facts 领域](tools/pobr-data-adapter/docs/ordinary-facts.md)，每个领域一个 `docs/ordinary-<domain>.md` |
 | 旧版 JSON 格式 | [属性](RePoE/docs/stats.md)、[词缀](RePoE/docs/mods.md)、[物品](RePoE/docs/base_items.md)、[宝石](RePoE/docs/gems.md)、[augments](RePoE/docs/augments.md)，以及[其他领域文件](RePoE/docs/README.md#legacy-json-formats-repoeparser) |
 
-文档（除本页外）均为英文。
+除本页与[宝石品质 policy 说明](tools/pobr-data-adapter/policies/gem-quality/README.md)外，文档均为英文。
 
 ## 上游与致谢
 
