@@ -316,6 +316,14 @@ class Package:
     def read(self, member):
         return pinned(self.path(member).read_bytes(), self.members[member])
 
+    @property
+    def game_patch(self):
+        """The package's declared patch, independent of its asset name or the build target."""
+        patch = decode(self.read("manifest.json")).get("target", {}).get("game_patch")
+        require(isinstance(patch, str) and patch, f"{self.name}: manifest.json has no target.game_patch")
+        require(len(relative(patch).parts) == 1, f"{self.name}: invalid target.game_patch {patch!r}")
+        return patch
+
 
 def open_package(repo, name, spec, cache, fetch):
     if assets.is_release(spec):
@@ -345,44 +353,59 @@ def open_package(repo, name, spec, cache, fetch):
 
 
 def prepare_facts(package, spec, cache):
-    """Verify the portable source envelope; return both facts identities it supports.
+    """Verify a fresh facts root or the historical portable source envelope.
 
-    ``rebound`` is the envelope's facts root. ``original`` is the same payload
-    bytes with the original manifest and source lock that the envelope proves
-    (``payload_byte_equivalence``); domains first produced before the F3 source
-    lock correction embed that identity.
+    A fresh root has one identity, exposed as both ``original`` and ``rebound``.
+    The envelope's ``original`` uses the same payload bytes with the original
+    manifest and source lock that it proves (``payload_byte_equivalence``);
+    domains first produced before the F3 source lock correction embed that identity.
     """
-    handoff_raw = package.read(spec["handoff"])
-    handoff = decode(handoff_raw)
-    archive = package.path(spec["archive"])
-    root = cache / "facts" / handoff["archive"]["sha256"]
-    if not (root / ".complete").is_file():
-        shutil.rmtree(root, ignore_errors=True)
-        stage = root.with_name(root.name + ".partial")
-        shutil.rmtree(stage, ignore_errors=True)
-        stage.mkdir(parents=True)
-        source_rebinding.verify(archive, handoff, stage / "source")
-        original = stage / "original"
-        shutil.copytree(stage / "source" / "facts", original)
-        for name, provenance in (
-            ("manifest.json", "original-manifest.json"),
-            ("source-lock.json", "original-source-lock.json"),
-        ):
-            (original / name).unlink()
-            shutil.copyfile(stage / "source" / "provenance" / provenance, original / name)
-        (stage / ".complete").write_text(handoff["archive"]["sha256"] + "\n")
-        stage.rename(root)
-    roots = {
-        "rebound": (root / "source" / "facts", handoff["facts_manifest"]),
-        "original": (root / "original", handoff["original"]["manifest"]),
-    }
+    handoff_pin = archive_pin = None
+    if "root" in spec:
+        require(not {"handoff", "archive"} & set(spec), "Facts root cannot also declare a handoff/archive")
+        root = package.directory(spec["root"])
+        manifest_raw = package.read(spec["root"] + "/manifest.json")
+        manifest = decode(manifest_raw)
+        require(
+            manifest.get("format") == "repoe-native-facts/v4"
+            and manifest.get("status") == "partial-candidate"
+            and manifest.get("production_ready") is False,
+            "Expected a facts:candidate root",
+        )
+        roots = {identity: (root, pin(manifest_raw)) for identity in FACTS_IDENTITIES}
+    else:
+        handoff_raw = package.read(spec["handoff"])
+        handoff = decode(handoff_raw)
+        archive = package.path(spec["archive"])
+        handoff_pin, archive_pin = pin(handoff_raw), handoff["archive"]
+        root = cache / "facts" / handoff["archive"]["sha256"]
+        if not (root / ".complete").is_file():
+            shutil.rmtree(root, ignore_errors=True)
+            stage = root.with_name(root.name + ".partial")
+            shutil.rmtree(stage, ignore_errors=True)
+            stage.mkdir(parents=True)
+            source_rebinding.verify(archive, handoff, stage / "source")
+            original = stage / "original"
+            shutil.copytree(stage / "source" / "facts", original)
+            for name, provenance in (
+                ("manifest.json", "original-manifest.json"),
+                ("source-lock.json", "original-source-lock.json"),
+            ):
+                (original / name).unlink()
+                shutil.copyfile(stage / "source" / "provenance" / provenance, original / name)
+            (stage / ".complete").write_text(handoff["archive"]["sha256"] + "\n")
+            stage.rename(root)
+        roots = {
+            "rebound": (root / "source" / "facts", handoff["facts_manifest"]),
+            "original": (root / "original", handoff["original"]["manifest"]),
+        }
     for identity, (facts, manifest_pin) in roots.items():
         require(file_pin(facts / "manifest.json") == manifest_pin, f"{identity} facts manifest changed")
         manifest = decode((facts / "manifest.json").read_bytes())
         for name, expected in manifest["files"].items():
             require(file_pin(facts / relative(name)) == expected, f"{identity} facts member changed: {name}")
     require(spec["identities"] == {k: v[1]["sha256"] for k, v in roots.items()}, "Facts identities differ from lock")
-    return {"handoff": pin(handoff_raw), "archive": handoff["archive"], "roots": roots}
+    return {"handoff": handoff_pin, "archive": archive_pin, "roots": roots}
 
 
 # --- jobs ----------------------------------------------------------------------------------------
@@ -676,7 +699,14 @@ def snapshot_manifest(ctx, job, members):
     """
     template = decode(ctx.resolve(job["template"], job).read_bytes())
     prefix = f"data/{ctx.target['game_patch']}/"
-    require(template.get("poe_version") == ctx.target["game_patch"], f"{job['id']}: template version mismatch")
+    if template.get("poe_version") != ctx.target["game_patch"]:
+        source = ctx.packages.get(job["template"].partition(":")[0])
+        require(
+            source is not None and template.get("poe_version") == source.game_patch,
+            f"{job['id']}: template version mismatch",
+        )
+        # Future carried_from evidence belongs here, where the source patch is known.
+        template["poe_version"] = ctx.target["game_patch"]
     own = {m[len(prefix) :] for m in members if m.startswith(prefix)}
     omit = job.get("omit", {})
     require(set(omit) <= {"entries", "fields"}, f"{job['id']}: unknown omit keys {sorted(set(omit))}")
@@ -898,7 +928,7 @@ def build(
     packages = {key: open_package(repo, key, spec, cache / "inputs", fetch) for key, spec in lock["packages"].items()}
     facts = None
     if "facts" in lock:
-        log("verifying the portable facts envelope")
+        log("verifying the facts input")
         facts = prepare_facts(packages[lock["facts"]["package"]], lock["facts"], cache / "inputs")
     ctx = Context(target, packages, facts, work, adapter, policies)
     prefix = f"data/{target['game_patch']}/"
@@ -925,10 +955,13 @@ def build(
         }
 
     source = packages[frozen["source"]]
+    source_prefix = f"data/{source.game_patch}/" if any(m.startswith(prefix) for m in frozen["members"]) else prefix
     for member, entry in frozen["members"].items():
         if member in ctx.members:
             raise ValueError(f"{member} is both generated and frozen")
-        raw = source.read(member)
+        # Future carried_from evidence belongs with this source-member mapping.
+        source_member = source_prefix + member[len(prefix) :] if member.startswith(prefix) else member
+        raw = source.read(source_member)
         require(pin(raw) == {"bytes": entry["bytes"], "sha256": entry["sha256"]}, f"Frozen bytes changed: {member}")
         ctx.members[member] = (raw, "frozen")
 

@@ -376,6 +376,109 @@ class ReleaseBuildTest(unittest.TestCase):
         self.assertTrue(receipt["reference"]["members_identical"])
         self.assertFalse(outcome["package"]["identical_to_reference"])
 
+    def test_fresh_facts_root_builds_with_one_pinned_identity(self):
+        from RePoE.release import inputs
+
+        payloads = {"source-lock.json": encoded({"schema_version": 1}), "tables/Stats.json": b"[]\n"}
+        manifest_raw = encoded(
+            {
+                "format": "repoe-native-facts/v4",
+                "status": "partial-candidate",
+                "production_ready": False,
+                "source_identity": TARGET,
+                "files": {name: pin(raw) for name, raw in payloads.items()},
+            }
+        )
+        config = self.fixture()
+        source = self.root / "ordinary"
+        for name, raw in {**payloads, "manifest.json": manifest_raw}.items():
+            build.write_new(source / "facts" / name, raw)
+        build.write_new(source / "codec/a.json", self.codec)
+        staged = inputs.stage({"ordinary": source}, TARGET, self.root / "stage")
+        entry = inputs.lock_entries(staged, "inputs/9.9-1")["ordinary"]
+        cache = self.root / "cache"
+        build.write_new(
+            cache / "inputs/downloads" / entry["sha256"], (staged["directory"] / "assets" / entry["asset"]).read_bytes()
+        )
+        lock = json.loads((config / "inputs.lock.json").read_text())
+        lock["packages"]["inputs"] = entry
+        identities = dict.fromkeys(build.FACTS_IDENTITIES, pin(manifest_raw)["sha256"])
+        lock["facts"] = {"package": "inputs", "root": "facts", "identities": identities}
+        (config / "inputs.lock.json").write_text(json.dumps(lock))
+        (self.policies / "p.json").write_bytes(runtime({"target": {"facts_manifest_sha256": identities["original"]}}))
+        domains = json.loads((config / "domains.json").read_text())
+        for identity in build.FACTS_IDENTITIES:
+            with self.subTest(identity=identity):
+                domains["jobs"][0]["facts"] = identity
+                (config / "domains.json").write_text(json.dumps(domains))
+                out, receipt, outcome = build.build(
+                    config,
+                    out=self.root / "out",
+                    adapter=self.adapter,
+                    cache=cache,
+                    repo=self.repo,
+                    policies=self.policies,
+                )
+                self.assertTrue(outcome["package"]["identical_to_reference"])
+                self.assertEqual(receipt["inputs"]["facts"]["identities"], dict.fromkeys(identities, pin(manifest_raw)))
+                self.assertIsNone(receipt["inputs"]["facts"]["handoff"])
+                self.assertIsNone(receipt["inputs"]["facts"]["archive"])
+        package = build.open_package(self.repo, "inputs", entry, cache / "inputs", False)
+        for change, message in (
+            ({"identities": {**identities, "original": ORIGINAL}}, "Facts identities differ from lock"),
+            ({"handoff": "handoff.json"}, "cannot also declare a handoff/archive"),
+            ({"root": "../facts"}, "Unsafe member path"),
+        ):
+            with self.subTest(change=change), self.assertRaisesRegex(ValueError, message):
+                build.prepare_facts(package, {**lock["facts"], **change}, cache)
+        (package.root / "facts/tables/Stats.json").write_bytes(b"changed")
+        with self.assertRaisesRegex(ValueError, "facts member changed: tables/Stats.json"):
+            build.prepare_facts(package, lock["facts"], cache)
+
+    def test_new_patch_maps_frozen_members_and_accepts_only_the_source_snapshot_version(self):
+        config = self.fixture()
+        target = {**TARGET, "game_patch": "10.2.3"}
+        for name in build.SCHEMAS:
+            path = config / name
+            document = json.loads(path.read_text().replace("data/9.9/", "data/10.2.3/"))
+            document["target"] = target
+            if name == "domains.json":
+                document["jobs"][1]["template"] = "previous:data/9.9/manifest.json"
+            path.write_text(json.dumps(document))
+        out, _, _ = self.run_build(config)
+        with zipfile.ZipFile(out / "game-build-part.zip") as archive:
+            self.assertEqual(archive.read("data/10.2.3/overlay/frozen.json"), self.frozen)
+            self.assertEqual(json.loads(archive.read("data/10.2.3/manifest.json"))["poe_version"], "10.2.3")
+        frozen_path = config / "frozen-inputs.json"
+        frozen = json.loads(frozen_path.read_text())
+        frozen["members"]["data/10.2.3/overlay/frozen.json"]["sha256"] = "0" * 64
+        frozen_path.write_text(json.dumps(frozen))
+        with self.assertRaisesRegex(ValueError, "Frozen bytes changed: data/10.2.3/overlay/frozen.json"):
+            self.run_build(config)
+        # A template's own version must match its source package, even if its path looks right.
+        with self.assertRaisesRegex(ValueError, "snapshot: template version mismatch"):
+            self.run_build(self.fixture(snapshot_fields={"poe_version": "8.8"}))
+
+    def test_unversioned_frozen_members_do_not_require_a_source_patch(self):
+        config = self.fixture()
+        domains_path = config / "domains.json"
+        domains = json.loads(domains_path.read_text())
+        domains["jobs"] = domains["jobs"][:1]
+        domains_path.write_text(json.dumps(domains))
+        frozen_path = config / "frozen-inputs.json"
+        frozen = json.loads(frozen_path.read_text())
+        entry = next(iter(frozen["members"].values()))
+        frozen["source"] = "inputs"
+        for members in ({}, {"codec/a.json": {**entry, **pin(self.codec)}}):
+            with self.subTest(members=list(members)):
+                frozen["members"] = members
+                frozen_path.write_text(json.dumps(frozen))
+                out, _, _ = self.run_build(config)
+                with zipfile.ZipFile(out / "game-build-part.zip") as archive:
+                    self.assertEqual("codec/a.json" in archive.namelist(), bool(members))
+                    if members:
+                        self.assertEqual(archive.read("codec/a.json"), self.codec)
+
     def test_passthrough_members_are_counted_separately(self):
         restamped = runtime({"_meta": {"generator": "restamped"}, "value": 1})
         for domain, carried, published in (

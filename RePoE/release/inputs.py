@@ -3,7 +3,8 @@
 Each ``--package NAME=DIR`` becomes one deterministic zip,
 ``repoe-input-<NAME>-<patch>.zip``: every regular file under ``DIR`` at its
 relative path, plus a root ``manifest.json`` (``repoe-release-input/v1``)
-pinning each file. The bytes depend only on the files, never on timestamps,
+pinning each file. A ``crafting`` package keeps its exporter's root manifest.
+The bytes depend only on the files, never on timestamps,
 the checkout or the commit. ``SHA256SUMS`` pins the zips. The command prints
 (and stages as ``lock.json``) the ``inputs.lock.json`` package entries that
 pin each zip as a Release asset, so ``release:build`` reads them by
@@ -19,15 +20,17 @@ draft). See RELEASING.md.
 """
 
 import argparse
+from contextlib import contextmanager
+import io
 import os
 from pathlib import Path
 import re
-import shutil
 import stat
+import tempfile
 import zipfile
 
 from RePoE.release.pins import archive_manifest, decode, encoded, pin, relative, require
-from RePoE.release import build, publish
+from RePoE.release import build, crafting_catalog, publish
 
 SCHEMA = "repoe-release-input/v1"
 TAG_PREFIX = "inputs/"
@@ -43,6 +46,13 @@ CHINA_MEMBERS = CHINA_CAPTURE | {
     f"{directory}/{member}"
     for directory, (_, payloads) in CHINA_CANDIDATES.items()
     for member in (*payloads, "source-lock.json", "manifest.json")
+}
+CANDIDATE_FORMATS = {
+    "repoe-native-facts/v4",
+    "repoe-item-inheritance/v1",
+    "repoe-native-player-context/v1",
+    crafting_catalog.FORMAT,
+    *(format_ for format_, _ in CHINA_CANDIDATES.values()),
 }
 
 
@@ -109,8 +119,41 @@ def collect(directory, package_name=None):
     require(files, f"{directory}: no files")
     if package_name == "china_text":
         validate_china_text(files)
-    require("manifest.json" not in files, f"{directory}: manifest.json is reserved for the package manifest")
+    require(
+        package_name == "crafting" or "manifest.json" not in files,
+        f"{directory}: manifest.json is reserved for the package manifest",
+    )
     return dict(sorted(files.items()))
+
+
+def validate_targets(archive, target, directory):
+    """Check candidate identities, including the facts inside a historical envelope zip."""
+
+    def check(raw, member):
+        try:
+            document = decode(raw)
+        except (ValueError, UnicodeError) as error:
+            raise ValueError(f"{member}: invalid JSON: {error}") from error
+        if not isinstance(document, dict):
+            return
+        if document.get("format") not in CANDIDATE_FORMATS and "source_identity" not in document:
+            return
+        identity = document.get("source_identity")
+        if not isinstance(identity, dict):
+            identity = {}
+        for key, expected in target.items():
+            actual = identity.get(key)
+            require(actual == expected, f"{member}: source_identity.{key}: expected {expected!r}, actual {actual!r}")
+
+    for member in archive.namelist():
+        path = Path(directory).absolute() / member
+        if member.endswith("manifest.json"):
+            check(archive.read(member), str(path))
+        elif member.endswith(".zip"):
+            with zipfile.ZipFile(io.BytesIO(archive.read(member))) as nested:
+                for name in nested.namelist():
+                    if name.endswith("manifest.json"):
+                        check(nested.read(name), f"{path}!{name}")
 
 
 def package(name, directory, target, out):
@@ -118,44 +161,81 @@ def package(name, directory, target, out):
     require(NAME.fullmatch(name), f"Invalid input package name: {name!r} (it becomes the lock key)")
     files = collect(directory, name)
     pins = {member: build.file_pin(path) for member, path in files.items()}
-    manifest_raw = encoded({"schema": SCHEMA, "name": name, "target": target, "files": pins})
+    extra = {}
+    if name == "crafting":
+        require("manifest.json" in files, f"{directory}: crafting requires its exported manifest.json")
+        manifest_raw = files["manifest.json"].read_bytes()
+        manifest = decode(manifest_raw)
+        extra = {
+            "publication": "published",
+            "producer": manifest["producer"],
+            "input_manifest": manifest["input_package"]["manifest"],
+        }
+    else:
+        manifest_raw = encoded({"schema": SCHEMA, "name": name, "target": target, "files": pins})
     path = Path(out) / asset_name(name, target["game_patch"])
-    build.write_zip(path, {"manifest.json": manifest_raw, **files})
+    build.write_zip(path, {**files, "manifest.json": manifest_raw})
     spec = {
         "asset": path.name,
         **build.file_pin(path),
         "manifest": pin(manifest_raw),
-        "expanded_bytes": len(manifest_raw) + sum(value["bytes"] for value in pins.values()),
+        "expanded_bytes": len(manifest_raw) + sum(p["bytes"] for n, p in pins.items() if n != "manifest.json"),
+        **extra,
     }
     with zipfile.ZipFile(path) as archive:
+        validate_targets(archive, target, directory)
         # The files must not have changed while they were read.
-        _, manifest = archive_manifest(archive, spec)
-        for member, expected in manifest["files"].items():
-            require(pin(archive.read(member)) == expected, f"{name}: {member} changed while packaging")
+        if name == "crafting":
+            crafting_catalog.facts_document(archive, {"repository": publish.REPOSITORY, **spec}, target)
+        else:
+            _, manifest = archive_manifest(archive, spec)
+            for member, expected in manifest["files"].items():
+                require(pin(archive.read(member)) == expected, f"{name}: {member} changed while packaging")
     return spec
 
 
-def stage(packages, target, out):
+def stage(packages, target, out, tag=None):
     """Package every ``{name: directory}`` into ``out/assets`` with ``SHA256SUMS``; no network or Git."""
+    with staging(packages, target, out, tag) as staged:
+        return staged
+
+
+@contextmanager
+def staging(packages, target, out, tag=None):
+    """Keep the previous stage until the caller finishes validating its replacement."""
     out = Path(out)
     for directory in packages.values():
         source, target_dir = Path(directory).resolve(), out.resolve()
         require(not target_dir.is_relative_to(source), f"The stage {out} is inside the input {directory}")
         require(not source.is_relative_to(target_dir), f"The input {directory} is inside the stage {out}")
-    # Refuse unsafe China inputs before creating or replacing any staged assets.
-    if "china_text" in packages:
-        collect(packages["china_text"], "china_text")
     if out.exists():
         require((out / publish.MARKER).is_file(), f"Refusing to replace a non-publish directory: {out}")
-        shutil.rmtree(out)
-    assets = out / "assets"
-    assets.mkdir(parents=True)
-    (out / publish.MARKER).write_text("generated by RePoE.release.inputs\n")
-    specs = {name: package(name, directory, target, assets) for name, directory in sorted(packages.items())}
-    pins = {spec["asset"]: {k: spec[k] for k in ("bytes", "sha256")} for spec in specs.values()}
-    (assets / "SHA256SUMS").write_text(publish.sha256sums({name: value["sha256"] for name, value in pins.items()}))
-    pins["SHA256SUMS"] = build.file_pin(assets / "SHA256SUMS")
-    return {"directory": out, "assets": dict(sorted(pins.items())), "packages": specs, "target": target}
+    out.parent.mkdir(parents=True, exist_ok=True)
+    with tempfile.TemporaryDirectory(prefix=f".{out.name}-", dir=out.parent) as temporary:
+        pending, previous = Path(temporary) / "pending", Path(temporary) / "previous"
+        assets = pending / "assets"
+        assets.mkdir(parents=True)
+        (pending / publish.MARKER).write_text("generated by RePoE.release.inputs\n")
+        specs = {name: package(name, directory, target, assets) for name, directory in sorted(packages.items())}
+        pins = {spec["asset"]: {k: spec[k] for k in ("bytes", "sha256")} for spec in specs.values()}
+        (assets / "SHA256SUMS").write_text(publish.sha256sums({name: value["sha256"] for name, value in pins.items()}))
+        pins["SHA256SUMS"] = build.file_pin(assets / "SHA256SUMS")
+        staged = {"directory": out, "assets": dict(sorted(pins.items())), "packages": specs, "target": target}
+        if tag is not None:
+            (pending / "release-notes.md").write_text(release_body(staged, tag))
+            (pending / "tag-message.txt").write_text(tag_message(staged, tag))
+            (pending / "lock.json").write_bytes(build.runtime_encoded(lock_entries(staged, tag)))
+        if out.exists():
+            out.rename(previous)
+        try:
+            pending.rename(out)
+            yield staged
+        except BaseException:
+            if out.exists():
+                out.rename(pending)
+            if previous.exists():
+                previous.rename(out)
+            raise
 
 
 def lock_entries(staged, tag, repository=publish.REPOSITORY):
@@ -168,7 +248,8 @@ def release_body(staged, tag):
     lines = [
         f"RePoE release inputs for {target['game']} {target['game_patch']} ({target['realm']}).",
         "",
-        "Each zip holds one input package and a root `manifest.json` (`repoe-release-input/v1`) pinning its files:",
+        "Each zip holds one input package and a root `manifest.json` pinning its files "
+        "(`repoe-release-input/v1`, or the crafting export's own manifest):",
         "",
     ]
     for name, spec in staged["packages"].items():
@@ -226,17 +307,15 @@ def main(argv=None, runner=None):
             problems.append(problem)
         if args.yes and (problems or warnings):
             parser.exit(1, "release:inputs: refusing to publish:\n" + publish.bullets(problems + warnings))
-        staged = stage(packages, target, args.stage / f"inputs-{args.game}-{args.realm}-{args.patch}")
         sequence = decision["sequence"]
         tag = publish.tag_name(args.patch, sequence if sequence is not None else "<n>", TAG_PREFIX)
-        directory = staged["directory"]
-        (directory / "release-notes.md").write_text(release_body(staged, tag))
-        (directory / "tag-message.txt").write_text(tag_message(staged, tag))
-        (directory / "lock.json").write_bytes(build.runtime_encoded(lock_entries(staged, tag)))
-        steps, action = publish.release_steps(run, staged, tag, commit, decision["action"])
+        with staging(packages, target, args.stage / f"inputs-{args.game}-{args.realm}-{args.patch}", tag) as staged:
+            directory = staged["directory"]
+            steps, action = publish.release_steps(run, staged, tag, commit, decision["action"])
     except (ValueError, KeyError, TypeError, OSError, zipfile.BadZipFile) as error:
         parser.exit(1, f"release:inputs: {error}\n")
     print(f"inputs.lock.json packages: {build.display(directory / 'lock.json')}")
+    print(build.runtime_encoded(lock_entries(staged, tag)).decode(), end="")
     if steps is None:
         print(f"already published: {tag} names HEAD and its Release assets equal the staged ones")
         return

@@ -11,8 +11,9 @@ from unittest import mock
 import zipfile
 
 from RePoE.release.pins import decode, encoded, pin
-from RePoE.release import assets, build, inputs, publish
+from RePoE.release import assets, build, crafting_catalog, inputs, publish
 from tests.release.test_build import serve
+from tests.release.test_crafting_catalog import crafting_package, fixture as crafting_fixture
 from tests.release.test_publish import GitRepoCase, Runner, git
 
 TARGET = {"game": "poe2", "game_patch": "9.9", "realm": "international"}
@@ -44,7 +45,11 @@ def china_files():
         payloads = {**payloads, "source-lock.json": b'{"schema_version": 1}\n'}
         files.update({f"{directory}/{name}": raw for name, raw in payloads.items()})
         files[f"{directory}/manifest.json"] = encoded(
-            {"format": format_, "files": {name: pin(raw) for name, raw in payloads.items()}}
+            {
+                "format": format_,
+                "source_identity": {**TARGET, "realm": "china"},
+                "files": {name: pin(raw) for name, raw in payloads.items()},
+            }
         )
     return files
 
@@ -90,6 +95,66 @@ class PackageTest(unittest.TestCase):
         self.assertEqual(package.read("supplement/b/c.json"), b"[1]\n")
         # open_package downloaded through assets.fetch; the cache holds the verified bytes.
         self.assertEqual((self.root / "cache/downloads" / entry["sha256"]).read_bytes(), raw)
+
+    def test_crafting_export_keeps_its_manifest_and_supplies_the_build_lock_fields(self):
+        facts = crafting_fixture()
+        expected, raw = crafting_package(facts, target=TARGET, producers=crafting_catalog.CURRENT_PRODUCERS)
+        with zipfile.ZipFile(io.BytesIO(raw)) as archive:
+            files = {name: archive.read(name) for name in archive.namelist()}
+        source = tree(self.root / "crafting", files)
+        staged = inputs.stage({"crafting": source}, TARGET, self.root / "crafting-stage", tag="inputs/9.9-1")
+        entry = json.loads((staged["directory"] / "lock.json").read_text())["crafting"]
+        assets.validate(entry)
+        for key in ("publication", "producer", "input_manifest", "manifest", "expanded_bytes"):
+            self.assertEqual(entry[key], expected[key])
+        archive_path = staged["directory"] / "assets" / entry["asset"]
+        with zipfile.ZipFile(archive_path) as archive:
+            self.assertEqual(archive.read("manifest.json"), files["manifest.json"])
+            self.assertEqual(crafting_catalog.facts_document(archive, entry, TARGET), facts)
+        build.write_new(self.root / "cache/downloads" / entry["sha256"], archive_path.read_bytes())
+        opened = build.open_package(None, "crafting", entry, self.root / "cache", False)
+        self.assertEqual(decode(opened.read("crafting.json")), facts)
+        (source / "crafting.json").write_bytes(b"changed")
+        with self.assertRaisesRegex(ValueError, "Member size mismatch|Byte pin mismatch"):
+            inputs.stage({"crafting": source}, TARGET, self.root / "refused-crafting")
+
+    def test_candidate_patch_and_realm_are_checked_in_every_package_and_envelope(self):
+        manifests = (
+            ("facts/manifest.json", "repoe-native-facts/v4"),
+            ("base-items/supplement/manifest.json", "repoe-item-inheritance/v1"),
+            ("passive-tree/supplement/manifest.json", "repoe-native-tables/v1"),
+            ("stat-descriptions/item-descriptions/manifest.json", "repoe-native-descriptions/v1"),
+            ("display-tables/traditional-chinese/manifest.json", "repoe-localized-tables/v1"),
+        )
+        for nested in (False, True):
+            for member, format_ in manifests:
+                for key, actual in (("game_patch", "8.8"), ("realm", "china"), ("game_patch", None)):
+                    with self.subTest(nested=nested, member=member, key=key, actual=actual):
+                        source = tree(self.root / "candidates", {"keep.json": b"{}"})
+                        identity = {**TARGET, key: actual}
+                        if actual is None:
+                            del identity[key]
+                        raw = encoded({"format": format_, "source_identity": identity})
+                        if nested:
+                            path = source / "ordinary-input.zip"
+                            with zipfile.ZipFile(path, "w") as archive:
+                                archive.writestr(member, raw)
+                            expected_file = f"{path}!{member}"
+                        else:
+                            tree(source, {member: raw})
+                            expected_file = str(source / member)
+                        with self.assertRaises(ValueError) as error:
+                            inputs.stage({"ordinary": source}, TARGET, self.root / "candidate-stage")
+                        self.assertIn(expected_file, str(error.exception))
+                        self.assertIn(f"expected {TARGET[key]!r}, actual {actual!r}", str(error.exception))
+                        if nested:
+                            path.unlink()
+                        else:
+                            (source / member).unlink()
+        # All supported candidates can share one target, including additional packages.
+        good = {member: encoded({"format": format_, "source_identity": TARGET}) for member, format_ in manifests}
+        source = tree(self.root / "valid-candidates", good)
+        inputs.stage({"ordinary": self.source, "supplements": source}, TARGET, self.root / "valid-stage")
 
     def test_refuses_dot_files_unreadable_directories_and_overlapping_stages(self):
         (self.source / ".complete").write_text("x")
@@ -206,7 +271,49 @@ class MainTest(GitRepoCase):
         self.assertEqual(runner.calls, [])
         lock = json.loads((self.stage / "inputs-poe2-international-9.9/lock.json").read_text())
         self.assertEqual(lock["ordinary"]["tag"], "inputs/9.9-1")
+        self.assertIn(build.runtime_encoded(lock).decode().rstrip(), output)
         assets.validate(lock["ordinary"])
+
+    def test_failed_packaging_keeps_the_previous_successful_stage(self):
+        code, output, _ = self.run_main()
+        self.assertEqual(code, 0, output)
+        directory = self.stage / "inputs-poe2-international-9.9"
+        before = {p.relative_to(directory): p.read_bytes() for p in directory.rglob("*") if p.is_file()}
+        (self.source / "a.json").write_bytes(b"new ordinary bytes")
+        invalid = tree(self.stage.parent / "invalid", {"manifest.json": b"{}"})
+        code, output, _ = self.run_main("--package", f"later={invalid}")
+        self.assertEqual(code, 1)
+        self.assertIn("manifest.json is reserved", output)
+        after = {p.relative_to(directory): p.read_bytes() for p in directory.rglob("*") if p.is_file()}
+        self.assertEqual(after, before)
+        for owner, function, error in (
+            (inputs, "release_body", OSError("notes failed")),
+            (publish, "release_steps", ValueError("Release assets differ")),
+        ):
+            with self.subTest(function=function), mock.patch.object(owner, function, side_effect=error):
+                code, output, _ = self.run_main()
+                self.assertEqual(code, 1)
+                self.assertIn(str(error), output)
+                self.assertEqual(
+                    {p.relative_to(directory): p.read_bytes() for p in directory.rglob("*") if p.is_file()}, before
+                )
+        rename = Path.rename
+
+        def fail_swap(path, target):
+            if path.name == "pending":
+                raise OSError("swap failed")
+            return rename(path, target)
+
+        with mock.patch.object(Path, "rename", fail_swap):
+            code, output, _ = self.run_main()
+        self.assertEqual(code, 1)
+        self.assertIn("swap failed", output)
+        self.assertEqual(
+            {p.relative_to(directory): p.read_bytes() for p in directory.rglob("*") if p.is_file()}, before
+        )
+        code, output, _ = self.run_main()
+        self.assertEqual(code, 0, output)
+        self.assertNotEqual((directory / "lock.json").read_bytes(), before[Path("lock.json")])
 
     def test_yes_publishes_with_the_next_number_and_never_reuses_one(self):
         git(self.repo, "tag", "-a", "-m", "earlier", "inputs/9.9-1", "HEAD")
