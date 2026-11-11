@@ -14,7 +14,7 @@ formulas and Rust defaults are unchanged.
   --codec-source /absolute/path/to/data/0.5.5.4.2/manifest.json \
   --codec-source-sha256 bfd31a4607da98af53b139ed101f31a67a3122e4520434fd2e3fda14672fcca4 \
   --codec-policy /absolute/path/to/tools/pobr-data-adapter/policies/runtime-constants/0.5.5.5-facts-compat-policy.json \
-  --codec-policy-sha256 49908ceb0454dac8904524e0a66cd16f9c0a038583b003f31a5cdc78483ee448 \
+  --codec-policy-sha256 266e063d9ed8b223ee2cb9b2c59ad3a0c30c9a42b040be0364c660d1fcdaaebd \
   --out /absolute/path/to/existing-parent/fresh-constants-candidate
 ```
 
@@ -179,7 +179,7 @@ assignments, and retain all unowned fields. Source acquisition status, domain
 candidate guard and CURRENT are unchanged.
 
 For the fixed player policy, replace the policy arguments in the command above
-with SHA256 `9ac98ee23cc3a77bd855b0614a7a5707b18100d731e340d7ad35ad8a2a7db5e7`
+with SHA256 `cbd85100bccd6a7f9707dad193b41b31a3e5de7194dc80466fd026ae2b1a8374`
 and add `--player-context /absolute/path/to/player-archive` and
 `--player-manifest-sha256 c0412e13d92141476cae28d7dc9b58db9ec74cc82c8084847af6fed62f141bd5`.
 The reader additionally selects `Characters`, `Stats`, `PassiveSkills` and

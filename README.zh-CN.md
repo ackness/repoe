@@ -2,7 +2,7 @@
 
 [English](README.md) | **简体中文**
 
-面向《流放之路》工具开发者的游戏数据。本 fork 维护 PoE2 客户端导出器和 [PoBR](https://github.com/ackness/pobr) 使用的游戏数据包，同时保留上游的 PoE1 与 PoE2 解析器。
+RePoE 为《流放之路》工具开发者提供游戏数据。本分支维护 PoE2 客户端导出器和 [PoBR](https://github.com/ackness/pobr) 使用的游戏数据包，同时保留上游的 PoE1 与 PoE2 解析器。
 
 RePoE 读取客户端资源，保留它们的身份与相互关系，并把选定的事实转换成带版本的 JSON 包。每个包都记录其来源字节、生产者和验证范围。
 
@@ -20,7 +20,7 @@ RePoE 读取客户端资源，保留它们的身份与相互关系，并把选�
 
 ## 在 PoBR 生态中的角色
 
-RePoE 负责客户端事实与游戏包；[poe2-zh-cn-stats](https://github.com/ackness/poe2-zh-cn-stats) 负责语言数据；[PoBR](https://github.com/ackness/pobr) 负责计算，并 pin 住两个包。职责与边界只在一处定义：PoBR 的[数据架构](https://github.com/ackness/pobr/blob/master/docs/data-architecture.md)；当前缺口见[数据现状](https://github.com/ackness/pobr/blob/master/docs/data-status.md)。
+RePoE 负责客户端事实与游戏包；[poe2-zh-cn-stats](https://github.com/ackness/poe2-zh-cn-stats) 负责语言数据；[PoBR](https://github.com/ackness/pobr) 负责计算，并固定采用两个包的版本。职责与边界只在一处定义：PoBR 的[数据架构](https://github.com/ackness/pobr/blob/master/docs/data-architecture.md)；当前缺口见[数据现状](https://github.com/ackness/pobr/blob/master/docs/data-status.md)。
 
 ## 提供什么
 
@@ -35,7 +35,7 @@ RePoE 负责客户端事实与游戏包；[poe2-zh-cn-stats](https://github.com/
 
 ## 使用已发布的包
 
-每个游戏包是一个 GitHub Release `game/<patch>-<n>`，带三个附件：`pobr-game-<patch>.zip`、它的 `receipt.json`（生产者提交、契约、每个输入的 pin 和每个成员的来源类别）以及 `SHA256SUMS`。PoBR 在 `pipeline/data.lock.json` 中 pin 一个游戏 Release 和配套的语言 Release（`mise run data:bump`，见 PoBR 的 [RELEASING.md](https://github.com/ackness/pobr/blob/master/RELEASING.md)）。使用者不需要 Python、Rust、客户端安装或本仓库的 checkout。
+每个游戏包是一个 GitHub Release `game/<patch>-<n>`，带三个附件：`pobr-game-<patch>.zip`、它的 `receipt.json`（生产者提交、契约、每个输入的 pin 和每个成员的来源类别）以及 `SHA256SUMS`。PoBR 在 `pipeline/data.lock.json` 中固定采用一个游戏 Release 和配套的语言 Release（`mise run data:bump`，见 PoBR 的 [RELEASING.md](https://github.com/ackness/pobr/blob/master/RELEASING.md)）。使用者不需要 Python、Rust、客户端安装或本仓库的 checkout。
 
 使用 Release 之前发布的包（以及 `release:build` 读取的较早输入）位于由 `handoff/*` tag 保持可达的孤立提交上。这些 tag 从不移动或删除（[原因](AGENTS.md#never-move-or-rewrite)）：`release/<patch>[-<n>]/inputs.lock.json` 通过提交、路径和 SHA-256 定位它们。新的输入是 GitHub Release `inputs/<patch>-<n>`（`mise run release:inputs`），与游戏包一样按仓库、tag、附件和 SHA-256 定位。
 
@@ -51,7 +51,7 @@ mise run setup
 mise run check
 ```
 
-`mise.lock` pin 住 Python 和 uv；`uv.lock` pin 住 Python 依赖，包括 PyPoE 的完整 Git revision。`setup` 用 `uv sync --locked` 创建 `.venv`。首次安装需要联网；在没有可用 wheel 时，Linux 的编译器／JPEG／zlib 软件包用于构建 pin 住的 Pillow 版本。
+`mise.lock` 固定 Python 和 uv 的版本，`uv.lock` 固定 Python 依赖，包括 PyPoE 的完整 Git revision。`setup` 用 `uv sync --locked` 创建 `.venv`。首次安装需要联网；如果没有可用 wheel，Linux 会用编译器以及 JPEG、zlib 软件包构建固定版本的 Pillow。
 
 `check` 校验依赖锁和 schema 校验和，运行 Ruff 和离线回归测试，并检查 CLI。它不下载客户端，也不发布数据。只想做更窄的检查时用 `mise run test` 或 `mise run lint`。
 
@@ -63,7 +63,7 @@ mise run adapter:check
 mise run adapter:keystones
 ```
 
-`adapter:keystones` 从最高的 `release/<patch>[-<n>]/` 声明的 `reference` 包的天赋树重建基石规则，并逐字节比较。生成的 `RePoE/model/` 文件用 `mise run models:generate -- [schema 路径]` 显式维护。
+`adapter:keystones` 选择最高的 `release/<patch>[-<n>]/` 声明，从其 `reference` 包的天赋树重建基石规则，并逐字节比较结果。生成的 `RePoE/model/` 文件用 `mise run models:generate -- [schema 路径]` 显式维护。
 
 CI 对每个 PR 运行 `verify.yml`，在发布构建的输入改变时运行 `release-build.yml`；各自运行什么见 [AGENTS.md](AGENTS.md#ci)。
 
