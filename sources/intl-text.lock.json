@@ -1,0 +1,122 @@
+{
+  "schema_version": 1,
+  "sources": {
+    "intl-default": {
+      "kind": "official-client-resource-candidate",
+      "game": "poe2",
+      "game_patch": "0.5.5.8",
+      "realm": "international",
+      "base_url": "https://patch-poe2.poecdn.com/0.5.5.8/",
+      "acquisition": {
+        "status": "unreviewed-acquisition-draft",
+        "evidence": [
+          {
+            "kind": "client-index-receipt",
+            "sha256": "28312e3823a308cbe67478c9819ee420c28279a7d8ac3281f41030954da66e4e"
+          },
+          {
+            "kind": "client-source-draft-receipt",
+            "sha256": "642fd0a526f17bb65faf6e6631aeff0bf7ef21f88a32161fd3b3b9345dd41726"
+          }
+        ]
+      },
+      "decoder": {
+        "repository": "https://github.com/repoe-fork/pypoe",
+        "revision": "66d1d7442c5718260e1a8efd24989d22987e91af",
+        "dat_schema_repository": "https://github.com/poe-tool-dev/dat-schema",
+        "dat_schema_revision": "6034b071846ef61b39046ebdb59e6d5717179509",
+        "schema_sha256": "50e098543345cf8323aeb294e2cfef1b6b44842faccf560ada935cebe22727df"
+      },
+      "resources": {
+        "Data/Balance/GemEffects.datc64": {
+          "sha256": "782b11f2d853da5a15ba38fe8080078c5faea69221af7af7072c5e58b8fef103",
+          "bytes": 487382,
+          "bundle_url": "https://patch-poe2.poecdn.com/0.5.5.8/Bundles2/Folders/data/66/balance.datc64.bundle.bin",
+          "uncompressed_offset": 1559008,
+          "uncompressed_length": 487382
+        },
+        "Data/Balance/ActiveSkills.datc64": {
+          "sha256": "e9677efa38656b60a2d8357dc1cc778e50e40a64a82aa1eac578e77852aa9209",
+          "bytes": 1377270,
+          "bundle_url": "https://patch-poe2.poecdn.com/0.5.5.8/Bundles2/Folders/data/40/balance.datc64.bundle.bin",
+          "uncompressed_offset": 57748,
+          "uncompressed_length": 1377270
+        },
+        "Data/Balance/MonsterVarieties.datc64": {
+          "sha256": "3ba0b571c73e205caa55673803410bb7c590cb352185c1f2dec88af1634a43b2",
+          "bytes": 4783126,
+          "bundle_url": "https://patch-poe2.poecdn.com/0.5.5.8/Bundles2/Folders/data/6D/balance.datc64.bundle.bin",
+          "uncompressed_offset": 4517273,
+          "uncompressed_length": 4783126
+        },
+        "Data/Balance/ItemClasses.datc64": {
+          "sha256": "1aee2b9b8107cce9eb9237733e4177777809aa276ea0dbda55521d86ea3886f3",
+          "bytes": 23564,
+          "bundle_url": "https://patch-poe2.poecdn.com/0.5.5.8/Bundles2/Folders/data/48/balance.datc64.bundle.bin",
+          "uncompressed_offset": 1248016,
+          "uncompressed_length": 23564
+        }
+      },
+      "scope": "Rehearsal 0.5.5.8 (D28): local only, unreviewed draft, never published."
+    },
+    "intl-traditional-chinese": {
+      "kind": "official-client-resource-candidate",
+      "game": "poe2",
+      "game_patch": "0.5.5.8",
+      "realm": "international",
+      "base_url": "https://patch-poe2.poecdn.com/0.5.5.8/",
+      "acquisition": {
+        "status": "unreviewed-acquisition-draft",
+        "evidence": [
+          {
+            "kind": "client-index-receipt",
+            "sha256": "90044e78c1fbd6a167ead4eb5e8185964d82d5f2d73cb14a1a8cd58abd5dcc5c"
+          },
+          {
+            "kind": "client-source-draft-receipt",
+            "sha256": "e79a3768f71b3941ed538cd94f8243dcc980a4a89febe48130f33207abbcbcca"
+          }
+        ]
+      },
+      "decoder": {
+        "repository": "https://github.com/repoe-fork/pypoe",
+        "revision": "66d1d7442c5718260e1a8efd24989d22987e91af",
+        "dat_schema_repository": "https://github.com/poe-tool-dev/dat-schema",
+        "dat_schema_revision": "6034b071846ef61b39046ebdb59e6d5717179509",
+        "schema_sha256": "50e098543345cf8323aeb294e2cfef1b6b44842faccf560ada935cebe22727df"
+      },
+      "resources": {
+        "Data/Balance/Traditional Chinese/GemEffects.datc64": {
+          "sha256": "af01f8be8b5b6670534d352bb13e99928dd9b4d865d4dedc86e6430fe8612816",
+          "bytes": 391502,
+          "bundle_url": "https://patch-poe2.poecdn.com/0.5.5.8/Bundles2/Folders/data/9A/balance.datc64.bundle.bin",
+          "uncompressed_offset": 5537303,
+          "uncompressed_length": 391502
+        },
+        "Data/Balance/Traditional Chinese/ActiveSkills.datc64": {
+          "sha256": "5efccd141502dd37c4e68dc20edf35bd99c1e1caef565eeecafdc31d4e045ad8",
+          "bytes": 1152028,
+          "bundle_url": "https://patch-poe2.poecdn.com/0.5.5.8/Bundles2/Folders/data/22/balance.datc64.bundle.bin",
+          "uncompressed_offset": 789835,
+          "uncompressed_length": 1152028
+        },
+        "Data/Balance/Traditional Chinese/MonsterVarieties.datc64": {
+          "sha256": "4cb42a393dc1ad067bf9ab12f148c55b1b914a0f7c848dc3ad273e0c86d02a63",
+          "bytes": 4760682,
+          "bundle_url": "https://patch-poe2.poecdn.com/0.5.5.8/Bundles2/Folders/data/34/balance.datc64.bundle.bin",
+          "uncompressed_offset": 113478,
+          "uncompressed_length": 4760682
+        },
+        "Data/Balance/Traditional Chinese/ItemClasses.datc64": {
+          "sha256": "4e383770418647d656b74b4981f246a41970f9ad03e5da8bc835386c83fa5574",
+          "bytes": 22154,
+          "bundle_url": "https://patch-poe2.poecdn.com/0.5.5.8/Bundles2/Folders/data/69/balance.datc64.bundle.bin",
+          "uncompressed_offset": 2359474,
+          "uncompressed_length": 22154
+        }
+      },
+      "scope": "Rehearsal 0.5.5.8 (D28): local only, unreviewed draft, never published.",
+      "language": "Traditional Chinese"
+    }
+  }
+}

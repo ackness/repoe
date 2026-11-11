@@ -98,6 +98,10 @@ run = "python -B -m RePoE.release.inputs"
 description = "Acquire one fixed source or import archived ranges with explicit inputs"
 run = "python -B -m RePoE.client.sources"
 
+[tasks."client:export-lock"]
+description = "Derive an export lock from an explicitly byte-pinned acquisition lock; optional repeated --source selects sources"
+run = "python -B -m RePoE.client.export_lock"
+
 [tasks."client:draft"]
 description = "Collect a location-only selection as an unreviewed acquisition draft"
 run = "python -B -m RePoE.client.source_draft"

@@ -158,6 +158,37 @@ class CaptureTests(unittest.TestCase):
         self.assertEqual(capture.DECODER["dat_schema_revision"], facts.SCHEMA)
         self.assertEqual(capture.DECODER["schema_sha256"], facts.SCHEMA_SHA)
 
+    def test_collection_requests_include_text_and_name_pairs_in_both_languages(self):
+        inventories = {
+            "china-text-request-2.json": ("ActiveSkills", "GemEffects", "ItemClasses", "MonsterVarieties"),
+            "china-names-request-1.json": (
+                "AlternateQualityTypes",
+                "Ascendancy",
+                "BaseItemTypes",
+                "Characters",
+                "Mods",
+                "PassiveSkills",
+                "Words",
+            ),
+        }
+        seen = set()
+        for filename, tables in inventories.items():
+            request = Path(capture.__file__).with_name(filename)
+            paths, groups, _ = capture.load_request(request)
+            for group, prefix in (("default", ""), ("Simplified Chinese", "Simplified Chinese/")):
+                with self.subTest(request=filename, group=group):
+                    self.assertEqual(groups[group], [f"Data/Balance/{prefix}{table}.datc64" for table in tables])
+            self.assertTrue(seen.isdisjoint(paths))
+            seen.update(paths)
+            if filename == "china-text-request-2.json":
+                published = Path(capture.__file__).with_name("china-text-request.json")
+                _, old_groups, _ = capture.load_request(published)
+                self.assertEqual(groups["stat-descriptions"], old_groups["stat-descriptions"])
+                self.assertEqual(len(paths), 35)
+            else:
+                self.assertEqual(set(groups), {"default", "Simplified Chinese"})
+                self.assertEqual(len(paths), 14)
+
     def test_extracts_raw_resources_receipt_and_a_lock_the_candidates_accept(self):
         receipt, receipt_raw, lock_raw = self.run_capture()
         for _, resources in LAYOUT.items():
@@ -212,6 +243,27 @@ class CaptureTests(unittest.TestCase):
         _, receipt, lock = self.run_capture()
         _, again, lock_again = self.run_capture(out=self.root / ".cache" / "again")
         self.assertEqual((receipt, lock), (again, lock_again))
+
+    def test_separate_requests_share_capture_identity_and_failure_keeps_the_main_output(self):
+        self.paths = [CSD, DEFAULT]
+        self.write_request()
+        main, main_raw, main_lock = self.run_capture()
+        self.paths = [LOCALE]
+        self.write_request()
+        names, _, _ = self.run_capture(out=self.root / ".cache" / "names")
+        for key in ("capture", "observed_client"):
+            self.assertEqual(main[key], names[key])
+        self.assertNotEqual(main["request"], names["request"])
+        self.assertEqual(set(main["resources"]), {CSD, DEFAULT})
+        self.assertEqual(set(names["resources"]), {LOCALE})
+        self.paths.append("Data/Balance/Simplified Chinese/Words.datc64")
+        self.write_request()
+        failed = self.root / ".cache" / "failed-names"
+        with self.assertRaisesRegex(ValueError, "Paths not found in the captured index"):
+            self.run_capture(out=failed)
+        self.assertFalse(failed.exists())
+        self.assertEqual((self.out / "capture-receipt.json").read_bytes(), main_raw)
+        self.assertEqual((self.out / "source-lock.json").read_bytes(), main_lock)
 
     def test_decoder_relocation_is_byte_identical(self):
         class LocatedDecoder(fixtures.DraftDecoder):

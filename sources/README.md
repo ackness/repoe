@@ -17,6 +17,15 @@ are exact evidence decisions, not a runtime release gate: original draft
 envelope statuses stay frozen, new bytes do not inherit acceptance, and no entry
 switches a consumer's current data.
 
+The next international text collection uses
+[`intl-text-request.json`](../RePoE/client/intl-text-request.json) and the separate
+[`intl-text.lock.json`](intl-text.lock.json). Both default and Traditional Chinese
+sources include `ActiveSkills`, `GemEffects`, `ItemClasses` and `MonsterVarieties`.
+The lock preserves unreviewed 0.5.5.8 rehearsal observations, including their
+evidence pins; it adds no ledger acceptance. Collect fresh locations and raw pins
+for another patch ([release procedure](../RELEASING.md#1-export-the-inputs)).
+The published 0.5.5.5 text locks and `sources.lock.json` keep their original bytes.
+
 ## Relocation provenance
 
 Relocated on 2026-11-03 from `ackness/pobr` `pipeline/imports/sources.lock.json`

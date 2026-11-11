@@ -63,11 +63,55 @@ mise run client:capture -- \
 | `--out` | A new directory beneath this checkout's `.cache/` |
 | `--decoder-python`, `--decoder-lock` | The external pyooz environment, as for `client:source` |
 
-[`RePoE/client/china-text-request.json`](../../client/china-text-request.json)
-lists the 27 top-level stat-description files and the default and Simplified
-Chinese `ActiveSkills`, `GemEffects` and `MonsterVarieties` tables. Paths must
-be `Data/StatDescriptions/**.csd`, `Data/Balance/<Table>.datc64` or
+The next collection uses two requests:
+
+- [`china-text-request-2.json`](../../client/china-text-request-2.json): the 27
+  top-level stat-description files and default and Simplified Chinese
+  `ActiveSkills`, `GemEffects`, `ItemClasses` and `MonsterVarieties` tables.
+- [`china-names-request-1.json`](../../client/china-names-request-1.json): default
+  and Simplified Chinese `AlternateQualityTypes`, `Ascendancy`, `BaseItemTypes`,
+  `Characters`, `Mods`, `PassiveSkills` and `Words` tables.
+
+The 0.5.5.5 receipt pins the original
+[`china-text-request.json`](../../client/china-text-request.json), used in the
+historical example above. Request filenames and bytes stay fixed once receipts
+record them. Paths must be `Data/StatDescriptions/**.csd`, `Data/Balance/<Table>.datc64` or
 `Data/Balance/{Simplified,Traditional} Chinese/<Table>.datc64`.
+
+### Next collection order
+
+Merge the separate size-cap PR before the owner makes the next copy. Keep the
+game and launcher closed until that copy is complete. `capture-sc.ps1` copies
+the client once; it does not take a request. Process that same folder in this order:
+
+1. Run `client:capture` with `china-text-request-2.json`, as in
+   [RELEASING.md](../../../RELEASING.md#china-client-capture-input). One missing
+   requested path fails the whole extraction before any output is written. If
+   the error names `Data/Balance/Simplified Chinese/ItemClasses.datc64` as missing,
+   retry with the published `china-text-request.json` and a fresh output path.
+   That preserves the original text inputs; B9 waits for a later client update.
+2. After the main request (or its fallback) succeeds, run the names request
+   against the same folder and `capture.json` SHA-256, with a separate output:
+
+   ```sh
+   mise run client:capture -- --capture <folder> --expect-capture-sha256 <sha> \
+     --request RePoE/client/china-names-request-1.json --game-patch <patch> \
+     --out .cache/china-names-<patch> --decoder-python "$PWD/.venv/bin/python" \
+     --decoder-lock uv.lock > .cache/china-names-<patch>-diagnostic.txt 2>&1
+   ```
+
+   If it fails, bring back that diagnostic text file and retain the captured
+   folder. The command emits no diagnostic JSON or completion receipt on a
+   missing-path failure. This does not affect the successful main output.
+
+The two successful receipts must match in `capture.capture_json.sha256`,
+`observed_client.index.sha256` and the captured file inventory. They bind both
+requests to the same copied bytes; this does not authenticate a client build.
+Both outputs have their own source locks and the same source names, so keep
+their raw roots, receipts and candidates separate. Names publication needs a
+later packaging update; do not replace the main capture evidence with the names
+receipt. If a required bundle was not copied, retain the named `-Extra` argument
+for a new owner copy.
 
 Checks, all before any output is written:
 
@@ -152,9 +196,14 @@ during extraction.
 - Hashes prove transfer integrity (these are the files the owner hashed), not
   authenticity.
 - Index path hashes are case-insensitive, non-cryptographic Murmur64A matches.
-- The selected raw total is bounded by the index reader's 64 MiB; the China
-  request uses 64,459,708 bytes, so a larger request needs a second capture
-  output.
+- The selected raw total is bounded by the index reader's 64 MiB, with 32 MiB
+  per resource, during `client:capture` extraction. These limits are not checked
+  by the owner's PowerShell copy script; the candidate exporters also bound
+  their selected inputs. The original China request used 64,459,708 bytes.
+  The 0.5.5.8 international default/Traditional Chinese proxy estimates the
+  main request at 64,829,502 bytes and names at 45,380,276 bytes, separately.
+  Actual China sizes and the next patch can differ. Keep the requests separate
+  and merge the size-cap PR before the next capture.
 - `descriptions:candidate`'s fixed limits sentence ("International Simplified
   Chinese text is not CN-realm…") also appears in China manifests; read the
   manifest's `realm` instead.

@@ -1,0 +1,22 @@
+{
+  "schema": "pobr-client-index-request/v1",
+  "game": "poe2",
+  "realm": "international",
+  "game_patch": "0.5.5.8",
+  "decoder": {
+    "repository": "https://github.com/repoe-fork/pypoe",
+    "revision": "66d1d7442c5718260e1a8efd24989d22987e91af",
+    "pyooz_version": "0.0.8",
+    "uv_lock_sha256": "6ac815b9e4263081b51e823a3f297f35a1c55c7fa57956d3bdd5d4a506c1c66b"
+  },
+  "resources": [
+    "Data/Balance/GemEffects.datc64",
+    "Data/Balance/ActiveSkills.datc64",
+    "Data/Balance/MonsterVarieties.datc64",
+    "Data/Balance/ItemClasses.datc64",
+    "Data/Balance/Traditional Chinese/GemEffects.datc64",
+    "Data/Balance/Traditional Chinese/ActiveSkills.datc64",
+    "Data/Balance/Traditional Chinese/MonsterVarieties.datc64",
+    "Data/Balance/Traditional Chinese/ItemClasses.datc64"
+  ]
+}
