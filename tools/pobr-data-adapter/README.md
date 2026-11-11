@@ -68,10 +68,11 @@ prepared `passive_tree.json`). Each mode documents its arguments and guards:
   `ordinary-*.md` file for each domain;
 - passive tree: [ordinary-passive-tree.md](docs/ordinary-passive-tree.md).
 
-These documents came from PoBR. Their "production `data/`" is this
-repository's tracked `release/`, which the output guards refuse to write
-under; `CURRENT` is PoBR's runtime pointer, which the adapter never reads or
-writes; their PoBR source links point at the `engine-crates/20261102` tag.
+The output guards refuse to write under this repository's tracked `release/`
+or the selected input directories. Some domain documents retain the earlier
+PoBR term "production `data/`" for that protected location. `CURRENT` is
+PoBR's runtime pointer; the adapter never reads or writes it. The domain
+documents' PoBR source links point at the `engine-crates/20261102` tag.
 
 The ordinary domains read their input through `src/facts/`: the verifier of the
 pinned RePoE facts envelope (`repoe-native-facts/v4`) and its source lock, the

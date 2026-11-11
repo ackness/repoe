@@ -2,57 +2,34 @@
 
 `--ordinary-facts` converts a fixed RePoE physical fact package into the existing
 `StatDef`, `ModDef`, `ModStat` and `SpawnWeight` JSON shapes by default. Add
-`--ordinary-domain stats-mods` to select that same domain explicitly, or
-`--ordinary-domain base-items` for the existing item DTOs described in
-[ordinary-base-items.md](ordinary-base-items.md), or `--ordinary-domain skills`
-for the five ordinary skill files described in [ordinary-skills.md](ordinary-skills.md),
-or `--ordinary-domain gem-quality` with the explicitly pinned target policy in
-[ordinary-quality.md](ordinary-quality.md), or `--ordinary-domain stat-set-codec`
-for the verbatim legacy export-index sidecar in
-[ordinary-stat-set-codec.md](ordinary-stat-set-codec.md), or
-`--ordinary-domain gem-effects` for target gem links with explicit legacy display
-and owner compatibility in [ordinary-gem-effects.md](ordinary-gem-effects.md).
-`--ordinary-domain monster-resistances` produces normal-rarity base resistances
-through the original monster join, as described in
-[ordinary-monster-resistances.md](ordinary-monster-resistances.md).
-`--ordinary-domain totem-varieties` produces the target version's skin-zero totem
-object overlay, with unresolved selectors disclosed in
-[ordinary-totem-varieties.md](ordinary-totem-varieties.md).
-`--ordinary-domain monster-scaling` produces the original nine per-level monster
-arrays, as described in [ordinary-monster-scaling.md](ordinary-monster-scaling.md).
-`--ordinary-domain skill-stat-map` preserves a pinned interpretation map with
-separately verified branch-codec identity, as described in
-[ordinary-skill-stat-map.md](ordinary-skill-stat-map.md).
-`--ordinary-domain skill-overrides` combines target primary multipliers with
-explicit fixed prepared compatibility, as described in
-[ordinary-skill-overrides.md](ordinary-skill-overrides.md).
-`--ordinary-domain minions` and `--ordinary-domain spectres` share the actor-field
-producer with fixed curated membership, described in [ordinary-actors.md](ordinary-actors.md).
-`--ordinary-domain granted-effect-minions` preserves curated actor links with the
-target support-gating boolean, described in [ordinary-minion-links.md](ordinary-minion-links.md).
-`--ordinary-domain passive-tree` with explicit tree reference/CSD inputs produces
-target graph, names and complete supported stat text with field-scoped compatibility, described in
-[ordinary-passive-tree.md](ordinary-passive-tree.md).
-`--ordinary-domain runtime-constants` produces the foundation constant files and optional existing ailment DTO
-with explicit selected legacy inputs, described in
-[ordinary-runtime-constants.md](ordinary-runtime-constants.md).
-`--ordinary-domain socketables` produces target rune/augment membership, restrictions
-and complete supported effect text, with exact whole-entry compatibility and
-selected translation-library consumption in [ordinary-socketables.md](ordinary-socketables.md).
-`--ordinary-domain stat-descriptions` replaces unscaled global singleton templates
-from pinned RePoE descriptions, retaining explicit field-scoped compatibility in
-[ordinary-stat-descriptions.md](ordinary-stat-descriptions.md).
-`--ordinary-domain catalysts` consumes a pinned supplemental physical table package
-and preserves the existing quality catalog/codec, described in
-[ordinary-catalysts.md](ordinary-catalysts.md).
-`--ordinary-domain unarmed-data` consumes target Characters and the existing verified
-player metadata archive, described in [ordinary-unarmed.md](ordinary-unarmed.md).
-`--ordinary-domain uniques` projects the pinned retained unique catalog into a
-structured unique->base->mods/roll/variant relation with target base
-verification, described in [ordinary-uniques.md](ordinary-uniques.md).
-Each call produces only its
-selected domain for later assembly into an ordinary runtime package. It does
-not produce a complete GameData/BuildData package or a restricted runtime profile.
+`--ordinary-domain stats-mods` to select that same domain explicitly.
+
+Each call produces one domain for later assembly into an ordinary runtime
+package. It does not produce a complete GameData/BuildData package or a restricted
+runtime profile.
+
+| Domain selection | Conversion and scope | Details |
+| --- | --- | --- |
+| `--ordinary-domain stats-mods` | Existing `StatDef`, `ModDef`, `ModStat` and `SpawnWeight` JSON shapes; the default domain | Sections below |
+| `--ordinary-domain base-items` | Existing item DTOs | [Base items](ordinary-base-items.md) |
+| `--ordinary-domain skills` | Six ordinary skill files | [Skills](ordinary-skills.md) |
+| `--ordinary-domain gem-quality` | Gem quality with an explicitly pinned target policy | [Gem quality](ordinary-quality.md) |
+| `--ordinary-domain stat-set-codec` | Verbatim legacy export-index sidecar | [Stat-set codec](ordinary-stat-set-codec.md) |
+| `--ordinary-domain gem-effects` | Target gem links with explicit legacy display and owner compatibility | [Gem effects](ordinary-gem-effects.md) |
+| `--ordinary-domain monster-resistances` | Normal-rarity base resistances through the original monster join | [Monster resistances](ordinary-monster-resistances.md) |
+| `--ordinary-domain totem-varieties` | Target skin-zero totem object overlay; unresolved selectors remain disclosed | [Totem varieties](ordinary-totem-varieties.md) |
+| `--ordinary-domain monster-scaling` | Original nine per-level monster arrays | [Monster scaling](ordinary-monster-scaling.md) |
+| `--ordinary-domain skill-stat-map` | Pinned interpretation map with separately verified branch-codec identity | [Skill-stat map](ordinary-skill-stat-map.md) |
+| `--ordinary-domain skill-overrides` | Target primary multipliers with explicit fixed prepared compatibility | [Skill overrides](ordinary-skill-overrides.md) |
+| `--ordinary-domain minions` and `--ordinary-domain spectres` | Shared actor-field producer with fixed curated membership | [Actors](ordinary-actors.md) |
+| `--ordinary-domain granted-effect-minions` | Curated actor links with the target support-gating boolean | [Minion links](ordinary-minion-links.md) |
+| `--ordinary-domain passive-tree` | Target graph, names and complete supported stat text from explicit tree reference/CSD inputs, with field-scoped compatibility | [Passive tree](ordinary-passive-tree.md) |
+| `--ordinary-domain runtime-constants` | Foundation constant files and optional existing ailment DTO, with explicit selected legacy inputs | [Runtime constants](ordinary-runtime-constants.md) |
+| `--ordinary-domain socketables` | Target rune/augment membership, restrictions and complete supported effect text, with exact whole-entry compatibility and selected translation-library consumption | [Socketables](ordinary-socketables.md) |
+| `--ordinary-domain stat-descriptions` | Unscaled global singleton templates from pinned RePoE descriptions, with explicit field-scoped compatibility | [Stat descriptions](ordinary-stat-descriptions.md) |
+| `--ordinary-domain catalysts` | Existing quality catalog/codec with a pinned supplemental physical table package | [Catalysts](ordinary-catalysts.md) |
+| `--ordinary-domain unarmed-data` | Target Characters with the existing verified player metadata archive | [Unarmed data](ordinary-unarmed.md) |
+| `--ordinary-domain uniques` | Structured unique->base->mods/roll/variant relation from the pinned retained unique catalog, with target base verification | [Uniques](ordinary-uniques.md) |
 
 ```sh
 mise run adapter -- \
@@ -64,27 +41,26 @@ mise run adapter -- \
 
 The output parent must exist; the leaf must not exist, even as an empty directory
 or dangling symlink. Linux/macOS directory handles enforce the shared `facts`
-output guard's input and production `data/` protections. Use a path outside `data/`,
-such as `.cache/ordinary-stats-mods`. Arguments are required, cannot repeat, and
-cannot be combined with another adapter mode (`--tree`, `--emit-special-derived`).
+output guard's input and tracked `release/` protections. Use a path outside those
+protected directories, such as `.cache/ordinary-stats-mods`. Arguments are required,
+cannot repeat, and cannot be combined with another adapter mode (`--tree`,
+`--emit-special-derived`).
 
 An invalid, missing-value or repeated `--ordinary-domain` is an error. Omitting
 it preserves the Stats/Mods JSON, marker and receipt content except for the
-compiled implementation revision. The sections below describe Stats/Mods;
-base-items, skills, gem-quality, stat-set-codec, gem-effects, monster-resistances,
-totem-varieties, monster-scaling, skill-stat-map, skill-overrides, minions, spectres and
-granted-effect-minions, passive-tree, runtime-constants, socketables, catalysts, unarmed-data and uniques use the same
-verification/output boundary with their own table subsets. Quality-only options
-require gem-quality; codec options are optional for base-items field ownership,
-and required for stat-set-codec, gem-effects,
-skill-stat-map, skill-overrides, minions, spectres, granted-effect-minions, passive-tree,
-runtime-constants, socketables, stat-descriptions, unarmed-data or uniques. Paired `--player-context` and
-`--player-manifest-sha256` are required only by unarmed-data. `--item-descriptions` is required by socketables and stat-descriptions, and rejected by other domains.
-Catalysts requires paired `--supplement` and `--catalog-policy` paths/SHA256 pins.
-Tree refresh v2 also accepts the paired supplement with its explicit policy; other
-domains reject it.
-The two branch-codec options are required by
-skill-stat-map and skill-overrides and rejected by every other domain.
+compiled implementation revision. All domains share the verification/output
+boundary, with their own table subsets. The remaining sections describe Stats/Mods.
+
+Additional inputs depend on the selected domain:
+
+| Options | Domain requirements |
+| --- | --- |
+| Quality-only options | Require gem-quality |
+| Codec options | Optional for base-items field ownership. Required for stat-set-codec, gem-effects, skill-stat-map, skill-overrides, minions, spectres, granted-effect-minions, passive-tree, runtime-constants, socketables, stat-descriptions, unarmed-data or uniques |
+| Paired `--player-context` and `--player-manifest-sha256` | Required only by unarmed-data |
+| `--item-descriptions` | Required by socketables and stat-descriptions; rejected by other domains |
+| Paired `--supplement` and `--catalog-policy` paths/SHA256 pins | Required by catalysts. Tree refresh v2 also accepts the paired supplement with its explicit policy; other domains reject it |
+| The two branch-codec options | Required by skill-stat-map and skill-overrides; rejected by every other domain |
 
 ## Input and checks
 
@@ -207,9 +183,16 @@ check eight slots, signed/zero/null values, family/group separation, sorted IDs
 versus physical references, receipt hashes, determinism, source failures and
 output protection.
 
+The original implementation handoff and its unrun status are retained below.
+
+<details>
+<summary>Historical implementation handoff: coordinator commands (unrun)</summary>
+
 Coordinator commands (not run by the implementation worker):
 
 ```sh
 mise exec -- cargo test --locked --manifest-path tools/pobr-data-adapter/Cargo.toml ordinary_facts::tests
 mise exec -- cargo test --locked --manifest-path tools/pobr-data-adapter/Cargo.toml facts::
 ```
+
+</details>

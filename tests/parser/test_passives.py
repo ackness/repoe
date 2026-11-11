@@ -56,23 +56,20 @@ class PassiveTests(unittest.TestCase):
         with self.assertRaisesRegex(ValueError, "Duplicate passive stat"):
             passive(source, None, "English")
 
-    def test_native_reminders_groups_and_buff_relationships(self):
-        source = row([])
-        source.update(
-            ReminderStrings=["reminder"], AtlasNodeGroup="group", PassiveSkillBuffs=[{"BuffDefinition": {"Id": "buff"}}]
-        )
-        result = passive(DatRecordLike(source), None, "English")
-        self.assertEqual(result["reminder_text"], ["reminder"])
-        self.assertEqual(result["atlas_group"], "group")
-        self.assertEqual(result["buff_definitions"], ["buff"])
-
-    def test_known_legacy_aliases_remain_supported(self):
-        source = row([])
-        source["ReminderTextKeys"] = source.pop("ReminderStrings")
-        source["AtlasnodeGroup"] = source.pop("AtlasNodeGroup")
-        source["PassiveSkillBuffsKeys"] = [{"BuffDefinitionsKey": {"Id": "buff"}}]
-        del source["PassiveSkillBuffs"]
-        self.assertEqual(passive(DatRecordLike(source), None, "English")["buff_definitions"], ["buff"])
+    def test_native_and_legacy_reminders_groups_and_buff_relationships(self):
+        for reminder, group, buffs, buff in [
+            ("ReminderStrings", "AtlasNodeGroup", "PassiveSkillBuffs", "BuffDefinition"),
+            ("ReminderTextKeys", "AtlasnodeGroup", "PassiveSkillBuffsKeys", "BuffDefinitionsKey"),
+        ]:
+            with self.subTest(reminder_column=reminder):
+                source = row([])
+                for name in ("ReminderStrings", "AtlasNodeGroup", "PassiveSkillBuffs"):
+                    del source[name]
+                source.update({reminder: ["reminder"], group: "group", buffs: [{buff: {"Id": "buff"}}]})
+                result = passive(DatRecordLike(source), None, "English")
+                self.assertEqual(result["reminder_text"], ["reminder"])
+                self.assertEqual(result["atlas_group"], "group")
+                self.assertEqual(result["buff_definitions"], ["buff"])
 
 
 if __name__ == "__main__":

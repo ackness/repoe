@@ -11,18 +11,8 @@ producer already supplies the same boolean for all base effects.
 The existing four codec source/policy flags are required. Branch-codec and
 quality flags are rejected, as are duplicate, missing and mixed-mode arguments.
 
-```sh
-# Parent's frozen binary; UNRUN by the implementation worker.
-/absolute/path/to/frozen/pobr-data-adapter \
-  --ordinary-facts /absolute/path/to/F \
-  --facts-manifest-sha256 56e71e00a72c8079d100b64861fc030206b12aaeb5ad655ccb4ab4e6726332d0 \
-  --version 0.5.5.5 --ordinary-domain granted-effect-minions \
-  --codec-source /absolute/path/to/data/0.5.5.4.2/overlay/granted_effect_minions.json \
-  --codec-source-sha256 356efcf25802787c52de25e5e34700ebb2cada2d6cafc71895e7fcf41a95e16c \
-  --codec-policy /absolute/path/to/tools/pobr-data-adapter/policies/actors/0.5.5.5-minion-links-policy.json \
-  --codec-policy-sha256 ad8f713e7686e9a0a91d510468689ee64313bcb9fba0175b3cf4859df3ef7ce3 \
-  --out /absolute/existing/external-parent/fresh-minion-links
-```
+The [original invocation and validation record](#parent-validation) retains the
+concrete 0.5.5.5 pins and the implementation worker's unrun status.
 
 The initial [policy](../policies/actors/0.5.5.5-minion-links-policy.json) is the
 verbatim frozen applicability template. It binds target patch/manifest,
@@ -66,9 +56,6 @@ equipment semantics, creature eligibility or a new minion model.
 Effects outside the curated sidecar get no generated entries. Their base boolean
 remains authoritative under the existing loader's matched-entry merge. Receipt
 records all outside true IDs/physical rows and compressed outside row ranges.
-Parent source inspection observed 181 entries, 34 references and 32 aliases;
-150 curated true values and 21 further true values among the 171 target true
-effects. These are source observations, not producer results or hardcoded limits.
 
 ## Output and receipt
 
@@ -105,10 +92,33 @@ remain separate.
 
 ## Parent validation
 
+The implementation handoff below records the original invocation, source
+observations and validation plan, with the worker's original unrun status.
+
+<details>
+<summary>Historical implementation handoff: invocation and parent validation (unrun)</summary>
+
+```sh
+# Parent's frozen binary; UNRUN by the implementation worker.
+/absolute/path/to/frozen/pobr-data-adapter \
+  --ordinary-facts /absolute/path/to/F \
+  --facts-manifest-sha256 56e71e00a72c8079d100b64861fc030206b12aaeb5ad655ccb4ab4e6726332d0 \
+  --version 0.5.5.5 --ordinary-domain granted-effect-minions \
+  --codec-source /absolute/path/to/data/0.5.5.4.2/overlay/granted_effect_minions.json \
+  --codec-source-sha256 356efcf25802787c52de25e5e34700ebb2cada2d6cafc71895e7fcf41a95e16c \
+  --codec-policy /absolute/path/to/tools/pobr-data-adapter/policies/actors/0.5.5.5-minion-links-policy.json \
+  --codec-policy-sha256 ad8f713e7686e9a0a91d510468689ee64313bcb9fba0175b3cf4859df3ef7ce3 \
+  --out /absolute/existing/external-parent/fresh-minion-links
+```
+
+Parent source inspection observed 181 entries, 34 references and 32 aliases;
+150 curated true values and 21 further true values among the 171 target true
+effects. These are source observations, not producer results or hardcoded limits.
+
 Focused synthetic regressions are **UNRUN** by the worker: both boolean changes,
 outside base values, ordered duplicates/aliases, exact whitespace, retained
 unknown/default absence, all binding/schema/pin/policy/path/CLI failures,
-seven files/three payloads and prior thirteen-domain stability. Fixtures use
+seven files/three payloads and prior twelve-domain stability. Fixtures use
 small separate objects, without a giant serde macro.
 
 ```sh
@@ -121,10 +131,12 @@ These commands and real conversions are **UNRUN** by the worker. Parent uses its
 single warm target, retains its three historical test corrections, freezes one
 binary, performs two actual conversions and an independent all-entry/retained/
 receipt comparison, and checks base-plus-sidecar flags across all effects.
-Prior thirteen domains require old/new byte comparison, allowing only the true
+Prior twelve domains require old/new byte comparison, allowing only the true
 compiled receipt revision to differ. Source-limited read controls, candidate
 sealing and path guards remain parent validation. No unchanged core/WASM/corpus
 rebuild is required by this adapter slice.
+
+</details>
 
 ## Relationship and equipment gaps
 

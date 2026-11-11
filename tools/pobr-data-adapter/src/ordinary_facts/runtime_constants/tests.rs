@@ -937,101 +937,31 @@ fn legacy_archive_layer_uses_the_existing_directory_handle_guards() {
 
 #[test]
 fn prior_domains_keep_files_and_receipts_without_runtime_constants_archives() {
-    for (domain, bytes, count) in [
-        (Domain::StatsMods, None, 5),
-        (Domain::PassiveTree, None, 7),
-        (Domain::GemQuality, None, 5),
-        (Domain::GrantedEffectMinions, None, 6),
-        (
-            Domain::BaseItems,
-            Some(
-                include_bytes!("../../../tests/fixtures/ordinary-facts/base-item-tables.json")
-                    .as_slice(),
-            ),
-            4,
-        ),
-        (
-            Domain::Skills,
-            Some(
-                include_bytes!("../../../tests/fixtures/ordinary-facts/skill-tables.json")
-                    .as_slice(),
-            ),
-            9,
-        ),
-        (Domain::StatSetCodec, None, 5),
-        (Domain::GemEffects, None, 6),
-        (Domain::MonsterResistances, None, 4),
-        (Domain::TotemVarieties, None, 4),
-        (Domain::MonsterScaling, None, 4),
-        (Domain::SkillStatMap, None, 6),
-        (Domain::SkillOverrides, None, 7),
-        (Domain::Minions, None, 6),
-        (Domain::Spectres, None, 6),
-    ] {
-        use super::super::actors::Catalog;
-        let mut f = match domain {
-            Domain::PassiveTree => super::super::passive_tree::tests::fixture(),
-            Domain::GemQuality => super::super::quality::tests::fixture(),
-            Domain::GrantedEffectMinions => super::super::minion_links::tests::fixture(),
-            Domain::StatSetCodec => super::super::stat_set_codec::tests::fixture(),
-            Domain::GemEffects => super::super::gem_effects::tests::fixture(),
-            Domain::MonsterResistances => super::super::monster_resistances::tests::fixture(),
-            Domain::TotemVarieties => super::super::totem_varieties::tests::fixture(),
-            Domain::MonsterScaling => super::super::monster_scaling::tests::fixture(),
-            Domain::SkillStatMap => super::super::skill_stat_map::tests::fixture(),
-            Domain::SkillOverrides => super::super::skill_overrides::tests::fixture(),
-            Domain::Minions => super::super::actors::tests::fixture(Catalog::Minions),
-            Domain::Spectres => super::super::actors::tests::fixture(Catalog::Spectres),
-            _ => Fixture::new(),
-        };
-        if let Some(bytes) = bytes {
-            let tables: BTreeMap<String, Value> = serde_json::from_slice(bytes).unwrap();
-            f.documents.retain(|p, _| p == "source-lock.json");
-            f.documents.extend(
-                tables
-                    .into_iter()
-                    .map(|(t, d)| (format!("tables/{t}.json"), d)),
-            );
-            f.seal();
-        }
-        let a = || match domain {
-            Domain::PassiveTree => super::super::passive_tree::tests::args(&f),
-            Domain::GemQuality => super::super::quality::tests::args(&f),
-            Domain::GrantedEffectMinions => super::super::minion_links::tests::args(&f),
-            Domain::StatSetCodec => super::super::stat_set_codec::tests::args(&f),
-            Domain::GemEffects => super::super::gem_effects::tests::args(&f),
-            Domain::SkillStatMap => super::super::skill_stat_map::tests::args(&f),
-            Domain::SkillOverrides => super::super::skill_overrides::tests::args(&f),
-            Domain::Minions => super::super::actors::tests::args(&f, Catalog::Minions),
-            Domain::Spectres => super::super::actors::tests::args(&f, Catalog::Spectres),
-            _ => Args { domain, ..f.args() },
-        };
-        run(a()).unwrap();
-        let links = fixture();
-        run(args(&links)).unwrap();
-        run(Args {
-            out: f.root.join("again"),
-            ..a()
-        })
-        .unwrap();
-        let r = doc(&f, "out/producer-receipt.json");
-        assert_eq!(r.as_object().unwrap().len(), 10);
-        assert_eq!(r["files"].as_object().unwrap().len(), count);
-        assert!(!f.root.join("out/legacy-constants").exists());
-        for path in r["files"]
-            .as_object()
-            .unwrap()
-            .keys()
-            .map(String::as_str)
-            .chain(["producer-receipt.json"])
-        {
-            assert_eq!(
-                fs::read(f.root.join("out").join(path)).unwrap(),
-                fs::read(f.root.join("again").join(path)).unwrap(),
-                "{domain:?}/{path}"
-            );
-        }
-    }
+    super::super::tests::assert_prior_domains_unchanged(
+        &[
+            (Domain::StatsMods, 5),
+            (Domain::PassiveTree, 7),
+            (Domain::GemQuality, 5),
+            (Domain::GrantedEffectMinions, 6),
+            (Domain::BaseItems, 4),
+            (Domain::Skills, 9),
+            (Domain::StatSetCodec, 5),
+            (Domain::GemEffects, 6),
+            (Domain::MonsterResistances, 4),
+            (Domain::TotemVarieties, 4),
+            (Domain::MonsterScaling, 4),
+            (Domain::SkillStatMap, 6),
+            (Domain::SkillOverrides, 7),
+            (Domain::Minions, 6),
+            (Domain::Spectres, 6),
+        ],
+        "legacy-constants",
+        || {
+            let new_domain = fixture();
+            run(args(&new_domain)).unwrap();
+            new_domain
+        },
+    );
 }
 
 #[test]

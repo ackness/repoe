@@ -158,6 +158,90 @@ impl Drop for Fixture {
     }
 }
 
+/// Re-running a prior domain after another domain must preserve its complete output.
+pub(super) fn assert_prior_domains_unchanged(
+    cases: &[(super::Domain, usize)],
+    forbidden_sidecar: &str,
+    run_new_domain: impl Fn() -> Fixture,
+) {
+    use super::Domain;
+    use super::actors::Catalog;
+
+    for &(domain, file_count) in cases {
+        let mut f = match domain {
+            Domain::PassiveTree => super::passive_tree::tests::fixture(),
+            Domain::GemQuality => super::quality::tests::fixture(),
+            Domain::GrantedEffectMinions => super::minion_links::tests::fixture(),
+            Domain::StatSetCodec => super::stat_set_codec::tests::fixture(),
+            Domain::GemEffects => super::gem_effects::tests::fixture(),
+            Domain::MonsterResistances => super::monster_resistances::tests::fixture(),
+            Domain::TotemVarieties => super::totem_varieties::tests::fixture(),
+            Domain::MonsterScaling => super::monster_scaling::tests::fixture(),
+            Domain::SkillStatMap => super::skill_stat_map::tests::fixture(),
+            Domain::SkillOverrides => super::skill_overrides::tests::fixture(),
+            Domain::Minions => super::actors::tests::fixture(Catalog::Minions),
+            Domain::Spectres => super::actors::tests::fixture(Catalog::Spectres),
+            _ => Fixture::new(),
+        };
+        let tables = match domain {
+            Domain::BaseItems => Some(
+                include_bytes!("../../tests/fixtures/ordinary-facts/base-item-tables.json")
+                    .as_slice(),
+            ),
+            Domain::Skills => Some(
+                include_bytes!("../../tests/fixtures/ordinary-facts/skill-tables.json").as_slice(),
+            ),
+            _ => None,
+        };
+        if let Some(bytes) = tables {
+            let tables: BTreeMap<String, Value> = serde_json::from_slice(bytes).unwrap();
+            f.documents.retain(|p, _| p == "source-lock.json");
+            f.documents.extend(
+                tables
+                    .into_iter()
+                    .map(|(t, d)| (format!("tables/{t}.json"), d)),
+            );
+            f.seal();
+        }
+        let args = || match domain {
+            Domain::PassiveTree => super::passive_tree::tests::args(&f),
+            Domain::GemQuality => super::quality::tests::args(&f),
+            Domain::GrantedEffectMinions => super::minion_links::tests::args(&f),
+            Domain::StatSetCodec => super::stat_set_codec::tests::args(&f),
+            Domain::GemEffects => super::gem_effects::tests::args(&f),
+            Domain::SkillStatMap => super::skill_stat_map::tests::args(&f),
+            Domain::SkillOverrides => super::skill_overrides::tests::args(&f),
+            Domain::Minions => super::actors::tests::args(&f, Catalog::Minions),
+            Domain::Spectres => super::actors::tests::args(&f, Catalog::Spectres),
+            _ => Args { domain, ..f.args() },
+        };
+        run(args()).unwrap();
+        let _new_domain = run_new_domain();
+        run(Args {
+            out: f.root.join("again"),
+            ..args()
+        })
+        .unwrap();
+        let receipt: Value = crate::read_json(&f.root.join("out/producer-receipt.json")).unwrap();
+        assert_eq!(receipt.as_object().unwrap().len(), 10);
+        assert_eq!(receipt["files"].as_object().unwrap().len(), file_count);
+        assert!(!f.root.join("out").join(forbidden_sidecar).exists());
+        for path in receipt["files"]
+            .as_object()
+            .unwrap()
+            .keys()
+            .map(String::as_str)
+            .chain(["producer-receipt.json"])
+        {
+            assert_eq!(
+                fs::read(f.root.join("out").join(path)).unwrap(),
+                fs::read(f.root.join("again").join(path)).unwrap(),
+                "{domain:?}/{path}"
+            );
+        }
+    }
+}
+
 #[test]
 fn ordinary_dtos_preserve_eight_slots_ranges_families_and_raw_metadata() {
     let f = Fixture::new();

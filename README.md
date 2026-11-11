@@ -2,7 +2,7 @@
 
 **English** | [简体中文](README.zh-CN.md)
 
-Game data for Path of Exile tool developers. This fork maintains the PoE2 client exporters and game-data packages used by [PoBR](https://github.com/ackness/pobr), while retaining the upstream PoE1 and PoE2 parsers.
+RePoE provides game data for Path of Exile tool developers. This fork maintains the PoE2 client exporters and game-data packages used by [PoBR](https://github.com/ackness/pobr), while retaining the upstream PoE1 and PoE2 parsers.
 
 RePoE reads client resources, preserves their identities and relationships, and turns selected facts into versioned JSON packages. Each package records its source bytes, producer and validation scope.
 

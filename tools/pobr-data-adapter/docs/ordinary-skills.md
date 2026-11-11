@@ -13,7 +13,7 @@ mise run adapter -- \
   --out /absolute/path/to/existing-parent/fresh-skills
 ```
 
-The output parent must exist and the leaf must be fresh and outside `data/`.
+The output parent must exist and the leaf must be fresh and outside `release/`.
 The external manifest pin, selected payloads, embedded lock and target patch are
 checked by `facts::reader::open`. `Tables::selected` supplies the existing
 physical row/identity checks. All validation and serialization complete before
@@ -140,6 +140,12 @@ IgnoreMinionTypes addition), legacy tolerance, strict physical failures, ordered
 reference multiplicity, source pin/version/domain/overwrite rejection and the
 older domains' deterministic behavior.
 
+The original implementation handoff below retains the worker's unrun status
+and the parent's validation plan.
+
+<details>
+<summary>Historical implementation handoff: parent validation (unrun)</summary>
+
 Parent validation, **not executed by the implementation worker**:
 
 ```sh
@@ -149,3 +155,5 @@ mise exec -- cargo test --locked --manifest-path tools/pobr-data-adapter/Cargo.t
 Parent reuses its warm target and frozen producer for actual F double replay,
 source-field/merge/compatibility comparison and sealing checks. Authored Rust
 regressions and actual producer execution remain UNRUN in this worker's handoff.
+
+</details>
