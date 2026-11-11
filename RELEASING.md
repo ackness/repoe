@@ -129,9 +129,11 @@ CI (`.github/workflows/release-build.yml`, described in
 [AGENTS.md](AGENTS.md#ci)) rebuilds and checks every declaration directory.
 Every directory under `release/` is a claim that the current code still
 produces its `expect` pin (or its reference); when a code or policy change moves a published package's
-bytes on purpose, add the next `release/<patch>-<n>/` and, if the superseded
-directory no longer reproduces, delete it in the same change rather than let it
-fail (Git history and the Release receipt keep it).
+bytes on purpose, add the next `release/<patch>-<n>/`. A superseded declaration
+directory stays in place, as do its Release and tag; its receipt is the evidence
+of what it produced. Which declarations CI must keep rebuilding is set in
+[AGENTS.md](AGENTS.md#ci); until the first 1.0 game package is published,
+`release/0.5.5.5-3` keeps reproducing byte for byte as the regression guard.
 
 ## Publish
 
