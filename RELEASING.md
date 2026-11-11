@@ -209,11 +209,15 @@ published: the raw DAT, CSD and bundle bytes stay under `.cache/` (a licence
 constraint), and the receipt carries no install path. One `inputs/<patch>-<n>`
 Release is made per China update; older ones are never touched.
 
+Merge the separate size-cap PR before the owner captures the next client. Follow
+the [request order and fallback](RePoE/docs/client/client-capture.md#next-collection-order)
+on that one copy: main text first, then the independent names request.
+
 ```sh
 CAP=.cache/china-capture-<patch>; PKG=.cache/china-text-<patch>
 # 1. The owner runs RePoE/client/capture-sc.ps1 and sends the folder and the capture.json SHA-256.
 mise run client:capture -- --capture <folder> --expect-capture-sha256 <sha> \
-  --request RePoE/client/china-text-request.json --game-patch <patch> --out $CAP \
+  --request RePoE/client/china-text-request-2.json --game-patch <patch> --out $CAP \
   --decoder-python "$PWD/.venv/bin/python" --decoder-lock uv.lock
 L=$CAP/source-lock.json; S=$(shasum -a 256 $L | cut -d' ' -f1)
 # 2. Derived candidates, written straight into the package directory.
@@ -265,6 +269,21 @@ lock of the international CDN (`patch-poe2.poecdn.com`, sources `intl-default`
 and `intl-traditional-chinese`), packaged with
 `release:inputs -- --realm international --package intl_text=<dir>`. Only
 `china_text` has the allowlist check above.
+
+For the next collection, use [intl-text-request.json](RePoE/client/intl-text-request.json):
+both sources also include `ItemClasses`. The unreviewed 0.5.5.8
+[acquisition lock](sources/intl-text.lock.json) retains the rehearsal pins for
+offline replay; select `intl-default` and `intl-traditional-chinese` when
+exporting. For another patch, update the request and collect fresh pins through
+step 1 below. The published 0.5.5.5 locks stay unchanged. China's main request
+[`china-text-request-2.json`](RePoE/client/china-text-request-2.json) likewise adds
+default and Simplified Chinese `ItemClasses`. The separate
+[`china-names-request-1.json`](RePoE/client/china-names-request-1.json) collects
+`AlternateQualityTypes`, `Ascendancy`, `BaseItemTypes`, `Characters`, `Mods`,
+`PassiveSkills` and `Words` pairs from the same capture. Keep their extraction
+outputs and receipts separate; publishing the names needs a later packaging
+update. The predecessor `china-text-request.json` stays byte-identical because
+the 0.5.5.5 capture pins it.
 
 ## Frozen inputs and how to replace one
 
@@ -330,9 +349,24 @@ keeps working only at its producer commit
 
 ### 1. Export the inputs
 
-Acquire and export the patch with `client:source`, `facts:candidate`,
-`tables:candidate`, `descriptions:candidate`, `RePoE.native.item_inheritance`,
-and `RePoE.native.crafting_facts`
+Locate the patch's explicit paths with `client:locate`, collect them with
+`client:draft`, then write an acquisition lock from the observed `bytes`,
+`sha256`, `bundle_url`, `uncompressed_offset` and `uncompressed_length`
+([index](RePoE/docs/client/client-index.md),
+[draft](RePoE/docs/client/client-source-draft.md)). Replay each source strictly
+with `client:source -- acquire`, then derive the export lock:
+
+```sh
+mise run client:export-lock -- --source-lock <acquisition-lock> \
+  --expected-source-lock-sha256 <sha256> --out <export-lock>
+```
+
+Use the acquisition lock for `facts:candidate` and the export lock for
+`tables:candidate`, `descriptions:candidate` and `RePoE.native.item_inheritance`.
+Collect all seven side inputs with the facts in the same acquisition: the
+four supplements' tables (`stat-descriptions`, `passive-tree`, `minions`,
+`spectres`), both descriptions and item inheritance. Export crafting from
+those facts with `RePoE.native.crafting_facts`
 ([native docs](RePoE/docs/README.md)), then lay out one directory per input
 package. Copy the new `facts:candidate` output into `ordinary/facts/` and
 declare `facts.root: "facts"` as described above. `source:rebind` is only

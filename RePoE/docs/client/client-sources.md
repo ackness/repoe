@@ -150,6 +150,25 @@ then run this same command with its key and a new raw root.
 are separate commands; scheduling, full-domain export and production adoption
 remain separate work.
 
+## Export locks
+
+After strict replay, use `client:export-lock` to reduce every resource to
+`{bytes, sha256}` for supplemental tables, descriptions and item inheritance:
+
+```sh
+mise run client:export-lock -- --source-lock /path/to/acquisition-lock.json \
+  --expected-source-lock-sha256 <acquisition-lock-sha256> \
+  --out .cache/client-sources/export-lock.json
+```
+
+The input must be an acquisition lock with raw byte pins and bundle locations;
+an export lock or missing pin is refused. Source metadata, acquisition status,
+evidence and insertion order stay unchanged. The output is deterministic UTF-8
+JSON and must be a new file. Repeat `--source <key>` to select sources explicitly;
+otherwise every source is retained. `facts:candidate` keeps the acquisition lock.
+The conversion verifies lock structure and its external byte pin; strict replay
+remains the check of the acquired raw bytes.
+
 ```sh
 python -B -m unittest tests.client.test_sources -v
 ```

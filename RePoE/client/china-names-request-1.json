@@ -1,0 +1,19 @@
+{
+  "schema": "repoe-client-capture-request/v1",
+  "resources": [
+    "Data/Balance/AlternateQualityTypes.datc64",
+    "Data/Balance/Ascendancy.datc64",
+    "Data/Balance/BaseItemTypes.datc64",
+    "Data/Balance/Characters.datc64",
+    "Data/Balance/Mods.datc64",
+    "Data/Balance/PassiveSkills.datc64",
+    "Data/Balance/Words.datc64",
+    "Data/Balance/Simplified Chinese/AlternateQualityTypes.datc64",
+    "Data/Balance/Simplified Chinese/Ascendancy.datc64",
+    "Data/Balance/Simplified Chinese/BaseItemTypes.datc64",
+    "Data/Balance/Simplified Chinese/Characters.datc64",
+    "Data/Balance/Simplified Chinese/Mods.datc64",
+    "Data/Balance/Simplified Chinese/PassiveSkills.datc64",
+    "Data/Balance/Simplified Chinese/Words.datc64"
+  ]
+}

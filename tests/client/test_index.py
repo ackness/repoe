@@ -59,6 +59,26 @@ class IndexTests(unittest.TestCase):
     def save(self):
         self.request.write_bytes(client.encoded(self.document))
 
+    def test_next_international_text_request_and_lock_include_the_same_four_tables(self):
+        root = Path(__file__).resolve().parents[2]
+        request, _ = index.load_request(root / "RePoE/client/intl-text-request.json")
+        lock_path = root / "sources/intl-text.lock.json"
+        paths = []
+        for source_name, prefix in (("intl-default", ""), ("intl-traditional-chinese", "Traditional Chinese/")):
+            with self.subTest(source=source_name):
+                source, _ = client.load_source(lock_path, source_name)
+                self.assertEqual(source["game_patch"], request["game_patch"])
+                self.assertEqual(source["realm"], request["realm"])
+                self.assertEqual(source["decoder"]["revision"], request["decoder"]["revision"])
+                expected = {
+                    f"Data/Balance/{prefix}{table}.datc64"
+                    for table in ("ActiveSkills", "GemEffects", "ItemClasses", "MonsterVarieties")
+                }
+                self.assertEqual(set(source["resources"]), expected)
+                self.assertEqual(source["acquisition"]["status"], "unreviewed-acquisition-draft")
+                paths.extend(source["resources"])
+        self.assertCountEqual(request["resources"], paths)
+
     def discover(self, raw=None, output=None, mode="online", budget=client.MIB, encoder=12, diagnostic=False):
         http = fixtures.fixtures.FakeHTTP(
             fixtures.fixtures.bundle_bytes(raw or index_bytes(), chunk_size=32, encoder=encoder)
