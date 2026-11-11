@@ -22,6 +22,7 @@ from .source_io import (
     decode as decode,
     digest as digest,
     encoded as encoded,
+    numeric_patch as numeric_patch,
     official_url as official_url,
     read_file as read_file,
     relative as relative,
@@ -63,9 +64,7 @@ def load_source(path, key):
         or source.get("game") != "poe2"
     ):
         raise ValueError("Source is not a fixed PoE2 official-client resource candidate")
-    patch = source.get("game_patch")
-    if not isinstance(patch, str) or not re.fullmatch(r"[0-9]+(?:\.[0-9]+)+", patch):
-        raise ValueError("Source needs an explicit numeric patch")
+    patch = numeric_patch(source.get("game_patch"))
     base = f"https://{OFFICIAL_HOST}/{patch}/"
     if source.get("base_url") != base:
         raise ValueError("Source base_url differs from its fixed patch")

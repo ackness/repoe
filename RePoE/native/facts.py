@@ -11,6 +11,7 @@ import sys
 import tempfile
 import warnings
 
+from RePoE.client.source_io import numeric_patch
 from RePoE.native import schema_candidate
 from RePoE.native.dat import validate_dat
 from RePoE.native.tools import pinned_pypoe
@@ -82,10 +83,10 @@ def _verified_raw(source_lock, source_name, raw_root, *, profile=BASE_PROFILE):
     if (
         source.get("kind") != "official-client-resource-candidate"
         or source.get("game") != "poe2"
-        or source.get("game_patch") != "0.5.5.5"
         or source.get("realm") != "international"
     ):
-        raise ValueError("Expected separate international PoE2 0.5.5.5 candidate source")
+        raise ValueError("Expected separate international PoE2 candidate source")
+    numeric_patch(source.get("game_patch"))
     decoder = source["decoder"]
     if (
         decoder.get("revision") != PYPOE

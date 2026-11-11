@@ -79,6 +79,22 @@ fn accepts_the_untampered_envelope_and_reads_only_the_selection() {
 }
 
 #[test]
+fn another_patch_must_match_the_target_version() {
+    let scratch = Scratch::new();
+    let mut envelope = Envelope::new();
+    envelope.manifest["source_identity"]["game_patch"] = json!("0.5.5.8");
+    envelope.source()["game_patch"] = json!("0.5.5.8");
+    let (_, pin) = envelope.write(&scratch.0);
+    let open = |version| super::super::reader::open(&scratch.0, &pin, version, SELECTED);
+    let facts = open("0.5.5.8").unwrap();
+    assert_eq!(facts.manifest["source_identity"]["game_patch"], "0.5.5.8");
+    assert_eq!(
+        open("9.9.9.9").err().unwrap(),
+        "target version differs from facts game_patch"
+    );
+}
+
+#[test]
 fn rejects_each_changed_manifest_lock_and_payload_field() {
     type Change = fn(&mut Envelope);
     let cases: [(&str, Change); 25] = [
@@ -103,7 +119,7 @@ fn rejects_each_changed_manifest_lock_and_payload_field() {
         ("empty acquisition evidence", |e| {
             e.manifest["source_identity"]["acquisition"]["evidence"] = json!([])
         }),
-        ("invalid source identity game_patch", |e| {
+        ("source-lock game_patch mismatch", |e| {
             e.manifest["source_identity"]["game_patch"] = json!("0.5.5.4")
         }),
         ("producer identity mismatch", |e| {
