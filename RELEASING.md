@@ -42,7 +42,7 @@ and `release/<patch>-<n>/` the package published as `game/<patch>-<n>`
 then the highest `<n>`. Each directory holds three files:
 
 - `inputs.lock.json` (`repoe-release-inputs/v1`): the `target`, the input
-  `packages`, the `facts` envelope, the `reference` package and the `expect`
+  `packages`, the `facts` input, the `reference` package and the `expect`
   pin.
 - `domains.json`: the jobs in order: one `adapter` job per
   `pobr-data-adapter --ordinary-facts` domain, plus `special-derived`,
@@ -74,6 +74,35 @@ blobs.
 - `facts` may be omitted when no `adapter` job runs (a replay of an old
   package that has no exported facts).
 
+For a fresh export, `facts.root` is the path of one `facts:candidate` output
+directory inside the declared package. Both identity names use that root's
+`manifest.json` SHA-256:
+
+```json
+{
+  "facts": {
+    "package": "ordinary",
+    "root": "facts",
+    "identities": {
+      "original": "<facts/manifest.json SHA-256>",
+      "rebound": "<the same SHA-256>"
+    }
+  }
+}
+```
+
+The build checks both declared identities against the packaged manifest and
+verifies its file pins. The root is a relative path within the package and
+cannot be combined with `handoff` or `archive`.
+
+Existing declarations keep the historical envelope shape unchanged:
+`facts: {package, handoff, archive, identities}`. `facts.handoff` names the
+`pobr-ordinary-source-handoff/v1` document and `facts.archive` its portable
+ZIP, both inside the declared package. Its `original` and `rebound`
+identities differ because it proves the 0.5.5.5 source-lock correction
+([source rebinding](RePoE/docs/client/source-rebinding.md)); new exports use
+`root`.
+
 Each member is `generated` (a job derived it), `passthrough` (a job emitted
 one of its own inputs; undeclared pass-through fails the build) or `frozen`,
 and each produced member is `*-identical`, `*-different` or `*-new` against the
@@ -91,6 +120,10 @@ refuses a newly locked snapshot without one), and `omit` drops entries and
 fields another owner declares: the game snapshot does not list the language
 owner's `i18n/` files or `languages`. PoBR composes the runtime manifest from
 both packages, so a language release does not need a game re-release.
+When the template comes from an earlier game package, its `poe_version`
+must equal that package's root manifest `target.game_patch`; the new
+snapshot records the declaration's target patch. Any other version mismatch
+is refused.
 
 CI (`.github/workflows/release-build.yml`, described in
 [AGENTS.md](AGENTS.md#ci)) rebuilds and checks every declaration directory.
@@ -129,7 +162,7 @@ patch is bumped alone).
 
 ## Input packages
 
-`release:inputs` packages a patch's extracted inputs (the facts envelope,
+`release:inputs` packages a patch's extracted inputs (the facts root or envelope,
 codec sources, supplements, tree references: whatever the declaration's jobs
 read) and publishes them as the GitHub Release `inputs/<patch>-<n>`, so a
 declaration pins them like a game package:
@@ -142,7 +175,7 @@ mise run release:inputs -- --patch <patch> --package ordinary=<dir> --yes
 | Item | Value |
 | --- | --- |
 | Assets | one `repoe-input-<name>-<patch>.zip` per `--package`, and `SHA256SUMS` |
-| Zip | every regular file under `<dir>` at its relative path plus a root `manifest.json` (`repoe-release-input/v1`: `name`, `target`, `files` pins); sorted members, fixed timestamps, so the bytes depend only on the files (symlinks and a `manifest.json` in `<dir>` refuse) |
+| Zip | every regular file under `<dir>` at its relative path plus a root `manifest.json` (`repoe-release-input/v1`: `name`, `target`, `files` pins); `crafting` keeps its exported root manifest instead. Sorted members and fixed timestamps make the bytes depend only on the files. Symlinks and a root `manifest.json` in other packages refuse |
 | Tag | `inputs/<patch>-<n>`, annotated, on HEAD; `<n>` is one above the highest `inputs/<patch>-*` on `origin` (game tags are a separate sequence) |
 | Output | `.cache/release/publish/inputs-<game>-<realm>-<patch>/`: `assets/`, `release-notes.md`, `tag-message.txt`, and `lock.json`, the `inputs.lock.json` `packages` entries to paste (`{repository, tag, asset, bytes, sha256, manifest, expanded_bytes}`) |
 
@@ -153,6 +186,20 @@ one commit; see [Troubleshooting](#troubleshooting)), so publishing a second
 input batch of a patch needs a new commit. Package members are named by the
 directory layout: a job option `ordinary:passive-tree/supplement` reads
 `passive-tree/supplement/` of the `ordinary` package.
+
+Before staging succeeds, every facts, supplement, descriptions and tables
+manifest must declare the requested `--patch`, `--realm` (default
+`international`) and `--game` (default `poe2`). This includes the facts
+inside a historical envelope ZIP. An error names the file, the expected
+value and the actual value. Packaging and the lock/notes files are prepared
+in a temporary directory; a failure keeps the previous successful staging.
+
+For `--package crafting=<crafting export>`, the ZIP retains the
+`repoe-native-crafting-facts/v1` root `manifest.json` and its file pins.
+Its lock entry also includes `publication: "published"`, `producer` and
+`input_manifest`, derived from the exporter manifest, for the crafting
+build job. `publication` describes the Release input that the entry will
+pin; a dry run still publishes nothing.
 
 ## China client capture input
 
@@ -236,6 +283,11 @@ silently. To replace a frozen member:
    data change: review the diff, put it in the next `release/<patch>-<n>/`
    with its `expect` pin, publish and bump PoBR.
 
+When the source package declares a different patch, a frozen destination
+`data/<target>/X` reads `data/<source patch>/X`, using the source package's
+root manifest `target.game_patch`. Other paths keep their names. The
+declared byte and SHA-256 pins still have to match.
+
 Other frozen bytes: the published package's PoB2-derived parser and
 special-rule files stay frozen (new parser capability goes into PoBR's Rust
 rules), and pinned policy files keep their bytes; changing a policy is a data
@@ -267,8 +319,6 @@ This table lists only the checks that gate accepting a new patch. Other
 | Accepted source patch | `RePoE/native/facts.py` (`game_patch != "0.5.5.5"`), `tools/pobr-data-adapter/src/facts/trust.rs` (`("game_patch", "0.5.5.5")`), `src/facts/player.rs` (`identity["game_patch"] == "0.5.5.5"`) | Accept `<new>` as well; the 0.5.5.5 envelope must still verify |
 | Exporter identity | the producer map in `trust.rs`; the `include_bytes!` fixtures `tests/fixtures/ordinary-facts/selected-tables-producer*.json`, `item-inheritance-producer.json` and `tests/fixtures/native-facts/player-context-manifest.json` | Add the new export's identity (current `RePoE/native/` paths and hashes) beside the historical one; never edit the historical bytes ([fixed producer identities](tools/pobr-data-adapter/tests/fixtures/ordinary-facts/README.md#fixed-producer-identities)) |
 | Crafting producer | `PRODUCER_KEY_SETS` in `RePoE/release/crafting_catalog.py` | Nothing while the exporters stay where they are: it already accepts the historical keys and the current `RePoE/native/` keys (a test keeps them equal to `native/crafting_facts.PRODUCERS`); add a set only if the exporters move again |
-| Crafting package transport | `crafting_catalog.facts_document`, `release:inputs` | The crafting job reads the package's own root `manifest.json` (`repoe-native-crafting-facts/v1`) and needs `publication`, `producer` and `input_manifest` on the lock entry, while `release:inputs` reserves the root `manifest.json` and prints none of those keys: decide how a new crafting package is published |
-| Frozen members and snapshot template | `RePoE/release/build.py` | A frozen member is read at its own path (`data/<new>/…`) from the single `frozen-inputs.json` `source`, and the snapshot template must have `poe_version == <new>`; `game/0.5.5.5-3` holds `data/0.5.5.5/…` with `poe_version` 0.5.5.5. Either map the old paths in code or carry the frozen bytes and the template in an input package under `data/<new>/` |
 | Schema constants (only if the dat schema changes) | `trust.rs` (`DECODER_PIN_SHA`, `SCHEMA_REVISION`, `SCHEMA_SHA`, the native specification pin), `RePoE/native/decoded_tables.py` (`SPEC_SHA`), `native/locale_probe.py` (`SCHEMA_REVISION`, `SCHEMA_SHA256`), `native/crafting_facts.py` (`SCHEMA`), `native/facts.py` (`SCHEMA`, `SCHEMA_SHA`) | Add the new schema beside the pinned one |
 
 `RePoE/native/locale_probe.py` is pinned by its own bytes (`decoded_tables.py`
@@ -281,14 +331,16 @@ keeps working only at its producer commit
 
 Acquire and export the patch with `client:source`, `facts:candidate`,
 `tables:candidate`, `descriptions:candidate`, `RePoE.native.item_inheritance`,
-`RePoE.native.crafting_facts` and `source:rebind`
+and `RePoE.native.crafting_facts`
 ([native docs](RePoE/docs/README.md)), then lay out one directory per input
-package. The `ordinary` package of `release/0.5.5.5-2/` has this layout; a job
-option `ordinary:<path>` names a path in it:
+package. Copy the new `facts:candidate` output into `ordinary/facts/` and
+declare `facts.root: "facts"` as described above. `source:rebind` is only
+for the historical 0.5.5.5 source-lock correction envelope, not a step for
+a new patch. A job option `ordinary:<path>` names a path in this layout:
 
 | Path | Content | Produced by |
 | --- | --- | --- |
-| `ordinary-input.zip/ordinary-input.zip`, `handoff.json/handoff.json` | The portable facts envelope that `facts.archive` and `facts.handoff` name | `facts:candidate`, `facts:validate`, `source:rebind` |
+| `facts/` | One complete candidate output directory, including `manifest.json` and `source-lock.json`; `facts.root` names it | `facts:candidate`, `facts:validate` |
 | `<domain>/supplement/` (`stat-descriptions`, `passive-tree`, `minions`, `spectres`) | `tables.json`, `manifest.json`, `source-lock.json` (`repoe-native-tables/v1`) | `tables:candidate` |
 | `base-items/supplement/` | `inheritance.json`, `manifest.json`, `source-lock.json` (`repoe-item-inheritance/v1`) | `RePoE.native.item_inheritance` |
 | `passive-tree/tree-descriptions/`, `stat-descriptions/item-descriptions/` | `descriptions.json`, `manifest.json` (`repoe-native-descriptions/v1`) | `descriptions:candidate` |
@@ -300,7 +352,10 @@ option `ordinary:<path>` names a path in it:
 
 The `crafting` package holds the seven tables, `crafting.json`,
 `input-manifest.json` and its own `manifest.json`
-([crafting facts](RePoE/docs/native/native_crafting_facts.md)).
+([crafting facts](RePoE/docs/native/native_crafting_facts.md)). Export it
+from the same ordinary facts root: its `input_package.manifest` pins that
+root's manifest. Package the directory directly with
+`--package crafting=<crafting export>`; keep its root manifest.
 
 ### 2. Publish the inputs
 
@@ -321,10 +376,10 @@ and only that. It is `release/0.5.5.5-2/` plus the `gem-descriptions` job
 | Job outputs and frozen keys `data/0.5.5.5/…`, the `snapshot-manifest` `member` | `data/<new>/…` |
 | `policy:<domain>/0.5.5.5-*.json` | New `policy:<domain>/<new>-*.json` files whose `version` / `target.game_patch` is `<new>` (the adapter checks them against the facts). Never edit the 0.5.5.5 policies: `release/0.5.5.5-2/`, `release/0.5.5.5-3/` and the adapter tests pin their bytes |
 | Policy templates (`rebind`, `expect`) | New `expect` pins of the rebound policies |
-| `packages.ordinary`, `packages.crafting`, `facts` (including `identities`) | The new input packages and envelope |
+| `packages.ordinary`, `packages.crafting`, `facts` (including `identities`) | The new input package entries; `facts.root` names the fresh candidate directory, with `original` and `rebound` both pinned to its manifest |
 | `packages.previous` | `game/0.5.5.5-3` (the `reference` and the frozen `source`) |
 | `packages.legacy` and its `legacy:data/0.5.5.4.2/…` options, `historical-attributes-v1.json` | Unchanged: the 0.5.5.4.2 inputs (codec sources, historical trees) stay |
-| The snapshot template `previous:data/0.5.5.5/manifest.json` | A template with `poe_version` `<new>` (see step 0) |
+| The snapshot template `previous:data/0.5.5.5/manifest.json` | Keep the source package's path and version; the build validates it against that package and writes `<new>` |
 | `contract_version: "adapter"` and the `omit` of `i18n/`/`languages` | Unchanged |
 | `handoff/*` paths and tags in `release/0.5.5.5-2/` and `release/0.5.5.5-3/` | Unchanged: they are historical and stay readable |
 
