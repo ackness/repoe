@@ -4,12 +4,14 @@ import json
 from pathlib import Path
 import tempfile
 import unittest
+from unittest.mock import patch
 
 from RePoE.native import facts
 from RePoE.native import tables as producer
 from RePoE.native import schema_candidate
 from RePoE.native.tools import pinned_pypoe
 from tests.native.test_facts import dat_bytes
+from RePoE.client import limits
 
 
 class SelectedTablesTests(unittest.TestCase):
@@ -173,6 +175,30 @@ class SelectedTablesTests(unittest.TestCase):
         self.pin()
         with self.assertRaisesRegex(ValueError, "decoder pin mismatch"):
             self.create()
+        self.assertFalse((self.root / "candidate").exists())
+
+    def test_shared_raw_resource_and_selection_caps(self):
+        self.set_table("Ascendancy", [{"Id": "Witch1"}])
+        data = b"x" * limits.MAX_RESOURCE
+        pin = {"bytes": len(data), "sha256": producer.envelope._sha(data)}
+        self.source["resources"] = {name: dict(pin) for name in self.source["resources"]}
+        read = producer.envelope._read
+        with patch.object(
+            producer.envelope, "_read", side_effect=lambda path, cap: read(path, cap) if path == self.lock else data
+        ):
+            self.pin()
+            _, _, verified, _ = producer._inputs(self.lock, "selected", self.raw, self.expected)
+            self.assertEqual(sum(map(len, verified.values())), limits.MAX_SELECTED_RAW)
+            first = next(iter(self.source["resources"]))
+            self.source["resources"][first]["bytes"] = limits.MAX_RESOURCE + 1
+            self.pin()
+            with self.assertRaisesRegex(ValueError, "Invalid raw fingerprint"):
+                self.create()
+            self.source["resources"][first] = dict(pin)
+            self.source["resources"]["Data/Balance/Zzz.datc64"] = {"bytes": 1, "sha256": "a" * 64}
+            self.pin()
+            with self.assertRaisesRegex(ValueError, "inventory exceeds byte bound"):
+                self.create()
         self.assertFalse((self.root / "candidate").exists())
 
     def test_duplicate_keys_path_escape_and_symlinks_reject(self):

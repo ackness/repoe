@@ -90,7 +90,7 @@ class Stream:
         self.chunks = []
 
     def take(self, count):
-        client.integer(count, 1, client.MAX_RESOURCE, "index read")
+        client.integer(count, 1, client.MAX_INDEX_READ, "index read")
         if self.offset + count > self.bundle.size:
             raise ValueError("Truncated index prefix")
         result = bytearray()
@@ -186,7 +186,7 @@ def inspect_locations(bundle, paths):
                     }
                 number += 1
     missing = [name for name in paths if name not in found]
-    client.integer(sum(record["length"] for record in found.values()), 0, client.MAX_NETWORK, "selected raw total")
+    client.integer(sum(record["length"] for record in found.values()), 0, client.MAX_SELECTED_RAW, "selected raw total")
     return (
         found,
         missing,
@@ -211,7 +211,7 @@ def locations(bundle, paths):
     found, missing, framing = inspect_locations(bundle, paths)
     if missing:
         raise ValueError("Paths not found in the selected index: " + ", ".join(missing))
-    client.integer(sum(record["length"] for record in found.values()), 1, client.MAX_NETWORK, "selected raw total")
+    client.integer(sum(record["length"] for record in found.values()), 1, client.MAX_SELECTED_RAW, "selected raw total")
     return found, framing
 
 
@@ -485,6 +485,8 @@ def main():
             args.archive,
             args.ledger,
         )
+        if not args.diagnostic:
+            selection, _ = draft.load_selection(args.out / "selection.json")
     except (ValueError, OSError, KeyError, TypeError, struct.error, UnicodeError, subprocess.SubprocessError) as error:
         parser.exit(1, f"client_index: {error}\n")
     if args.diagnostic:
@@ -495,6 +497,10 @@ def main():
                     "diagnostic": str(args.out / DIAGNOSTIC),
                     "matched": len(receipt["matched"]),
                     "missing": receipt["missing"],
+                    "utilisation": client.utilisation(
+                        (r["length"] for r in receipt["matched"].values()),
+                        network_reserved=receipt["network"]["reserved_bytes"],
+                    ),
                 },
                 sort_keys=True,
             )
@@ -508,6 +514,10 @@ def main():
                     "status": STATUS,
                     "receipt_sha256": client.sha256(client.encoded(receipt)),
                     "selection": str(args.out / "selection.json"),
+                    "utilisation": client.utilisation(
+                        (r["uncompressed_length"] for r in selection["resources"].values()),
+                        network_reserved=receipt["network"]["reserved_bytes"],
+                    ),
                 },
                 sort_keys=True,
             )

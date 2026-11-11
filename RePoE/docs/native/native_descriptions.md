@@ -29,7 +29,7 @@ All raw fingerprints are checked before parsing. Duplicate JSON keys, unsafe
 resource paths, symlink components, missing files, invalid UTF-16, malformed
 branches, unsupported directives, missing/cyclic/deep includes and resources
 outside the selected literal closure fail without a completed output. Limits
-are 128 files, 32 MiB per file, 64 MiB total and sixteen include edges. Raw
+are 128 files, 64 MiB per file, 128 MiB total and sixteen include edges. Raw
 resources require BOM UTF-16LE. No silent parse gaps or partial branch export
 are accepted. Unused siblings outside the explicit resource inventory are not
 read and are not part of this package's source claim.

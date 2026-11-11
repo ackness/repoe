@@ -38,18 +38,18 @@ is an example of a separate candidate, not a runtime default.
 ```
 
 Choose the patch deliberately using separately retained version evidence. Paths use the same portable spelling, locale-space, case collision
-and file/directory rules as draft acquisition. Limits: 128 paths, 32 MiB per
-selected resource, 64 MiB selected raw total. No raw hashes are accepted as inputs.
+and file/directory rules as draft acquisition. Limits: 128 paths, 64 MiB per
+selected resource, 128 MiB selected raw total. No raw hashes are accepted as inputs.
 The fixed resource cap includes patch 0.5.5.5's 30,380,428-byte
-`stat_descriptions.csd`; index parsing, HTTP/cache budgets and decoder/worker
-limits are unchanged.
+`stat_descriptions.csd`. HTTP/cache totals are separately capped at 128 MiB;
+bundle, chunk and decoder/worker limits are unchanged.
 
 ```sh
 mise run client:locate -- --request /path/to/request.json \
   --cache .cache/client-index/ranges --out .cache/client-index/first \
   --decoder-python /path/to/repoe/.venv/bin/python \
   --decoder-lock /path/to/repoe/uv.lock \
-  --mode online --network-budget-bytes 67108864
+  --mode online --network-budget-bytes 134217728
 
 # Replay to a new root; no HTTP opener is created.
 mise run client:locate -- --request /path/to/request.json \
@@ -66,7 +66,7 @@ mise run client:draft -- --selection .cache/client-index/first/selection.json \
 ```
 
 Index discovery can consume substantial bandwidth because it searches every file
-record; it does not assume sorted hashes. If a patch exceeds the 64 MiB compressed
+record; it does not assume sorted hashes. If a patch exceeds the 128 MiB compressed
 range/cache cap, the command fails rather than raising it or switching sources.
 Only `https://patch-poe2.poecdn.com/<patch>/Bundles2/_.index.bin` is available to its
 range reader; resource payloads are acquired later. The directory-name bundle is

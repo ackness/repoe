@@ -80,8 +80,7 @@ record them. Paths must be `Data/StatDescriptions/**.csd`, `Data/Balance/<Table>
 
 ### Next collection order
 
-Merge the separate size-cap PR before the owner makes the next copy. Keep the
-game and launcher closed until that copy is complete. `capture-sc.ps1` copies
+Keep the game and launcher closed until that copy is complete. `capture-sc.ps1` copies
 the client once; it does not take a request. Process that same folder in this order:
 
 1. Run `client:capture` with `china-text-request-2.json`, as in
@@ -196,14 +195,15 @@ during extraction.
 - Hashes prove transfer integrity (these are the files the owner hashed), not
   authenticity.
 - Index path hashes are case-insensitive, non-cryptographic Murmur64A matches.
-- The selected raw total is bounded by the index reader's 64 MiB, with 32 MiB
-  per resource, during `client:capture` extraction. These limits are not checked
-  by the owner's PowerShell copy script; the candidate exporters also bound
-  their selected inputs. The original China request used 64,459,708 bytes.
-  The 0.5.5.8 international default/Traditional Chinese proxy estimates the
-  main request at 64,829,502 bytes and names at 45,380,276 bytes, separately.
-  Actual China sizes and the next patch can differ. Keep the requests separate
-  and merge the size-cap PR before the next capture.
+- The index reader accepts 64 MiB per selected resource and 128 MiB selected
+  raw total, shared with acquisition and native exporters via
+  `RePoE/client/limits.py`. These limits are not checked by the owner's
+  PowerShell copy script. The first China request used 64,459,708 bytes
+  (48.03% of the total cap). The 0.5.5.8 international default/Traditional
+  Chinese proxy estimates the main request at 64,829,502 bytes (48.30%) and
+  names at 45,380,276 bytes (33.81%), separately; actual China sizes and the
+  next patch can differ. Keep the requests separate. The completion summary
+  reports utilisation.
 - `descriptions:candidate`'s fixed limits sentence ("International Simplified
   Chinese text is not CN-realm…") also appears in China manifests; read the
   manifest's `realm` instead.

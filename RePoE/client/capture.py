@@ -495,6 +495,7 @@ def main(argv=None):
                 "source_lock_sha256": client.sha256(lock_raw),
                 "sources": {key: len(source["resources"]) for key, source in lock["sources"].items()},
                 "out": str(args.out),
+                "utilisation": client.utilisation(r["bytes"] for r in receipt["resources"].values()),
             },
             sort_keys=True,
         )

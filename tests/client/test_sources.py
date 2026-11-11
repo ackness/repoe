@@ -1,5 +1,6 @@
 """Focused, network-free contracts for fixed official-client resource acquisition."""
 
+import ast
 import copy
 import http.client
 import io
@@ -11,6 +12,7 @@ import unittest
 from unittest.mock import Mock, patch
 
 from RePoE.client import sources as client
+from RePoE.client import limits
 
 # Original observed header/table fixture from the same fixed migration commit.
 # Inline so acquisition tests need no PoBR fixture directory or production data.
@@ -413,39 +415,140 @@ class ClientSourceTests(unittest.TestCase):
         self.assertFalse((other / client.RECEIPT).exists())
         self.assertFalse((other / "Data/Balance/Test.datc64").exists())
 
-    def test_32_mib_resource_reconstruction_keeps_chunk_and_request_bounds(self):
-        raw = b"x" * (32 * client.MIB)
+    def test_resource_cap_reconstruction_keeps_chunk_and_request_bounds(self):
+        raw = b"x" * limits.MAX_RESOURCE
         http = FakeHTTP(bundle_bytes(raw, chunk_size=client.MIB))
-        ranges = self.ranges(http=http, budget=64 * client.MIB)
+        ranges = self.ranges(http=http, budget=limits.MAX_NETWORK)
         bundle = client.Bundle(URL, ranges, FakeDecoder(None, self.decoder_lock, None))
         self.assertEqual(bundle.read(0, len(raw)), raw)
-        self.assertEqual(FakeDecoder.calls, [(client.MIB, client.MIB)] * 32)
+        self.assertEqual(FakeDecoder.calls, [(client.MIB, client.MIB)] * (len(raw) // client.MIB))
         self.assertTrue(all(r.read_limits == [len(r.body) + 1] for r in http.responses))
-        self.assertTrue(all(len(r.body) + 1 <= 4 * client.MIB for r in http.responses))
+        self.assertTrue(all(len(r.body) + 1 <= limits.MAX_RANGE for r in http.responses))
         before = len(http.requests), len(FakeDecoder.calls)
         with self.assertRaisesRegex(ValueError, "resource length"):
-            bundle.read(0, 32 * client.MIB + 1)
+            bundle.read(0, limits.MAX_RESOURCE + 1)
         self.assertEqual((len(http.requests), len(FakeDecoder.calls)), before)
+        offline = self.ranges(mode="offline", http=Mock(open=Mock(side_effect=AssertionError("unexpected network"))))
+        replay = client.Bundle(URL, offline, FakeDecoder(None, self.decoder_lock, None))
+        self.assertEqual(replay.read(0, len(raw)), raw)
+        self.assertEqual((offline.requests, offline.downloaded, offline.reserved), (0, 0, 0))
 
-    def test_strict_raw_resource_and_64_mib_total_boundaries(self):
+    def test_strict_raw_resource_and_selected_total_boundaries(self):
         record = self.source["resources"]["Data/Balance/Test.datc64"]
-        for size in [30380428, 32 * client.MIB]:
+        for size in [30380428, 40 * client.MIB, limits.MAX_RESOURCE]:
             record.update(bytes=size, uncompressed_length=size)
             self.save_lock()
             client.load_source(self.lock, "fixed")
         for field in ["bytes", "uncompressed_length"]:
-            record[field] = 32 * client.MIB + 1
+            record[field] = limits.MAX_RESOURCE + 1
             self.save_lock()
             with self.assertRaisesRegex(ValueError, "resource (bytes|length)"):
                 client.load_source(self.lock, "fixed")
-            record[field] = 32 * client.MIB
+            record[field] = limits.MAX_RESOURCE
         self.source["resources"]["Data/Balance/Second.datc64"] = dict(record)
         self.save_lock()
-        client.load_source(self.lock, "fixed")  # Exactly 64 MiB remains valid.
+        client.load_source(self.lock, "fixed")  # Exactly the selected raw cap remains valid.
         self.source["resources"]["Data/Balance/Extra.datc64"] = {**record, "bytes": 1, "uncompressed_length": 1}
         self.save_lock()
         with self.assertRaisesRegex(ValueError, "selected raw byte total"):
             client.load_source(self.lock, "fixed")
+
+    def test_client_byte_limit_literals_have_one_home(self):
+        def number(node):
+            if isinstance(node, ast.Constant) and type(node.value) is int:
+                return node.value
+            if isinstance(node, ast.Name) and node.id == "MIB":
+                return client.MIB
+            if isinstance(node, ast.Attribute) and node.attr == "MIB":
+                return client.MIB
+            if isinstance(node, ast.BinOp):
+                left, right = number(node.left), number(node.right)
+                if left is not None and right is not None:
+                    if isinstance(node.op, ast.Mult):
+                        return left * right
+                    if isinstance(node.op, ast.LShift) and 0 <= right <= 30:
+                        return left << right
+                    if isinstance(node.op, ast.Pow) and 0 <= right <= 30:
+                        return left**right
+            return None
+
+        root = Path(__file__).resolve().parents[2]
+        # The standalone legacy probe is byte-pinned by published transfer receipts.
+        exceptions = {"RePoE/client/limits.py", "RePoE/native/locale_probe.py"}
+        duplicates = []
+        for path in sorted((root / "RePoE").rglob("*.py")):
+            if path.relative_to(root).as_posix() in exceptions:
+                continue
+            for node in ast.walk(ast.parse(path.read_text(encoding="utf-8"))):
+                if number(node) in {32 * client.MIB, 64 * client.MIB, 128 * client.MIB}:
+                    duplicates.append(f"{path.relative_to(root)}:{node.lineno}")
+        self.assertEqual(duplicates, [], "Import byte limits from RePoE.client.limits")
+
+    def test_summary_reports_utilisation_of_separate_limits(self):
+        self.assertEqual(
+            limits.utilisation([limits.MAX_RESOURCE] * 2, network_reserved=limits.MAX_NETWORK // 2),
+            {"largest_resource_percent": 100.0, "selected_raw_percent": 100.0, "network_reserved_percent": 50.0},
+        )
+
+    def test_acquire_cli_extends_its_single_line_summary(self):
+        with (
+            patch.object(client, "ExternalDecoder", FakeDecoder),
+            patch.object(client.urllib.request, "build_opener", return_value=FakeHTTP()),
+            patch("sys.stdout", new_callable=io.StringIO) as stdout,
+        ):
+            client.main(
+                [
+                    "acquire",
+                    "--source-lock",
+                    str(self.lock),
+                    "--source",
+                    "fixed",
+                    "--cache",
+                    str(self.cache),
+                    "--out",
+                    str(self.out),
+                    "--decoder-python",
+                    "/explicit/python",
+                    "--decoder-lock",
+                    str(self.decoder_lock),
+                    "--mode",
+                    "online",
+                    "--network-budget-bytes",
+                    str(limits.MAX_NETWORK),
+                ]
+            )
+        self.assertEqual(len(stdout.getvalue().splitlines()), 1)
+        message = json.loads(stdout.getvalue())
+        receipt = client.decode((self.out / client.RECEIPT).read_bytes())
+        self.assertEqual(message["receipt_sha256"], client.sha256(client.encoded(receipt)))
+        self.assertEqual(
+            message["utilisation"],
+            limits.utilisation([7], network_reserved=receipt["network"]["reserved_bytes"]),
+        )
+        self.assertNotIn("utilisation", receipt)
+
+    def test_network_cache_and_archive_totals_use_separate_caps(self):
+        ranges = self.ranges(http=FakeHTTP(), budget=limits.MAX_NETWORK)
+        ranges.reserved = limits.MAX_NETWORK - 61
+        ranges.read(URL, 0, 60)
+        self.assertEqual(ranges.reserved, limits.MAX_NETWORK)
+        with self.assertRaisesRegex(ValueError, "budget"):
+            ranges.read(URL, 60, 1)
+
+        cache = ranges.cache
+        cache.checked_bytes = limits.MAX_CACHE_BYTES - 1
+        cache.add(URL, 60, b"x", len(bundle_bytes()), '"stable"', {"kind": "test"})
+        self.assertEqual(cache.checked_bytes, limits.MAX_CACHE_BYTES)
+        with self.assertRaisesRegex(ValueError, "byte cap"):
+            cache.add(URL, 61, b"x", len(bundle_bytes()), '"stable"', {"kind": "test"})
+
+        ledger, archive = self.archive()
+        raw = (archive / "complete.bin").read_bytes()
+        with patch.object(client, "MAX_ARCHIVE_BYTES", len(raw)):
+            client.import_archive(self.lock, "fixed", self.root / "archive-cache", archive, ledger)
+        with patch.object(client, "MAX_ARCHIVE_BYTES", len(raw) - 1):
+            with self.assertRaisesRegex(ValueError, "archive import bytes"):
+                client.import_archive(self.lock, "fixed", self.root / "oversized-cache", archive, ledger)
 
     def test_tampered_cache_and_metadata_fail_closed_without_network_fallback(self):
         self.acquire()

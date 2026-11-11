@@ -9,11 +9,10 @@ import re
 import sys
 
 from RePoE.native import csd as native_csd
+from RePoE.client.limits import MAX_RESOURCE, MAX_SELECTED_RAW
 
 
 ROOT = Path(__file__).resolve().parents[2]
-MAX_FILE_BYTES = 32 * 1024 * 1024
-MAX_TOTAL_BYTES = 64 * 1024 * 1024
 MAX_FILES = 128
 
 
@@ -110,12 +109,12 @@ def _inputs(source_lock, source, raw, expected_source_lock_sha256):
         if (
             not isinstance(fingerprint, dict)
             or type(fingerprint.get("bytes")) is not int
-            or not 0 < fingerprint["bytes"] <= MAX_FILE_BYTES
+            or not 0 < fingerprint["bytes"] <= MAX_RESOURCE
             or not _digest(fingerprint.get("sha256"))
         ):
             raise ValueError(f"Invalid CSD fingerprint: {name}")
         total += fingerprint["bytes"]
-        if total > MAX_TOTAL_BYTES:
+        if total > MAX_SELECTED_RAW:
             raise ValueError("CSD inventory exceeds total raw byte limit")
         path = raw_root / name
         if not path.resolve(strict=True).is_relative_to(raw_root):

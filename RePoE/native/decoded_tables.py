@@ -15,6 +15,12 @@ import zlib
 from RePoE.native import descriptions as env
 from RePoE.native import facts
 from RePoE.native import locale_probe as probe
+from RePoE.client.limits import (
+    MAX_DECODED_TABLE_PAIR_BYTES,
+    MAX_TARGET_TABLE_JSON_BYTES,
+    MAX_TRANSFER_COMPRESSED_BYTES,
+    MAX_TRANSFER_DECODED_BYTES,
+)
 
 
 ROOT = Path(__file__).resolve().parents[2]
@@ -131,11 +137,11 @@ def _transfer(receipt_path, expected, parts_path):
         ):
             raise ValueError("Compressed table transfer pin/bound mismatch")
         limit = entry["decoded"]["bytes"]
-        if type(limit) is not int or not 0 < limit <= 128 * 1024 * 1024:
+        if type(limit) is not int or not 0 < limit <= MAX_DECODED_TABLE_PAIR_BYTES:
             raise ValueError("Decoded transfer size outside bound")
         total_compressed += len(compressed)
         total_decoded += limit
-        if total_compressed > 32 * 1024 * 1024 or total_decoded > 256 * 1024 * 1024:
+        if total_compressed > MAX_TRANSFER_COMPRESSED_BYTES or total_decoded > MAX_TRANSFER_DECODED_BYTES:
             raise ValueError("Total transfer exceeds bound")
         decoder = zlib.decompressobj()
         raw = decoder.decompress(compressed, limit + 1)
@@ -210,10 +216,10 @@ def _targets(lock_path, expected, names, source_schemas):
             raise ValueError("Target native schema differs from selected source schema")
         payload = "tables.json" if "tables.json" in manifest["files"] else f"tables/{name}.json"
         payload_pin = manifest["files"][payload]
-        payload_raw = pinned(package / payload, payload_pin["sha256"], 128 * 1024 * 1024)
+        payload_raw = pinned(package / payload, payload_pin["sha256"], MAX_TARGET_TABLE_JSON_BYTES)
         if len(payload_raw) != payload_pin["bytes"]:
             raise ValueError("Target payload byte count mismatch")
-        verified.append((package / payload, payload_pin["sha256"], 128 * 1024 * 1024))
+        verified.append((package / payload, payload_pin["sha256"], MAX_TARGET_TABLE_JSON_BYTES))
         document = env._decode(payload_raw)
         table = document[name] if payload == "tables.json" else document
         fields = [field for field, _ in probe.LAYOUTS[name]]

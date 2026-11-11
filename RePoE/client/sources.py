@@ -16,6 +16,22 @@ import tomllib
 import urllib.request
 
 from . import source_io as source_io
+from .limits import (
+    MAX_ARCHIVE_BYTES as MAX_ARCHIVE_BYTES,
+    MAX_BUNDLE_COMPRESSED as MAX_BUNDLE_COMPRESSED,
+    MAX_BUNDLE_RAW as MAX_BUNDLE_RAW,
+    MAX_CACHE_BYTES as MAX_CACHE_BYTES,
+    MAX_CHUNK_COMPRESSED as MAX_CHUNK_COMPRESSED,
+    MAX_CHUNK_RAW as MAX_CHUNK_RAW,
+    MAX_CHUNKS as MAX_CHUNKS,
+    MAX_INDEX_READ as MAX_INDEX_READ,
+    MAX_NETWORK as MAX_NETWORK,
+    MAX_RANGE as MAX_RANGE,
+    MAX_RECORDS as MAX_RECORDS,
+    MAX_RESOURCE as MAX_RESOURCE,
+    MAX_SELECTED_RAW as MAX_SELECTED_RAW,
+    utilisation as utilisation,
+)
 from .source_io import (
     MIB as MIB,
     OFFICIAL_HOST as OFFICIAL_HOST,
@@ -32,17 +48,6 @@ from .source_io import (
 )
 
 
-MAX_NETWORK = 64 * MIB
-MAX_RANGE = 4 * MIB
-# Fixed raw-file bound: 0.5.5.5 stat_descriptions.csd is 30,380,428 bytes.
-# This does not raise selected-total, HTTP, bundle or decoder chunk limits.
-MAX_RESOURCE = 32 * MIB
-MAX_BUNDLE_RAW = 512 * MIB
-MAX_BUNDLE_COMPRESSED = 256 * MIB
-MAX_CHUNKS = 4096
-MAX_CHUNK_RAW = MIB
-MAX_CHUNK_COMPRESSED = 2 * MIB
-MAX_RECORDS = 4096
 RECEIPT = "client-sources.json"
 
 
@@ -91,7 +96,7 @@ def load_source(path, key):
         if not url.endswith(".bundle.bin"):
             raise ValueError("Only fixed resource bundles are supported; no index discovery")
         total += size
-    integer(total, 1, MAX_NETWORK, "selected raw byte total")
+    integer(total, 1, MAX_SELECTED_RAW, "selected raw byte total")
     return source, sha256(raw)
 
 
@@ -189,7 +194,7 @@ class RangeCache:
                 if path.name != f"{start}-{start + length - 1}.json":
                     raise ValueError("Cache range filename mismatch")
                 self.checked_bytes += length
-                if self.checked_bytes > MAX_NETWORK:
+                if self.checked_bytes > MAX_CACHE_BYTES:
                     raise ValueError("Selected cache bytes exceed cap")
                 self.check_identity(records, r)
                 # Verify every body, including overlaps, rather than trust local metadata.
@@ -246,7 +251,7 @@ class RangeCache:
         for old in records:
             if (old["start"], old["length"]) == (start, len(raw)):
                 return old
-        if len(records) >= MAX_RECORDS or self.checked_bytes + len(raw) > MAX_NETWORK:
+        if len(records) >= MAX_RECORDS or self.checked_bytes + len(raw) > MAX_CACHE_BYTES:
             raise ValueError("Selected cache exceeds range/byte cap")
         blob = self.root / "blobs" / (record["sha256"] + ".bin")
         if blob.exists():
@@ -558,7 +563,7 @@ def import_ranges(cache, archive_root, ledger_path):
         if entry["downloaded_bytes"] != length or len(raw) != length or sha256(raw) != digest(entry["sha256"]):
             raise ValueError("Archive body size/hash mismatch")
         total_bytes += length
-        integer(total_bytes, 1, MAX_NETWORK, "archive import bytes")
+        integer(total_bytes, 1, MAX_ARCHIVE_BYTES, "archive import bytes")
         selected.append(
             (
                 url,
@@ -671,7 +676,10 @@ def main(argv=None):
     acquire_parser.add_argument("--decoder-lock", required=True, type=Path, help="External environment's uv.lock")
     acquire_parser.add_argument("--mode", required=True, choices=["offline", "online"])
     acquire_parser.add_argument(
-        "--network-budget-bytes", type=int, default=0, help="Required online; cumulative per run, at most 64 MiB"
+        "--network-budget-bytes",
+        type=int,
+        default=0,
+        help=f"Required online; cumulative per run, at most {MAX_NETWORK // MIB} MiB",
     )
     acquire_parser.add_argument("--max-request-bytes", type=int, default=MAX_RANGE)
     args = parser.parse_args(argv)
@@ -697,6 +705,12 @@ def main(argv=None):
                     "source": args.source,
                     "receipt_sha256": sha256(encoded(receipt)),
                     "receipt": str(args.out / RECEIPT) if args.command == "acquire" else receipt,
+                    "utilisation": utilisation(
+                        (r["bytes"] for r in receipt["resources"].values()),
+                        network_reserved=receipt["network"]["reserved_bytes"],
+                    )
+                    if args.command == "acquire"
+                    else {"archive_percent": round(100 * receipt["body_bytes"] / MAX_ARCHIVE_BYTES, 2)},
                 },
                 sort_keys=True,
             )

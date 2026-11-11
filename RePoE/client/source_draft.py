@@ -133,7 +133,7 @@ def load_selection(path):
         ):
             raise ValueError("Resource needs unique known location evidence references")
         total += length
-    client.integer(total, 1, client.MAX_NETWORK, "selected raw byte total")
+    client.integer(total, 1, client.MAX_SELECTED_RAW, "selected raw byte total")
     return selection, raw
 
 
@@ -255,7 +255,10 @@ def main(argv=None):
     parser.add_argument("--decoder-lock", required=True, type=Path, help="Explicit external uv.lock")
     parser.add_argument("--mode", required=True, choices=["offline", "online"])
     parser.add_argument(
-        "--network-budget-bytes", type=int, default=0, help="Required online; cumulative, at most 64 MiB"
+        "--network-budget-bytes",
+        type=int,
+        default=0,
+        help=f"Required online; cumulative, at most {client.MAX_NETWORK // client.MIB} MiB",
     )
     parser.add_argument("--max-request-bytes", type=int, default=client.MAX_RANGE)
     args = parser.parse_args(argv)
@@ -277,6 +280,10 @@ def main(argv=None):
                     "production_ready": False,
                     "receipt": str(args.out / RECEIPT),
                     "receipt_sha256": client.sha256(client.encoded(receipt)),
+                    "utilisation": client.utilisation(
+                        (r["observed_bytes"] for r in receipt["resources"]),
+                        network_reserved=receipt["network"]["reserved_bytes"],
+                    ),
                 },
                 sort_keys=True,
             )
