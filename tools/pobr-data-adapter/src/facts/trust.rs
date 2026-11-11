@@ -298,7 +298,6 @@ fn verify_manifest(m: &Value) -> Result<(), String> {
     exact_keys(identity, &identity_keys)?;
     for (key, value) in [
         ("game", "poe2"),
-        ("game_patch", "0.5.5.5"),
         ("realm", "international"),
         ("kind", "official-client-resource-candidate"),
     ] {

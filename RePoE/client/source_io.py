@@ -47,6 +47,12 @@ def digest(value):
     return value
 
 
+def numeric_patch(value):
+    if not isinstance(value, str) or not re.fullmatch(r"[0-9]+(?:\.[0-9]+)+", value):
+        raise ValueError("Source needs an explicit numeric patch")
+    return value
+
+
 def relative(name):
     if (
         not isinstance(name, str)

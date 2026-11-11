@@ -37,8 +37,9 @@ mise exec -- uv run --locked --offline python -B -m RePoE.native.facts \
 ```
 
 The selected schema-1 source-lock entry must have kind
-`official-client-resource-candidate`, game `poe2`, realm `international`, and
-patch `0.5.5.5`. It must contain **exactly** these nine `resources` keys:
+`official-client-resource-candidate`, game `poe2`, realm `international`, and a
+dotted numeric patch (for example `0.5.5.8`), which the facts carry forward as
+`source_identity.game_patch`. It must contain **exactly** these nine `resources` keys:
 
 - `Data/Balance/Characters.datc64`
 - `Data/Balance/ClassPassiveSkillOverrides.datc64`

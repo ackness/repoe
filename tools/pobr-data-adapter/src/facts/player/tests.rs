@@ -101,6 +101,47 @@ fn player_package_pins_inventory_and_separate_parent_are_required() {
 }
 
 #[test]
+fn another_player_patch_must_match_the_verified_parent() {
+    for patch in ["0.5.5.8", "9.9.9.9"] {
+        let (mut c, mut parent) = fixture();
+        parent.manifest["source_identity"]["game_patch"] = json!("0.5.5.8");
+        parent.manifest_bytes = pretty(&parent.manifest);
+
+        let mut m: Value = serde_json::from_str(&c.source_archive["manifest.json"]).unwrap();
+        let mut lock: Value = serde_json::from_str(&c.source_archive["source-lock.json"]).unwrap();
+        let source = m["source_identity"]["source"].as_str().unwrap().to_owned();
+        lock["sources"][&source]["game_patch"] = json!(patch);
+        let lock_bytes = json_bytes(&lock).unwrap();
+        c.source_lock_sha256 = sha256_hex(&lock_bytes);
+        m["source_identity"]["game_patch"] = json!(patch);
+        m["source_identity"]["source_lock_sha256"] = json!(c.source_lock_sha256);
+        m["source_identity"]["selected_source_sha256"] =
+            json!(sha256_hex(&json_bytes(&lock["sources"][&source]).unwrap()));
+        m["parent"]["manifest_sha256"] = json!(sha256_hex(&parent.manifest_bytes));
+        m["parent"]["source_identity"] = parent.manifest["source_identity"].clone();
+        for (name, bytes) in [
+            ("parent-manifest.json", parent.manifest_bytes.clone()),
+            ("source-lock.json", lock_bytes),
+        ] {
+            m["files"][name] = json!({"bytes":bytes.len(),"sha256":sha256_hex(&bytes)});
+            c.source_archive
+                .insert(name.into(), String::from_utf8(bytes).unwrap());
+        }
+        let bytes = json_bytes(&m).unwrap();
+        c.source_manifest_sha256 = sha256_hex(&bytes);
+        c.source_archive
+            .insert("manifest.json".into(), String::from_utf8(bytes).unwrap());
+        let (_scratch, args) = package(&c);
+        let result = player::verify(&args, &parent);
+        if patch == "0.5.5.8" {
+            assert_eq!(result.unwrap().context.game_patch, patch);
+        } else {
+            assert_eq!(result.err().unwrap(), "player/parent game_patch mismatch");
+        }
+    }
+}
+
+#[test]
 fn player_manifest_checks_fixed_all14_producer_and_117_decoder_sources() {
     let (c, parent) = fixture();
     for pointer in [

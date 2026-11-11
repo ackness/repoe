@@ -246,12 +246,27 @@ class NativeFactsTests(NativeFactsFixture):
             self.create()
         self.assertFalse(self.out.exists())
 
-    def test_wrong_patch_or_missing_resource_not_silently_narrowed(self):
-        self.source["game_patch"] = "0.5.5.4.2"
+    def test_another_numeric_patch_is_preserved_in_exported_facts(self):
+        self.source["game_patch"] = "0.5.5.8"
         self.write_lock()
-        with self.assertRaisesRegex(ValueError, "0.5.5.5"):
-            self.create()
-        self.source["game_patch"] = "0.5.5.5"
+        manifest = self.create()
+        self.assertEqual(manifest["source_identity"]["game_patch"], "0.5.5.8")
+        self.assertEqual(self.load("manifest.json")["source_identity"]["game_patch"], "0.5.5.8")
+        validator = "RePoE/client/source_io.py"
+        self.assertEqual(
+            manifest["producer"][validator], schema_candidate._sha((schema_candidate.ROOT / validator).read_bytes())
+        )
+
+    def test_malformed_patch_fails_before_output(self):
+        for value in (None, "", "0558", "0.5..8", "0.5.5.8beta", "0.5.5.8\n", 558, [0, 5, 5, 8]):
+            with self.subTest(game_patch=value):
+                self.source["game_patch"] = value
+                self.write_lock()
+                with self.assertRaisesRegex(ValueError, "explicit numeric patch"):
+                    self.create()
+                self.assertFalse(self.out.exists())
+
+    def test_missing_resource_not_silently_narrowed(self):
         del self.source["resources"][facts.PSG]
         self.write_lock()
         with self.assertRaisesRegex(ValueError, "exactly the selected profile"):

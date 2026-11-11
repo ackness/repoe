@@ -216,9 +216,8 @@ fn verify_manifest(m: &Value) -> Result<(), String> {
     require(
         identity["game"] == "poe2"
             && identity["realm"] == "international"
-            && identity["game_patch"] == "0.5.5.5"
             && identity["acquisition"]["status"] == "unreviewed-acquisition-draft",
-        "unsupported player game/realm/patch/status",
+        "unsupported player game/realm/status",
     )?;
     // Reuse the existing 117-source verifier, translating only the producer's field names.
     let d = &m["decoder"];
