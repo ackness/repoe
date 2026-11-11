@@ -1,5 +1,9 @@
 # Draft source evidence rebinding and portable ordinary input
 
+Historical: this tool made the 0.5.5.5 source-lock correction envelope that the
+existing release declarations still name. It is not a step for a new patch,
+which declares `facts.root` ([RELEASING.md](../../../RELEASING.md#1-export-the-inputs)).
+
 Implementation: `python -B -m RePoE.client.source_rebinding`.
 See [ownership and compatibility](client-sources.md#ownership-and-compatibility)
 for the one-time source and historical protocol names.
