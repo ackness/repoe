@@ -590,6 +590,7 @@ def _candidate_payloads(verified, source_identity, tool_identity, *, profile=BAS
         **{
             name: schema_candidate._sha((schema_candidate.ROOT / name).read_bytes())
             for name in (
+                "RePoE/client/source_io.py",
                 "RePoE/native/facts.py",
                 "RePoE/native/dat.py",
                 "RePoE/native/tools.py",

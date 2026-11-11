@@ -252,6 +252,10 @@ class NativeFactsTests(NativeFactsFixture):
         manifest = self.create()
         self.assertEqual(manifest["source_identity"]["game_patch"], "0.5.5.8")
         self.assertEqual(self.load("manifest.json")["source_identity"]["game_patch"], "0.5.5.8")
+        validator = "RePoE/client/source_io.py"
+        self.assertEqual(
+            manifest["producer"][validator], schema_candidate._sha((schema_candidate.ROOT / validator).read_bytes())
+        )
 
     def test_malformed_patch_fails_before_output(self):
         for value in (None, "", "0558", "0.5..8", "0.5.5.8beta", "0.5.5.8\n", 558, [0, 5, 5, 8]):
