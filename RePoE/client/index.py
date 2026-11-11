@@ -234,7 +234,7 @@ def discover(
     archive=None,
     ledger=None,
 ):
-    return _discover(
+    receipt, _ = _discover(
         request_path,
         cache_root,
         output,
@@ -247,6 +247,7 @@ def discover(
         ledger,
         diagnostic=False,
     )
+    return receipt
 
 
 def inspect_index(
@@ -266,7 +267,7 @@ def inspect_index(
     A caller wanting a successful subset must explicitly submit a new request to
     discover(); this API never filters a request into an acquisition selection.
     """
-    return _discover(
+    receipt, _ = _discover(
         request_path,
         cache_root,
         output,
@@ -279,6 +280,7 @@ def inspect_index(
         ledger,
         diagnostic=True,
     )
+    return receipt
 
 
 def _discover(
@@ -382,7 +384,7 @@ def _discover(
         if client.read_file(output / "request.json", 2 * client.MIB) != request_bytes:
             raise ValueError("Inspection request copy changed before diagnostic output")
         client.write_new(output / DIAGNOSTIC, client.encoded(proof))
-        return proof
+        return proof, matched
     proof_bytes = client.encoded(proof)
     selection = {
         "schema": draft.SELECTION_SCHEMA,
@@ -453,7 +455,7 @@ def _discover(
         "ranges": sorted(cache.used.values(), key=lambda r: (r["url"], r["start"], r["length"])),
     }
     client.write_new(output / "index-receipt.json", client.encoded(receipt))
-    return receipt
+    return receipt, matched
 
 
 def main():
@@ -472,8 +474,7 @@ def main():
     )
     args = parser.parse_args()
     try:
-        operation = inspect_index if args.diagnostic else discover
-        receipt = operation(
+        receipt, matched = _discover(
             args.request,
             args.cache,
             args.out,
@@ -484,9 +485,8 @@ def main():
             args.max_request_bytes,
             args.archive,
             args.ledger,
+            diagnostic=args.diagnostic,
         )
-        if not args.diagnostic:
-            selection, _ = draft.load_selection(args.out / "selection.json")
     except (ValueError, OSError, KeyError, TypeError, struct.error, UnicodeError, subprocess.SubprocessError) as error:
         parser.exit(1, f"client_index: {error}\n")
     if args.diagnostic:
@@ -515,7 +515,7 @@ def main():
                     "receipt_sha256": client.sha256(client.encoded(receipt)),
                     "selection": str(args.out / "selection.json"),
                     "utilisation": client.utilisation(
-                        (r["uncompressed_length"] for r in selection["resources"].values()),
+                        (r["length"] for r in matched.values()),
                         network_reserved=receipt["network"]["reserved_bytes"],
                     ),
                 },

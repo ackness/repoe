@@ -159,6 +159,57 @@ class IndexTests(unittest.TestCase):
                 self.discover(index_bytes(records))
             self.assertFalse(self.out.exists())
 
+    def test_strict_cli_summary_needs_no_reads_after_completion(self):
+        args = index.argparse.Namespace(
+            request=self.request,
+            cache=self.cache,
+            out=self.out,
+            decoder_python=Path("/explicit/python"),
+            decoder_lock=self.lock,
+            mode="online",
+            network_budget_bytes=client.MIB,
+            max_request_bytes=client.MAX_RANGE,
+            archive=None,
+            ledger=None,
+            diagnostic=False,
+        )
+        raw = index_bytes(
+            [(index.hash64(PATH.lower().encode(), SEED), 0, 0, limits.MAX_RESOURCE)],
+            bundle_size=limits.MAX_RESOURCE,
+        )
+        http = fixtures.fixtures.FakeHTTP(fixtures.fixtures.bundle_bytes(raw, chunk_size=32))
+        read, write = client.read_file, client.write_new
+        completed = False
+
+        def write_output(path, raw):
+            nonlocal completed
+            write(path, raw)
+            if path.name == "index-receipt.json":
+                completed = True
+
+        def read_before_completion(path, cap):
+            if completed:
+                raise OSError("Output became unavailable after completion")
+            return read(path, cap)
+
+        with (
+            patch.object(index.argparse.ArgumentParser, "parse_args", return_value=args),
+            patch.object(sys, "stdout", new_callable=io.StringIO) as stdout,
+            patch.object(client, "ExternalDecoder", fixtures.DraftDecoder),
+            patch.object(client.urllib.request, "build_opener", return_value=http),
+            patch.object(client, "read_file", side_effect=read_before_completion),
+            patch.object(client, "write_new", side_effect=write_output),
+        ):
+            index.main()
+        self.assertTrue(completed)
+        self.assertEqual(len(stdout.getvalue().splitlines()), 1)
+        message = json.loads(stdout.getvalue())
+        receipt = client.decode((self.out / "index-receipt.json").read_bytes())
+        self.assertEqual(message["receipt_sha256"], client.sha256(client.encoded(receipt)))
+        self.assertEqual(message["utilisation"]["largest_resource_percent"], 100.0)
+        self.assertEqual(message["utilisation"]["selected_raw_percent"], 50.0)
+        self.assertNotIn("utilisation", receipt)
+
     def test_request_exact_schema_paths_counts_and_decoder_rejected_before_network(self):
         original = copy.deepcopy(self.document)
         mutations = [

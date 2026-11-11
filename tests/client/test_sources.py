@@ -472,6 +472,68 @@ class ClientSourceTests(unittest.TestCase):
                         return left**right
             return None
 
+        def byte_value(node):
+            for part in ast.walk(node):
+                if isinstance(part, (ast.Name, ast.Attribute)):
+                    name = part.id if isinstance(part, ast.Name) else part.attr
+                    if name.lower() in {
+                        "max_resource",
+                        "max_index_read",
+                        "max_network",
+                        "raw_total",
+                    } or name.lower().endswith(("_bytes", "_raw", "_compressed")):
+                        return True
+                if isinstance(part, ast.Subscript) and isinstance(part.slice, ast.Constant):
+                    if part.slice.value in {"bytes", "uncompressed_length"}:
+                        return True
+            return False
+
+        def duplicate_lines(source):
+            bounds = []
+            for node in ast.walk(ast.parse(source)):
+                if isinstance(node, (ast.Assign, ast.AnnAssign)):
+                    targets = node.targets if isinstance(node, ast.Assign) else [node.target]
+                    if any(
+                        isinstance(target, ast.Name) and target.id.startswith("MAX_") and byte_value(target)
+                        for target in targets
+                    ):
+                        bounds.append(node.value)
+                elif isinstance(node, ast.Compare) and byte_value(node):
+                    bounds.extend([node.left, *node.comparators])
+                elif isinstance(node, ast.Call):
+                    name = node.func.id if isinstance(node.func, ast.Name) else getattr(node.func, "attr", None)
+                    if name in {"read_file", "_read", "pinned"} or (
+                        name == "integer" and node.args and byte_value(node.args[0])
+                    ):
+                        bounds.extend(node.args)
+            # Evaluate complete bounds, not matching subexpressions of larger values.
+            return sorted(
+                {node.lineno for node in bounds if number(node) in {32 * client.MIB, 64 * client.MIB, 128 * client.MIB}}
+            )
+
+        for source in (
+            "MAX_RESOURCE = 64 * 1024 * 1024",
+            "MAX_INDEX_READ: int = 2**26",
+            "MAX_TOTAL_BYTES = 1 << 26",
+            "MAX_NETWORK = 67108864",
+            "MAX_RAW_BYTES = 32 * MIB",
+            "MAX_SELECTED_RAW = 128 * 1024 * 1024",
+            'valid = 0 < pin["bytes"] <= 32 * 1024 * 1024',
+            'integer(raw_total, 1, 64 * MIB, "selected raw total")',
+        ):
+            with self.subTest(source=source):
+                self.assertEqual(duplicate_lines(source), [1])
+        for source in (
+            "MAX_ROWS = 67108864",
+            "MAX_CACHE_ROWS = 67108864",
+            "HASH_MASK = (1 << 26) - 1",
+            "MAX_BUNDLE_RAW = 32 * MIB * 16",
+            "valid = rows <= 1 << 26",
+            'integer(rows, 1, 1 << 26, "row count")',
+        ):
+            with self.subTest(source=source):
+                self.assertEqual(duplicate_lines(source), [])
+
         root = Path(__file__).resolve().parents[2]
         # The standalone legacy probe is byte-pinned by published transfer receipts.
         exceptions = {"RePoE/client/limits.py", "RePoE/native/locale_probe.py"}
@@ -479,9 +541,8 @@ class ClientSourceTests(unittest.TestCase):
         for path in sorted((root / "RePoE").rglob("*.py")):
             if path.relative_to(root).as_posix() in exceptions:
                 continue
-            for node in ast.walk(ast.parse(path.read_text(encoding="utf-8"))):
-                if number(node) in {32 * client.MIB, 64 * client.MIB, 128 * client.MIB}:
-                    duplicates.append(f"{path.relative_to(root)}:{node.lineno}")
+            for line in duplicate_lines(path.read_text(encoding="utf-8")):
+                duplicates.append(f"{path.relative_to(root)}:{line}")
         self.assertEqual(duplicates, [], "Import byte limits from RePoE.client.limits")
 
     def test_summary_reports_utilisation_of_separate_limits(self):
