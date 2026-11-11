@@ -201,7 +201,7 @@ from RePoE.client import index, source_draft, source_rebinding, sources
 ```
 
 All four entry points run from this checkout with `python -B -m RePoE.<module>`;
-`mise run client:source`, `client:draft`, `client:locate` and `source:rebind` are
-thin aliases and do not sync or install an environment. No source acceptance,
+`mise run client:source`, `client:draft`, `client:locate` and `source:rebind`
+(historical) are thin aliases and do not sync or install an environment. No source acceptance,
 semantic closure, translation choice or active-data adoption follows from SDK
 migration or successful byte replay.

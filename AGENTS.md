@@ -59,12 +59,13 @@ from the edit.
 
 | What | Why |
 | --- | --- |
-| `release/` (directory names and files) | Each declaration is a claim CI rebuilds; the fresh root manifest embeds the declaration path (`release/0.5.5.5-3/frozen-inputs.json`), so moving it changes the zip |
+| `release/` (directory names and files) | Receipts, Releases and tags cite each declaration, so a superseded one stays as a record and is never deleted (which ones CI rebuilds: [CI](#ci)). The fresh root manifest embeds the declaration path (`release/0.5.5.5-3/frozen-inputs.json`), so moving it changes the zip |
 | `schema/` | `SHA256SUMS` and the native exporters pin `poe2.json`; update it only by the procedure in [schema/README.md](schema/README.md) |
 | Adapter policies (`tools/pobr-data-adapter/policies/**`), including the `/Users/claw/...` strings in the passive-tree policies | Declarations, receipts and adapter tests pin their bytes; those strings are recorded provenance, not configuration. A change is a new policy file |
-| Historical producer identities: the producer map in `src/facts/trust.rs`, `tests/fixtures/ordinary-facts/*-producer*.json`, `tests/fixtures/native-facts/player-context-manifest.json`, `HISTORICAL_PRODUCERS` in `RePoE/release/crafting_catalog.py` | Keyed by the `RePoE/native_*.py` paths of the commits that sealed the pinned packages; a new export adds its identity beside them ([fixed producer identities](tools/pobr-data-adapter/tests/fixtures/ordinary-facts/README.md#fixed-producer-identities)) |
+| Historical producer identities: the producer map in `src/facts/trust.rs`, `tests/fixtures/ordinary-facts/*-producer*.json`, `tests/fixtures/native-facts/player-context-manifest.json`, `HISTORICAL_PRODUCERS` in `RePoE/release/crafting_catalog.py` | Keyed by the `RePoE/native_*.py` paths of the commits that sealed the pinned packages. They are a frozen record of what the 0.5.5.5 packages were sealed with; no new identity is added beside them ([fixed producer identities](tools/pobr-data-adapter/tests/fixtures/ordinary-facts/README.md#fixed-producer-identities)) |
 | `sources/sources.lock.json`, `sources/retained-buff-source-reconciliation.v1.json` | Copied verbatim from PoBR with recorded pins ([sources/README.md](sources/README.md)); exporters and tests read them |
 | `RePoE/native/locale_probe.py` | Transfer receipts pin its SHA-256 (`decoder.source_sha256`) |
+| `RePoE/client/china-text-request.json` | The published `inputs/0.5.5.5-1` capture receipt records its SHA-256 (`31a997fa…`, 2095 bytes) and the package carries a copy; a request for another capture is a new file |
 | `RePoE/docs/history-rewrite-20261103.json` | The commit map of the one-time history rewrite ([history](RePoE/docs/history.md)) |
 | Upstream paths (`RePoE/parser/`, `RePoE/model/`, `RePoE/schema/`, `RePoE/poe/`, `RePoE/run_parser.py`, the upstream docs) | Keep merges from upstream possible |
 | `RePoE/model/` contents | Generated: `mise run models:generate -- [schema paths]`, never edited by hand |
@@ -79,8 +80,11 @@ or a new declaration, never by rewriting the old one.
 
 A facts package keeps the producer identity it was sealed with, so
 re-validating a historical package runs at its producer commit, in its own
-worktree, and the first export from the current tree must add its identity to
-the consumers in the table above. The rule and the procedure are in
+worktree. For a new patch the trust check compares only the target, and the
+producer is identified by the commit the receipt records (clean tree). That
+check is not implemented yet: until it is, a new export fails the producer
+identity check in the consumers in the table above. The rule and the
+procedure are in
 [native facts](RePoE/docs/native/native_facts.md#producer-identity-and-re-validation);
 the new-patch work is in [RELEASING.md](RELEASING.md#a-new-game-patch).
 
@@ -102,8 +106,36 @@ mise run release:publish -- --fetch       # dry run: build, check, stage, list r
 ```
 
 `mise tasks` lists the exporter tasks (`facts:candidate`, `tables:candidate`,
-`descriptions:candidate`, `client:source`, `source:rebind`, …). Nothing tags,
+`descriptions:candidate`, `client:source`, …; `source:rebind` is only for the
+historical 0.5.5.5 envelope). Nothing tags,
 pushes or creates a Release without `--yes`.
+
+## Common pitfalls
+
+Symptom, cause, fix.
+
+- `gh` shows or edits the wrong PR or Release: this is a fork and `gh` can resolve
+  to the upstream repository (`gh repo view` prints `repoe-fork/repoe`). Pass
+  `-R ackness/repoe` on every `gh` command.
+- `uv run` in a new worktree tries to create `.venv` and fails offline on
+  uncached wheels (for example NumPy for CPython 3.15): the worktree has no
+  environment. Run `mise run setup` with network, or reuse an existing
+  environment read-only with `UV_NO_SYNC=1 UV_PROJECT_ENVIRONMENT=<path to .venv>`.
+- Every `mise` call fails with `Read-only file system`: mise records trust of a
+  new worktree's `mise.toml` under `~/.local/state/mise/trusted-configs`, which is
+  read-only in some sandboxes. Set `MISE_STATE_DIR` and `MISE_CACHE_DIR` to
+  writable temporary directories.
+- `PermissionError: [Errno 1] Operation not permitted` in `tests.client.test_version`
+  or in `tests.release` tests that start a loopback HTTP server, and
+  `tests/test_packaging.py` failing because `uv build --offline` cannot get `uv_build`:
+  the environment forbids sockets or network. These are not regressions;
+  report those tests as not run.
+- A request or lock file looks free to edit but a published receipt pins its
+  bytes (see the [never-move table](#never-move-or-rewrite)). Before editing one,
+  check whether a published receipt or package pins it; if so, add a new file.
+- Never move or delete a tag, and never rewrite anything in the
+  [never-move table](#never-move-or-rewrite); fix mistakes with a new tag, file
+  or declaration.
 
 ## Validation by change type
 
@@ -127,7 +159,14 @@ tests) are not run by CI; state when they were skipped.
 | --- | --- | --- |
 | `verify.yml` (every PR and master push) | `verify` | `mise run check` |
 | | `adapter` | `mise run adapter:check`, `mise run adapter:keystones` |
-| `release-build.yml` (only when a path the build reads changes; the workflow's `paths` list is guarded by `tests/release/test_build.py`, which compares it with `build.CODE`) | `release` | `release:build -- --config release/<dir> --fetch --check` for every declaration |
+| `release-build.yml` (only when a path the build reads changes; the workflow's `paths` list is guarded by `tests/release/test_build.py`, which compares it with `build.CODE`) | `release` | `release:build -- --config release/<dir> --fetch --check` for every declaration directory today (see below) |
+
+Policy: CI must rebuild only the newest published declaration (normally the
+one PoBR's `pipeline/data.lock.json` pins) and any unpublished ones; superseded declarations,
+their Releases and tags stay as records and are not rebuilt forever. Until the
+workflow is narrowed it still loops over every `release/*/`. Until the first 1.0
+game package is published, `release/0.5.5.5-3` keeps reproducing byte for byte
+as the regression guard.
 
 `release-build.yml` does not run for changes outside its `paths`, so edits to
 `RePoE/docs/` or root documents skip it; documents under `release/` or

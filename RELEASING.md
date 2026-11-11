@@ -125,15 +125,12 @@ must equal that package's root manifest `target.game_patch`; the new
 snapshot records the declaration's target patch. Any other version mismatch
 is refused.
 
-CI (`.github/workflows/release-build.yml`, described in
-[AGENTS.md](AGENTS.md#ci)) rebuilds and checks every declaration directory.
-Every directory under `release/` is a claim that the current code still
-produces its `expect` pin (or its reference); when a code or policy change moves a published package's
-bytes on purpose, add the next `release/<patch>-<n>/`. A superseded declaration
-directory stays in place, as do its Release and tag; its receipt is the evidence
-of what it produced. Which declarations CI must keep rebuilding is set in
-[AGENTS.md](AGENTS.md#ci); until the first 1.0 game package is published,
-`release/0.5.5.5-3` keeps reproducing byte for byte as the regression guard.
+A declaration directory claims that the code produces its `expect` pin (or
+its reference); when a code or policy change moves a published package's bytes
+on purpose, add the next `release/<patch>-<n>/`. A superseded declaration
+directory stays in place, as do its Release and tag; its receipt is the
+evidence of what it produced. Which declarations CI keeps rebuilding is set in
+[AGENTS.md](AGENTS.md#ci).
 
 ## Publish
 
@@ -274,8 +271,9 @@ and `intl-traditional-chinese`), packaged with
 `frozen-inputs.json` lists each member still copied from an earlier package,
 with its SHA-256, category (`unpinned-input`, `pob2-derived`,
 `migrated-constants`, `shared-overlay`), origin, why it is frozen and what
-would let it go. Its length is the progress measure: shrink it, never grow it
-silently. To replace a frozen member:
+would let it go. Never add an entry silently. The number of entries is not a
+progress measure: a rule member carried forward unchanged is correct, not debt.
+To replace a frozen member:
 
 1. Add (or extend) a job in `domains.json` that produces the member, with its
    policy under `tools/pobr-data-adapter/policies/` if it needs one.
@@ -297,8 +295,10 @@ change like any other.
 
 ## A new game patch
 
-Several checks still name 0.5.5.5 or the identity of the exporter that
-produced its facts, so the first new patch starts with code changes. Below,
+The source-patch checks accept any numeric patch; what still gates a new patch
+is the identity of the exporter that produced the 0.5.5.5 facts and, if the dat
+schema changes, the schema constants. The first new patch therefore starts with
+code changes. Below,
 `<new>` is the new patch and `game/0.5.5.5-3` the last published package. The
 work lands as separate PRs, each merged before the
 next step:
@@ -312,14 +312,13 @@ next step:
 
 ### 0. Code changes
 
-This table lists only the checks that gate accepting a new patch. Other
-`0.5.5.5` mentions (comments, tests such as `RePoE/client/sources.py:36` or
+This table lists only the checks that gate accepting a new patch. `0.5.5.5`
+mentions (comments, tests such as `RePoE/client/sources.py:36` or
 `schema_id.rs:107`) do not block it.
 
 | What | Where | Change |
 | --- | --- | --- |
-| Accepted source patch | `RePoE/native/facts.py` (`game_patch != "0.5.5.5"`), `tools/pobr-data-adapter/src/facts/trust.rs` (`("game_patch", "0.5.5.5")`), `src/facts/player.rs` (`identity["game_patch"] == "0.5.5.5"`) | Accept `<new>` as well; the 0.5.5.5 envelope must still verify |
-| Exporter identity | the producer map in `trust.rs`; the `include_bytes!` fixtures `tests/fixtures/ordinary-facts/selected-tables-producer*.json`, `item-inheritance-producer.json` and `tests/fixtures/native-facts/player-context-manifest.json` | Add the new export's identity (current `RePoE/native/` paths and hashes) beside the historical one; never edit the historical bytes ([fixed producer identities](tools/pobr-data-adapter/tests/fixtures/ordinary-facts/README.md#fixed-producer-identities)) |
+| Exporter identity | the producer map in `trust.rs`; the `include_bytes!` fixtures `tests/fixtures/ordinary-facts/selected-tables-producer*.json`, `item-inheritance-producer.json` and `tests/fixtures/native-facts/player-context-manifest.json` | The producer table and the three fixtures are the frozen historical acceptance of the 0.5.5.5 packages: never edit them and do not add identities beside them. A new patch is meant to be checked by `target` only, with the producer identified by the commit in the receipt (clean tree); that check is not implemented yet, so until it lands a new export fails the producer identity check ([fixed producer identities](tools/pobr-data-adapter/tests/fixtures/ordinary-facts/README.md#fixed-producer-identities)) |
 | Crafting producer | `PRODUCER_KEY_SETS` in `RePoE/release/crafting_catalog.py` | Nothing while the exporters stay where they are: it already accepts the historical keys and the current `RePoE/native/` keys (a test keeps them equal to `native/crafting_facts.PRODUCERS`); add a set only if the exporters move again |
 | Schema constants (only if the dat schema changes) | `trust.rs` (`DECODER_PIN_SHA`, `SCHEMA_REVISION`, `SCHEMA_SHA`, the native specification pin), `RePoE/native/decoded_tables.py` (`SPEC_SHA`), `native/locale_probe.py` (`SCHEMA_REVISION`, `SCHEMA_SHA256`), `native/crafting_facts.py` (`SCHEMA`), `native/facts.py` (`SCHEMA`, `SCHEMA_SHA`) | Add the new schema beside the pinned one |
 
@@ -385,8 +384,8 @@ and only that. It is `release/0.5.5.5-2/` plus the `gem-descriptions` job
 | `contract_version: "adapter"` and the `omit` of `i18n/`/`languages` | Unchanged |
 | `handoff/*` paths and tags in `release/0.5.5.5-2/` and `release/0.5.5.5-3/` | Unchanged: they are historical and stay readable |
 
-Keep `release/0.5.5.5-2/` and `release/0.5.5.5-3/` while they still reproduce;
-CI builds every declaration.
+Keep `release/0.5.5.5-2/` and `release/0.5.5.5-3/`: a superseded declaration is
+never deleted. Which declarations CI rebuilds is set in [AGENTS.md](AGENTS.md#ci).
 
 ### 4. Build, check and dry-run
 

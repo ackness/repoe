@@ -171,9 +171,12 @@ git worktree add ../repoe-ebcfa93 ebcfa93be668109e576c80c2bdf2c44b23d523c6
 cd ../repoe-ebcfa93 && mise run setup && mise run facts:validate -- ...
 ```
 
-A new export from the current tree records the new paths and hashes; accepting
-it means adding its identity to those consumers (see the new-patch runbook in
-[RELEASING.md](../../../RELEASING.md#a-new-game-patch)).
+A new export from the current tree records the new paths and hashes. Those
+consumers hold only the frozen historical identities and take no additions: the
+intended check for a new patch compares only the target and identifies the
+producer by the clean commit in the receipt. That check is not implemented yet,
+so until it is, a new export fails the producer identity check (see the
+new-patch runbook in [RELEASING.md](../../../RELEASING.md#a-new-game-patch)).
 
 ## Physical tables
 

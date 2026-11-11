@@ -13,7 +13,7 @@ Formats and contracts, grouped like the code. Release procedure:
 | [client-source-draft.md](client/client-source-draft.md) | `client:draft`: an unreviewed first acquisition |
 | [client-index.md](client/client-index.md) | `client:locate`: resource lookup in a fixed index |
 | [client-capture.md](client/client-capture.md) | `client:capture`: verifying an owner-run local China client capture and extracting explicit paths |
-| [source-rebinding.md](client/source-rebinding.md) | `source:rebind`: the portable facts envelope a release declaration's `facts` names |
+| [source-rebinding.md](client/source-rebinding.md) | `source:rebind` (historical): the 0.5.5.5 source-lock correction and the portable facts envelope the existing declarations' `facts` name; new exports use `facts.root` |
 
 ## Native facts: `RePoE/native/` → [native/](native/)
 
