@@ -459,6 +459,26 @@ class ReleaseBuildTest(unittest.TestCase):
         with self.assertRaisesRegex(ValueError, "snapshot: template version mismatch"):
             self.run_build(self.fixture(snapshot_fields={"poe_version": "8.8"}))
 
+    def test_unversioned_frozen_members_do_not_require_a_source_patch(self):
+        config = self.fixture()
+        domains_path = config / "domains.json"
+        domains = json.loads(domains_path.read_text())
+        domains["jobs"] = domains["jobs"][:1]
+        domains_path.write_text(json.dumps(domains))
+        frozen_path = config / "frozen-inputs.json"
+        frozen = json.loads(frozen_path.read_text())
+        entry = next(iter(frozen["members"].values()))
+        frozen["source"] = "inputs"
+        for members in ({}, {"codec/a.json": {**entry, **pin(self.codec)}}):
+            with self.subTest(members=list(members)):
+                frozen["members"] = members
+                frozen_path.write_text(json.dumps(frozen))
+                out, _, _ = self.run_build(config)
+                with zipfile.ZipFile(out / "game-build-part.zip") as archive:
+                    self.assertEqual("codec/a.json" in archive.namelist(), bool(members))
+                    if members:
+                        self.assertEqual(archive.read("codec/a.json"), self.codec)
+
     def test_passthrough_members_are_counted_separately(self):
         restamped = runtime({"_meta": {"generator": "restamped"}, "value": 1})
         for domain, carried, published in (

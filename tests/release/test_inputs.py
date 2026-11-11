@@ -286,13 +286,17 @@ class MainTest(GitRepoCase):
         self.assertIn("manifest.json is reserved", output)
         after = {p.relative_to(directory): p.read_bytes() for p in directory.rglob("*") if p.is_file()}
         self.assertEqual(after, before)
-        with mock.patch.object(inputs, "release_body", side_effect=OSError("notes failed")):
-            code, output, _ = self.run_main()
-        self.assertEqual(code, 1)
-        self.assertIn("notes failed", output)
-        self.assertEqual(
-            {p.relative_to(directory): p.read_bytes() for p in directory.rglob("*") if p.is_file()}, before
-        )
+        for owner, function, error in (
+            (inputs, "release_body", OSError("notes failed")),
+            (publish, "release_steps", ValueError("Release assets differ")),
+        ):
+            with self.subTest(function=function), mock.patch.object(owner, function, side_effect=error):
+                code, output, _ = self.run_main()
+                self.assertEqual(code, 1)
+                self.assertIn(str(error), output)
+                self.assertEqual(
+                    {p.relative_to(directory): p.read_bytes() for p in directory.rglob("*") if p.is_file()}, before
+                )
         rename = Path.rename
 
         def fail_swap(path, target):

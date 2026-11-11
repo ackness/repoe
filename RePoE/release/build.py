@@ -955,7 +955,7 @@ def build(
         }
 
     source = packages[frozen["source"]]
-    source_prefix = f"data/{source.game_patch}/"
+    source_prefix = f"data/{source.game_patch}/" if any(m.startswith(prefix) for m in frozen["members"]) else prefix
     for member, entry in frozen["members"].items():
         if member in ctx.members:
             raise ValueError(f"{member} is both generated and frozen")

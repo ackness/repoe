@@ -20,6 +20,7 @@ draft). See RELEASING.md.
 """
 
 import argparse
+from contextlib import contextmanager
 import io
 import os
 from pathlib import Path
@@ -195,6 +196,13 @@ def package(name, directory, target, out):
 
 def stage(packages, target, out, tag=None):
     """Package every ``{name: directory}`` into ``out/assets`` with ``SHA256SUMS``; no network or Git."""
+    with staging(packages, target, out, tag) as staged:
+        return staged
+
+
+@contextmanager
+def staging(packages, target, out, tag=None):
+    """Keep the previous stage until the caller finishes validating its replacement."""
     out = Path(out)
     for directory in packages.values():
         source, target_dir = Path(directory).resolve(), out.resolve()
@@ -221,11 +229,13 @@ def stage(packages, target, out, tag=None):
             out.rename(previous)
         try:
             pending.rename(out)
-        except OSError:
+            yield staged
+        except BaseException:
+            if out.exists():
+                out.rename(pending)
             if previous.exists():
                 previous.rename(out)
             raise
-    return staged
 
 
 def lock_entries(staged, tag, repository=publish.REPOSITORY):
@@ -299,9 +309,9 @@ def main(argv=None, runner=None):
             parser.exit(1, "release:inputs: refusing to publish:\n" + publish.bullets(problems + warnings))
         sequence = decision["sequence"]
         tag = publish.tag_name(args.patch, sequence if sequence is not None else "<n>", TAG_PREFIX)
-        staged = stage(packages, target, args.stage / f"inputs-{args.game}-{args.realm}-{args.patch}", tag=tag)
-        directory = staged["directory"]
-        steps, action = publish.release_steps(run, staged, tag, commit, decision["action"])
+        with staging(packages, target, args.stage / f"inputs-{args.game}-{args.realm}-{args.patch}", tag) as staged:
+            directory = staged["directory"]
+            steps, action = publish.release_steps(run, staged, tag, commit, decision["action"])
     except (ValueError, KeyError, TypeError, OSError, zipfile.BadZipFile) as error:
         parser.exit(1, f"release:inputs: {error}\n")
     print(f"inputs.lock.json packages: {build.display(directory / 'lock.json')}")
