@@ -27,13 +27,13 @@ mise run client:source -- acquire \
 
 Offline mode never constructs an HTTP opener. Missing or corrupt cached inputs
 fail; they do not trigger downloads. For online acquisition, explicitly select
-`--mode online --network-budget-bytes 67108864` (or a smaller budget). Only exact
+`--mode online --network-budget-bytes 134217728` (or a smaller budget). Only exact
 locked bundle URLs on `https://patch-poe2.poecdn.com/<locked-patch>/Bundles2/` are
 requested. All redirects are rejected, including redirects within that host.
 There is no index, CDN enumeration, client download or version discovery.
 
 The online budget is cumulative **per invocation**, including reservations for
-failed requests, with a hard ceiling of 64 MiB. Each request reserves its requested
+failed requests, with a hard ceiling of 128 MiB. Each request reserves its requested
 length plus one overflow-detection byte before network access. The default body
 cap is 4 MiB; `--max-request-bytes` can lower it. Each response must be 206 with
 exact Content-Range, Content-Length, identity encoding and a strong ETag.
@@ -49,10 +49,10 @@ selected chunks. Before table allocation or decompression it bounds counts, size
 offsets and total length, checks redundant sizes, supported encoders (8/9/12), flags,
 reserved fields, chunk count and the compressed size sum. Limits are 4,096 chunks,
 512 MiB declared bundle raw size, 256 MiB compressed total, 1 MiB decompressed and
-2 MiB compressed per chunk, 32 MiB per resource and 64 MiB selected raw bytes.
+2 MiB compressed per chunk, 64 MiB per resource and 128 MiB selected raw bytes.
 The fixed resource cap admits patch 0.5.5.5's 30,380,428-byte
 `Data/StatDescriptions/stat_descriptions.csd`. It has no caller override and does
-not raise HTTP/cache budgets or decoder/worker limits. Strict raw size/hash pins
+not override HTTP/cache budgets or decoder/worker limits. Strict raw size/hash pins
 remain required, including for resources above 16 MiB.
 Raw-size eligibility does not establish support for a bundle's encoder or framing.
 Those declared bundle totals do not authorize downloading the full bundle.
@@ -78,6 +78,11 @@ payload and unit tests use synthetic decoders; real native acceptance requires t
 explicit environment and archived ranges. Upstream ooz does not claim fuzz safety;
 the existing isolation, identity and size checks remain the trust boundary, not a
 claim of arbitrary malformed-input safety.
+
+The shared limits live in `RePoE/client/limits.py`. Selected raw bytes, network
+reservations per invocation, checked cache bodies and archive imports have separate
+128 MiB caps. Existing one-line command summaries report utilisation percentages;
+receipt formats are unchanged.
 
 ## Compressed cache and archive import
 

@@ -13,6 +13,7 @@ from unittest.mock import patch
 
 from RePoE.native import csd
 from RePoE.native import descriptions as producer
+from RePoE.client import limits
 
 
 BASE = "Data/StatDescriptions/base.csd"
@@ -211,6 +212,31 @@ class CandidateTests(unittest.TestCase):
         self.assertEqual(
             previous_imports, {name: module for name, module in sys.modules.items() if name.startswith("PyPoE")}
         )
+
+    def test_shared_raw_resource_and_selection_caps(self):
+        data = b"x" * limits.MAX_RESOURCE
+        pin = {"bytes": len(data), "sha256": producer._sha(data)}
+        selected = self.lock["sources"]["test"]
+        selected["resources"] = {BASE: dict(pin), LOCAL: dict(pin)}
+        read = producer._read
+        with patch.object(
+            producer, "_read", side_effect=lambda path, cap: read(path, cap) if path == self.lock_path else data
+        ):
+            args = self.args()
+            _, _, verified, _ = producer._inputs(
+                *(args[k] for k in ["source_lock", "source", "raw", "expected_source_lock_sha256"])
+            )
+            self.assertEqual(sum(map(len, verified.values())), limits.MAX_SELECTED_RAW)
+            selected["resources"][BASE]["bytes"] = limits.MAX_RESOURCE + 1
+            args = self.args()
+            with self.assertRaisesRegex(ValueError, "Invalid CSD fingerprint"):
+                producer.create_candidate(**args)
+            selected["resources"][BASE] = dict(pin)
+            selected["resources"]["Data/StatDescriptions/zzz.csd"] = {"bytes": 1, "sha256": "a" * 64}
+            args = self.args()
+            with self.assertRaisesRegex(ValueError, "total raw byte limit"):
+                producer.create_candidate(**args)
+        self.assertFalse(args["out"].exists())
 
     def test_external_pin_invalid_source_and_parse_failures_write_no_output(self):
         mutations = [

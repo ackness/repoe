@@ -13,6 +13,7 @@ import unittest
 from unittest.mock import patch
 
 from RePoE.client import index
+from RePoE.client import limits
 
 SPEC = importlib.util.spec_from_file_location("draft_fixtures", Path(__file__).with_name("test_source_draft.py"))
 fixtures = importlib.util.module_from_spec(SPEC)
@@ -158,6 +159,57 @@ class IndexTests(unittest.TestCase):
                 self.discover(index_bytes(records))
             self.assertFalse(self.out.exists())
 
+    def test_strict_cli_summary_needs_no_reads_after_completion(self):
+        args = index.argparse.Namespace(
+            request=self.request,
+            cache=self.cache,
+            out=self.out,
+            decoder_python=Path("/explicit/python"),
+            decoder_lock=self.lock,
+            mode="online",
+            network_budget_bytes=client.MIB,
+            max_request_bytes=client.MAX_RANGE,
+            archive=None,
+            ledger=None,
+            diagnostic=False,
+        )
+        raw = index_bytes(
+            [(index.hash64(PATH.lower().encode(), SEED), 0, 0, limits.MAX_RESOURCE)],
+            bundle_size=limits.MAX_RESOURCE,
+        )
+        http = fixtures.fixtures.FakeHTTP(fixtures.fixtures.bundle_bytes(raw, chunk_size=32))
+        read, write = client.read_file, client.write_new
+        completed = False
+
+        def write_output(path, raw):
+            nonlocal completed
+            write(path, raw)
+            if path.name == "index-receipt.json":
+                completed = True
+
+        def read_before_completion(path, cap):
+            if completed:
+                raise OSError("Output became unavailable after completion")
+            return read(path, cap)
+
+        with (
+            patch.object(index.argparse.ArgumentParser, "parse_args", return_value=args),
+            patch.object(sys, "stdout", new_callable=io.StringIO) as stdout,
+            patch.object(client, "ExternalDecoder", fixtures.DraftDecoder),
+            patch.object(client.urllib.request, "build_opener", return_value=http),
+            patch.object(client, "read_file", side_effect=read_before_completion),
+            patch.object(client, "write_new", side_effect=write_output),
+        ):
+            index.main()
+        self.assertTrue(completed)
+        self.assertEqual(len(stdout.getvalue().splitlines()), 1)
+        message = json.loads(stdout.getvalue())
+        receipt = client.decode((self.out / "index-receipt.json").read_bytes())
+        self.assertEqual(message["receipt_sha256"], client.sha256(client.encoded(receipt)))
+        self.assertEqual(message["utilisation"]["largest_resource_percent"], 100.0)
+        self.assertEqual(message["utilisation"]["selected_raw_percent"], 50.0)
+        self.assertNotIn("utilisation", receipt)
+
     def test_request_exact_schema_paths_counts_and_decoder_rejected_before_network(self):
         original = copy.deepcopy(self.document)
         mutations = [
@@ -185,30 +237,33 @@ class IndexTests(unittest.TestCase):
                 )
             self.assertFalse(self.out.exists())
 
-    def test_selected_32_mib_resource_and_64_mib_total_boundaries(self):
+    def test_selected_resource_and_total_boundaries(self):
         second, extra = "Data/Second.csd", "Data/Extra.csd"
         self.document["resources"] = [PATH, second]
         self.save()
         rows = [
-            (index.hash64(name.lower().encode(), SEED), 0, 0, 32 * client.MIB) for name in self.document["resources"]
+            (index.hash64(name.lower().encode(), SEED), 0, 0, limits.MAX_RESOURCE)
+            for name in self.document["resources"]
         ]
-        receipt, _ = self.discover(index_bytes(rows, bundle_size=64 * client.MIB))
+        receipt, _ = self.discover(index_bytes(rows, bundle_size=limits.MAX_SELECTED_RAW))
         selection, _ = index.draft.load_selection(self.out / "selection.json")
-        self.assertEqual(sum(r["uncompressed_length"] for r in selection["resources"].values()), 64 * client.MIB)
+        self.assertEqual(
+            sum(r["uncompressed_length"] for r in selection["resources"].values()), limits.MAX_SELECTED_RAW
+        )
         self.assertFalse(receipt["production_ready"])
         self.out = self.root / "oversized"
         self.cache = self.root / "oversized-cache"
-        rows[0] = (*rows[0][:3], 32 * client.MIB + 1)
+        rows[0] = (*rows[0][:3], limits.MAX_RESOURCE + 1)
         with self.assertRaisesRegex(ValueError, "selected resource bytes"):
-            self.discover(index_bytes(rows, bundle_size=64 * client.MIB))
+            self.discover(index_bytes(rows, bundle_size=limits.MAX_SELECTED_RAW))
         self.assertFalse(self.out.exists())
         self.cache = self.root / "total-cache"
-        rows[0] = (*rows[0][:3], 32 * client.MIB)
+        rows[0] = (*rows[0][:3], limits.MAX_RESOURCE)
         rows.append((index.hash64(extra.lower().encode(), SEED), 0, 0, 1))
         self.document["resources"].append(extra)
         self.save()
         with self.assertRaisesRegex(ValueError, "selected raw total"):
-            self.discover(index_bytes(rows, bundle_size=64 * client.MIB))
+            self.discover(index_bytes(rows, bundle_size=limits.MAX_SELECTED_RAW))
         self.assertFalse(self.out.exists())
 
     def test_bad_framing_legacy_seed_and_caps_are_rejected(self):
@@ -343,7 +398,7 @@ class IndexTests(unittest.TestCase):
             index_bytes(root=0x07E47507B4A92E53),
             index_bytes(directory_count=250001),
             index_bytes()[:30],
-            index_bytes([(h, 0, 0, client.MAX_RESOURCE + 1)], bundle_size=64 * client.MIB),
+            index_bytes([(h, 0, 0, limits.MAX_RESOURCE + 1)], bundle_size=limits.MAX_SELECTED_RAW),
         ]
         for number, raw in enumerate(invalid):
             self.cache = self.root / f"diagnostic-bad-{number}"
@@ -372,7 +427,7 @@ class IndexTests(unittest.TestCase):
             for name in self.document["resources"][:3]
         ]
         with self.assertRaisesRegex(ValueError, "selected raw total"):
-            self.discover(index_bytes(rows, bundle_size=64 * client.MIB), diagnostic=True)
+            self.discover(index_bytes(rows, bundle_size=limits.MAX_SELECTED_RAW), diagnostic=True)
         self.assertFalse(self.out.exists())
 
     def test_inspection_symlinks_and_production_outputs_fail_before_decoder(self):
@@ -454,6 +509,13 @@ class IndexTests(unittest.TestCase):
                 self.assertEqual(message["status"], index.DIAGNOSTIC_STATUS)
                 self.assertNotIn("receipt_sha256", message)
                 self.assertNotIn("selection", message)
+                self.assertEqual(
+                    message["utilisation"]["selected_raw_percent"], round(100 * 7 / limits.MAX_SELECTED_RAW, 2)
+                )
+                self.assertEqual(
+                    message["utilisation"]["network_reserved_percent"],
+                    round(100 * sum(len(r.body) + 1 for r in http.responses) / limits.MAX_NETWORK, 2),
+                )
             self.assert_diagnostic_only(output)
         args.remove("--diagnostic")
         args[args.index("--out") + 1] = str(self.root / "cli-strict")

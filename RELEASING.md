@@ -209,8 +209,7 @@ published: the raw DAT, CSD and bundle bytes stay under `.cache/` (a licence
 constraint), and the receipt carries no install path. One `inputs/<patch>-<n>`
 Release is made per China update; older ones are never touched.
 
-Merge the separate size-cap PR before the owner captures the next client. Follow
-the [request order and fallback](RePoE/docs/client/client-capture.md#next-collection-order)
+Follow the [request order and fallback](RePoE/docs/client/client-capture.md#next-collection-order)
 on that one copy: main text first, then the independent names request.
 
 ```sh
@@ -332,8 +331,15 @@ next step:
 ### 0. Code changes
 
 This table lists only the checks that gate accepting a new patch. `0.5.5.5`
-mentions (comments, tests such as `RePoE/client/sources.py:36` or
-`schema_id.rs:107`) do not block it.
+mentions (comments and tests) do not block it.
+
+Client acquisition, index selections (including China captures), CSD export and
+selected DAT export share `RePoE/client/limits.py`: 64 MiB per raw resource and
+128 MiB selected raw total. Network reservations per invocation, checked cache
+bodies and archive imports each have a separate 128 MiB cap. Existing command
+summaries report utilisation; bundle/chunk bounds and decoded JSON/legacy
+transfer limits are independent. The byte-pinned `native/locale_probe.py` keeps
+its historical bounds for transfer re-validation.
 
 | What | Where | Change |
 | --- | --- | --- |

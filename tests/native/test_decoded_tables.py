@@ -228,7 +228,7 @@ class DecodedIngestTests(unittest.TestCase):
         with self.assertRaisesRegex(ValueError, "Unsafe/noninteger"):
             self.create()
         receipt = self.transfer.receipt()
-        receipt["tables"]["Ascendancy"]["decoded"]["bytes"] = 128 * 1024 * 1024 + 1
+        receipt["tables"]["Ascendancy"]["decoded"]["bytes"] = ingest.MAX_DECODED_TABLE_PAIR_BYTES + 1
         self.receipt.write_bytes(env._json(receipt))
         with self.assertRaisesRegex(ValueError, "outside bound"):
             self.create()

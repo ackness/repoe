@@ -7,6 +7,10 @@ import re
 import sys
 
 from RePoE.native import descriptions as env
+from RePoE.client.limits import (
+    MAX_CRAFTING_TABLE_JSON_BYTES as MAX_TABLE_BYTES,
+    MAX_CRAFTING_TOTAL_JSON_BYTES as MAX_TOTAL_BYTES,
+)
 
 
 ROOT = Path(__file__).resolve().parents[2]
@@ -26,8 +30,6 @@ SCHEMA = {
     "native_specification_sha256": "c9417f03e2205ff649721c3dbf9620ee0c703bf905b3cf53469ce3eda86f1e25",
     "compatibility_views": 0,
 }
-MAX_TABLE_BYTES = 64 * 1024 * 1024
-MAX_TOTAL_BYTES = 96 * 1024 * 1024
 PRODUCERS = ("RePoE/native/crafting_facts.py", "RePoE/native/descriptions.py")
 
 

@@ -9,13 +9,13 @@ from RePoE.native import descriptions as envelope
 from RePoE.native import facts
 from RePoE.native import schema_candidate
 from RePoE.native.tools import pinned_pypoe
+from RePoE.client.limits import MAX_RESOURCE, MAX_SELECTED_RAW
 
 
 ROOT = schema_candidate.ROOT
 FORMAT = "repoe-native-tables/v1"
 LOCALIZED_FORMAT = "repoe-localized-tables/v1"
 LANGUAGES = ("English", "Simplified Chinese", "Traditional Chinese")
-MAX_RAW_BYTES = 64 * 1024 * 1024
 
 
 def _inputs(source_lock, source, raw, expected_source_lock_sha256, language="English"):
@@ -76,12 +76,12 @@ def _inputs(source_lock, source, raw, expected_source_lock_sha256, language="Eng
         if (
             not isinstance(pin, dict)
             or type(pin.get("bytes")) is not int
-            or not 0 < pin["bytes"] <= 32 * 1024 * 1024
+            or not 0 < pin["bytes"] <= MAX_RESOURCE
             or not envelope._digest(pin.get("sha256"))
         ):
             raise ValueError(f"Invalid raw fingerprint: {name}")
         total += pin["bytes"]
-        if total > MAX_RAW_BYTES:
+        if total > MAX_SELECTED_RAW:
             raise ValueError("Selected DAT inventory exceeds byte bound")
         path = raw_root / name
         if not path.resolve(strict=True).is_relative_to(raw_root) or any(

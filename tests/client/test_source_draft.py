@@ -10,6 +10,7 @@ import unittest
 from unittest.mock import patch
 
 from RePoE.client import source_draft as draft
+from RePoE.client import limits
 
 
 # Reuse the strict collector's synthetic framing/HTTP fixtures, not a second
@@ -259,10 +260,10 @@ class DraftTests(unittest.TestCase):
             with self.assertRaises(ValueError):
                 draft.load_selection(self.selection_path)
 
-    def test_32_mib_resource_and_64_mib_total_boundaries(self):
+    def test_resource_and_selected_total_boundaries(self):
         record = self.selection["resources"]["Metadata/Z.psg"]
         self.selection["resources"] = {"Data/StatDescriptions/stat_descriptions.csd": record}
-        for size in [30380428, 32 * client.MIB]:
+        for size in [30380428, 40 * client.MIB, limits.MAX_RESOURCE]:
             record["uncompressed_length"] = size
             self.save()
             draft.load_selection(self.selection_path)
@@ -270,7 +271,7 @@ class DraftTests(unittest.TestCase):
         self.save()
         with self.assertRaisesRegex(ValueError, "resource length"):
             draft.load_selection(self.selection_path)
-        record["uncompressed_length"] = 32 * client.MIB
+        record["uncompressed_length"] = limits.MAX_RESOURCE
         self.selection["resources"]["Data/Second.csd"] = dict(record)
         self.save()
         draft.load_selection(self.selection_path)

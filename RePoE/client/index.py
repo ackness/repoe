@@ -90,7 +90,7 @@ class Stream:
         self.chunks = []
 
     def take(self, count):
-        client.integer(count, 1, client.MAX_RESOURCE, "index read")
+        client.integer(count, 1, client.MAX_INDEX_READ, "index read")
         if self.offset + count > self.bundle.size:
             raise ValueError("Truncated index prefix")
         result = bytearray()
@@ -186,7 +186,7 @@ def inspect_locations(bundle, paths):
                     }
                 number += 1
     missing = [name for name in paths if name not in found]
-    client.integer(sum(record["length"] for record in found.values()), 0, client.MAX_NETWORK, "selected raw total")
+    client.integer(sum(record["length"] for record in found.values()), 0, client.MAX_SELECTED_RAW, "selected raw total")
     return (
         found,
         missing,
@@ -211,7 +211,7 @@ def locations(bundle, paths):
     found, missing, framing = inspect_locations(bundle, paths)
     if missing:
         raise ValueError("Paths not found in the selected index: " + ", ".join(missing))
-    client.integer(sum(record["length"] for record in found.values()), 1, client.MAX_NETWORK, "selected raw total")
+    client.integer(sum(record["length"] for record in found.values()), 1, client.MAX_SELECTED_RAW, "selected raw total")
     return found, framing
 
 
@@ -234,7 +234,7 @@ def discover(
     archive=None,
     ledger=None,
 ):
-    return _discover(
+    receipt, _ = _discover(
         request_path,
         cache_root,
         output,
@@ -247,6 +247,7 @@ def discover(
         ledger,
         diagnostic=False,
     )
+    return receipt
 
 
 def inspect_index(
@@ -266,7 +267,7 @@ def inspect_index(
     A caller wanting a successful subset must explicitly submit a new request to
     discover(); this API never filters a request into an acquisition selection.
     """
-    return _discover(
+    receipt, _ = _discover(
         request_path,
         cache_root,
         output,
@@ -279,6 +280,7 @@ def inspect_index(
         ledger,
         diagnostic=True,
     )
+    return receipt
 
 
 def _discover(
@@ -382,7 +384,7 @@ def _discover(
         if client.read_file(output / "request.json", 2 * client.MIB) != request_bytes:
             raise ValueError("Inspection request copy changed before diagnostic output")
         client.write_new(output / DIAGNOSTIC, client.encoded(proof))
-        return proof
+        return proof, matched
     proof_bytes = client.encoded(proof)
     selection = {
         "schema": draft.SELECTION_SCHEMA,
@@ -453,7 +455,7 @@ def _discover(
         "ranges": sorted(cache.used.values(), key=lambda r: (r["url"], r["start"], r["length"])),
     }
     client.write_new(output / "index-receipt.json", client.encoded(receipt))
-    return receipt
+    return receipt, matched
 
 
 def main():
@@ -472,8 +474,7 @@ def main():
     )
     args = parser.parse_args()
     try:
-        operation = inspect_index if args.diagnostic else discover
-        receipt = operation(
+        receipt, matched = _discover(
             args.request,
             args.cache,
             args.out,
@@ -484,6 +485,7 @@ def main():
             args.max_request_bytes,
             args.archive,
             args.ledger,
+            diagnostic=args.diagnostic,
         )
     except (ValueError, OSError, KeyError, TypeError, struct.error, UnicodeError, subprocess.SubprocessError) as error:
         parser.exit(1, f"client_index: {error}\n")
@@ -495,6 +497,10 @@ def main():
                     "diagnostic": str(args.out / DIAGNOSTIC),
                     "matched": len(receipt["matched"]),
                     "missing": receipt["missing"],
+                    "utilisation": client.utilisation(
+                        (r["length"] for r in receipt["matched"].values()),
+                        network_reserved=receipt["network"]["reserved_bytes"],
+                    ),
                 },
                 sort_keys=True,
             )
@@ -508,6 +514,10 @@ def main():
                     "status": STATUS,
                     "receipt_sha256": client.sha256(client.encoded(receipt)),
                     "selection": str(args.out / "selection.json"),
+                    "utilisation": client.utilisation(
+                        (r["length"] for r in matched.values()),
+                        network_reserved=receipt["network"]["reserved_bytes"],
+                    ),
                 },
                 sort_keys=True,
             )

@@ -9,7 +9,7 @@ is added.
 The schema-1 source entry must contain the exact selected `Data/Balance/*.datc64`
 resources, their observed bytes/SHA256, explicit game/patch/realm, decoder/schema
 pins and acquisition status/evidence. Supply the complete source-lock fingerprint
-externally. At most 128 tables, 32 MiB each and 64 MiB raw total are accepted.
+externally. At most 128 tables, 64 MiB each and 128 MiB raw total are accepted.
 Raw hashes are integrity pins; a proposed lock remains a draft until separately
 reviewed. The command does not promote status or update active data.
 
