@@ -1302,3 +1302,431 @@ fn previous_non_quality_domains_keep_files_and_receipt_shapes() {
         }
     }
 }
+
+#[test]
+fn forward_reports_numeric_quarantine_and_unused_exception_together() {
+    let mut f = fixture();
+    let mut p = doc(&f, POLICY);
+    p["legacy_numeric_exceptions"] = json!([]);
+    let mut unused = p["unbound_retained_entries"][0].clone();
+    unused["source_row"] = json!(99);
+    unused["key"]["skill"] = json!("UnusedGhost");
+    p["unbound_retained_entries"]
+        .as_array_mut()
+        .unwrap()
+        .push(unused.clone());
+    write(&f, POLICY, &p);
+    f.values("Stats", 0)["Id"] = json!("renamed");
+    reseal(&mut f);
+    assert_eq!(
+        run(args(&f)).unwrap_err(),
+        "unlisted legacy numeric exception for Ghost/base_multiplier"
+    );
+    assert!(!f.root.join("out").exists());
+    run(Args {
+        mode: AdapterMode::Forward,
+        ..args(&f)
+    })
+    .unwrap();
+
+    let legacy = doc(&f, SOURCE);
+    let overlay = read(&f, OVERLAY);
+    assert_eq!(overlay["overrides"].as_array().unwrap().len(), 9);
+    assert_eq!(overlay["overrides"][3], legacy["overrides"][3]);
+    assert_eq!(overlay["overrides"][4], legacy["overrides"][5]);
+    assert!(
+        overlay["overrides"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .all(|entry| entry["stat_id"] != "implicit_a")
+    );
+    assert_eq!(
+        fs::read(f.root.join(SOURCE)).unwrap(),
+        fs::read(f.root.join("out/legacy-skill-overrides.json")).unwrap()
+    );
+    let receipt = read(&f, "producer-receipt.json");
+    assert_eq!(receipt.as_object().unwrap().len(), 10);
+    assert_eq!(receipt["files"].as_object().unwrap().len(), 7);
+    let conversion = &receipt["conversion"];
+    assert_eq!(conversion["entries"], 9);
+    assert_eq!(conversion["source_entries"], 10);
+    assert_eq!(conversion["target_numeric_entries"], 3);
+    assert_eq!(conversion["legacy_only_numeric_entries"], 1);
+    assert_eq!(conversion["retained_interpretation_entries"], 5);
+    assert_eq!(conversion["delegated_implicit_entries"], 0);
+    let quarantined = &conversion["entry_records"][4];
+    assert_eq!(quarantined["emitted"], false);
+    assert!(quarantined["output_entry_sha256"].is_null());
+    assert_eq!(
+        quarantined["source_entry_sha256"],
+        sha256_hex(&reader::json_bytes(&legacy["overrides"][4]).unwrap())
+    );
+    assert_eq!(
+        quarantined["binding"]["status"],
+        "quarantined-implicit-stat"
+    );
+    assert_eq!(
+        conversion["entry_records"][3]["binding"]["target_owner"],
+        Value::Null
+    );
+    assert!(conversion["entry_records"][3]["binding"]["policy_exception"].is_null());
+    let coverage = &conversion["coverage"];
+    assert_eq!(
+        coverage["counts"],
+        json!({"emitted-with-gap":0,"listed":1,"quarantined":1,"retained-legacy":1})
+    );
+    let issues = coverage["issues"].as_array().unwrap();
+    assert_eq!(issues.len(), 3);
+    assert_eq!(
+        issues
+            .iter()
+            .map(|issue| (
+                issue["kind"].as_str().unwrap(),
+                issue["entity"].as_str().unwrap(),
+                issue["action"].as_str().unwrap()
+            ))
+            .collect::<Vec<_>>(),
+        vec![
+            (
+                "base-multiplier-no-target",
+                "Ghost/base_multiplier",
+                "retained-legacy"
+            ),
+            (
+                "exception-unused",
+                "UnusedGhost/explode_corpse/stat_set=1",
+                "listed"
+            ),
+            (
+                "implicit-stat-absent",
+                "ZOwner/implicit_stat/stat_set=7/stat_id=implicit_a",
+                "quarantined"
+            ),
+        ]
+    );
+    assert!(
+        issues
+            .iter()
+            .all(|issue| issue["domain"] == "skill-overrides")
+    );
+    assert_eq!(
+        issues[0]["observed"]["key"],
+        json!({"skill":"Ghost","stat":"base_multiplier"})
+    );
+    assert_eq!(issues[1]["observed"]["exception"], unused);
+    assert_eq!(issues[2]["observed"]["stat_id"], "implicit_a");
+}
+
+#[test]
+fn forward_decisions_keep_exact_strict_messages_and_current_exception_evidence() {
+    for (case, expected, kind, entity, action) in [
+        (
+            "unbound",
+            "unlisted/changed unbound retained entry for Ghost/explode_corpse/stat_set=1",
+            "retained-unbound",
+            "Ghost/explode_corpse/stat_set=1",
+            "retained-legacy",
+        ),
+        (
+            "changed-unbound",
+            "unlisted/changed unbound retained entry for UnboundPresent/implicit_stat/stat_set=1/stat_id=implicit_b",
+            "retained-unbound",
+            "UnboundPresent/implicit_stat/stat_set=1/stat_id=implicit_b",
+            "retained-legacy",
+        ),
+        (
+            "implicit",
+            "implicit stat Id implicit_a absent from target Stats; policy conflict",
+            "implicit-stat-absent",
+            "ZOwner/implicit_stat/stat_set=7/stat_id=implicit_a",
+            "quarantined",
+        ),
+        (
+            "stale-numeric",
+            "stale legacy numeric exception for Ghost/base_multiplier: target effect now exists",
+            "exception-stale",
+            "Ghost/base_multiplier",
+            "listed",
+        ),
+        (
+            "stale-unbound",
+            "stale unbound retained exception for UnboundPresent/implicit_stat/stat_set=1/stat_id=implicit_b: branch now matches",
+            "exception-stale",
+            "UnboundPresent/implicit_stat/stat_set=1/stat_id=implicit_b",
+            "listed",
+        ),
+        (
+            "unused-numeric",
+            "unused/stale numeric or unbound retained exception: UnusedGhost/base_multiplier",
+            "exception-unused",
+            "UnusedGhost/base_multiplier",
+            "listed",
+        ),
+        (
+            "unused-unbound",
+            "unused/stale numeric or unbound retained exception: UnusedGhost/explode_corpse/stat_set=1",
+            "exception-unused",
+            "UnusedGhost/explode_corpse/stat_set=1",
+            "listed",
+        ),
+    ] {
+        let mut f = fixture();
+        let mut p = doc(&f, POLICY);
+        match case {
+            "unbound" => {
+                p["unbound_retained_entries"]
+                    .as_array_mut()
+                    .unwrap()
+                    .remove(0);
+            }
+            "changed-unbound" => {
+                p["unbound_retained_entries"][1]["target_effect_present"] = json!(false);
+            }
+            "implicit" => f.values("Stats", 0)["Id"] = json!("renamed"),
+            "stale-numeric" => append(
+                &mut f,
+                "GrantedEffects",
+                json!({"Id":"Ghost","StatSet":2,"AdditionalStatSets":[]}),
+            ),
+            "stale-unbound" => {
+                let mut codec = doc(&f, CODEC);
+                codec["labels"].as_array_mut().unwrap().push(json!({
+                    "skill":"UnboundPresent","set_id":"ConstantSet","set_index":1,"label":""
+                }));
+                write(&f, CODEC, &codec);
+            }
+            _ => {
+                let list = if case == "unused-numeric" {
+                    "legacy_numeric_exceptions"
+                } else {
+                    "unbound_retained_entries"
+                };
+                let mut unused = p[list][0].clone();
+                unused["source_row"] = json!(99);
+                unused["key"]["skill"] = json!("UnusedGhost");
+                p[list].as_array_mut().unwrap().push(unused);
+            }
+        }
+        if case == "stale-numeric" {
+            p["legacy_numeric_exceptions"][0]["source_row"] = json!(99);
+        } else if matches!(case, "changed-unbound" | "stale-unbound") {
+            p["unbound_retained_entries"][1]["source_row"] = json!(99);
+        }
+        write(&f, POLICY, &p);
+        reseal(&mut f);
+        assert_eq!(run(args(&f)).unwrap_err(), expected, "{case}");
+        assert!(!f.root.join("out").exists());
+        run(Args {
+            mode: AdapterMode::Forward,
+            ..args(&f)
+        })
+        .unwrap();
+        let receipt = read(&f, "producer-receipt.json");
+        let conversion = &receipt["conversion"];
+        let issues = conversion["coverage"]["issues"].as_array().unwrap();
+        let issue = issues
+            .iter()
+            .find(|issue| issue["kind"] == kind && issue["entity"] == entity)
+            .unwrap();
+        assert_eq!(issue["message"], expected, "{case}");
+        assert_eq!(issue["action"], action, "{case}");
+        if matches!(case, "unbound" | "changed-unbound") {
+            let row = if case == "unbound" { 7 } else { 8 };
+            let branch = &conversion["entry_records"][row]["binding"]["branch"];
+            assert_eq!(branch["status"], "policy-unbound");
+            assert!(branch["codec_record"].is_null());
+            assert!(branch["policy_exception"].is_null());
+            assert_eq!(
+                read(&f, OVERLAY)["overrides"][row],
+                doc(&f, SOURCE)["overrides"][row]
+            );
+        }
+        if case == "changed-unbound" {
+            assert_eq!(issues.len(), 2);
+            let stale = &issues[0];
+            assert_eq!(stale["kind"], "exception-stale");
+            assert_eq!(stale["action"], "listed");
+            assert_eq!(
+                stale["observed"]["exception"],
+                p["unbound_retained_entries"][1]
+            );
+            assert_eq!(stale["observed"]["target_effect_present"], true);
+        }
+        if case == "stale-numeric" {
+            assert_eq!(read(&f, OVERLAY)["overrides"][3]["value"], 0.8);
+            assert_eq!(conversion["target_numeric_entries"], 4);
+            assert_eq!(conversion["legacy_only_numeric_entries"], 0);
+            assert_eq!(
+                issue["observed"]["exception"],
+                p["legacy_numeric_exceptions"][0]
+            );
+            assert_eq!(issue["observed"]["target_effect_present"], true);
+            assert_eq!(issues.len(), 3);
+            assert!(
+                issues
+                    .iter()
+                    .all(|issue| issue["kind"] != "exception-unused")
+            );
+        }
+        if case == "stale-unbound" {
+            assert_eq!(issues.len(), 1);
+            assert_eq!(
+                conversion["entry_records"][8]["binding"]["branch"]["status"],
+                "raw-owned"
+            );
+            assert_eq!(issue["observed"]["codec_present"], true);
+            assert_eq!(
+                issue["observed"]["exception"],
+                p["unbound_retained_entries"][1]
+            );
+        }
+        if matches!(case, "stale-numeric" | "changed-unbound" | "stale-unbound") {
+            let (list, key, source_row) = if case == "stale-numeric" {
+                (
+                    "legacy_numeric_exceptions",
+                    &p["legacy_numeric_exceptions"][0]["key"],
+                    3,
+                )
+            } else {
+                (
+                    "unbound_retained_entries",
+                    &p["unbound_retained_entries"][1]["key"],
+                    8,
+                )
+            };
+            assert_eq!(
+                conversion["exception_row_moved"],
+                json!([{"list":list,"key":key,"policy_source_row":99,"source_row":source_row}])
+            );
+        }
+    }
+}
+
+#[test]
+fn forward_retains_missing_codec_or_target_effect_without_a_branch_claim() {
+    for missing in ["codec", "effect"] {
+        let mut f = fixture();
+        let mut legacy = doc(&f, SOURCE);
+        legacy["overrides"].as_array_mut().unwrap().remove(1);
+        write(&f, SOURCE, &legacy);
+        if missing == "codec" {
+            let mut codec = doc(&f, CODEC);
+            codec["labels"].as_array_mut().unwrap().remove(2);
+            write(&f, CODEC, &codec);
+        } else {
+            f.values("GrantedEffects", 1)["Id"] = json!("RenamedAlias");
+        }
+        reseal(&mut f);
+        assert_eq!(
+            run(args(&f)).unwrap_err(),
+            "unlisted/changed unbound retained entry for Alias/explode_corpse/stat_set=4"
+        );
+        run(Args {
+            mode: AdapterMode::Forward,
+            ..args(&f)
+        })
+        .unwrap();
+        assert_eq!(read(&f, OVERLAY)["overrides"][4], legacy["overrides"][4]);
+        let receipt = read(&f, "producer-receipt.json");
+        let conversion = &receipt["conversion"];
+        let branch = &conversion["entry_records"][4]["binding"]["branch"];
+        assert_eq!(branch["status"], "policy-unbound");
+        assert!(branch["codec_record"].is_null());
+        assert!(branch["policy_exception"].is_null());
+        assert_eq!(branch["target_owner"].is_null(), missing == "effect");
+        let issues = conversion["coverage"]["issues"].as_array().unwrap();
+        assert_eq!(issues.len(), 1);
+        assert_eq!(issues[0]["kind"], "retained-unbound");
+        assert_eq!(issues[0]["entity"], "Alias/explode_corpse/stat_set=4");
+        assert_eq!(issues[0]["action"], "retained-legacy");
+        assert_eq!(issues[0]["observed"]["codec_present"], missing == "effect");
+        assert_eq!(
+            issues[0]["observed"]["target_effect_present"],
+            missing == "codec"
+        );
+    }
+}
+
+#[test]
+fn forward_enemy_explode_key_match_keeps_row_movement_out_of_coverage() {
+    let mut f = fixture();
+    let mut legacy = doc(&f, SOURCE);
+    for entry in legacy["overrides"].as_array_mut().unwrap() {
+        if entry["skill"] == "Ghost" {
+            entry["skill"] = json!("EnemyExplode");
+        }
+    }
+    legacy["overrides"].as_array_mut().unwrap().insert(
+        3,
+        json!({"skill":"UnboundPresent","stat":"base_multiplier","value":99.0}),
+    );
+    write(&f, SOURCE, &legacy);
+    let mut p = doc(&f, POLICY);
+    p["legacy_numeric_exceptions"][0]["key"]["skill"] = json!("EnemyExplode");
+    p["unbound_retained_entries"][0]["key"]["skill"] = json!("EnemyExplode");
+    write(&f, POLICY, &p);
+    reseal(&mut f);
+    run(Args {
+        mode: AdapterMode::Forward,
+        ..args(&f)
+    })
+    .unwrap();
+    assert_eq!(read(&f, OVERLAY)["overrides"][4], legacy["overrides"][4]);
+    let receipt = read(&f, "producer-receipt.json");
+    let conversion = &receipt["conversion"];
+    assert_eq!(conversion["coverage"]["issues"], json!([]));
+    assert_eq!(
+        conversion["exception_row_moved"],
+        json!([
+            {"list":"legacy_numeric_exceptions","key":{"skill":"EnemyExplode","stat":"base_multiplier"},"policy_source_row":3,"source_row":4},
+            {"list":"unbound_retained_entries","key":{"skill":"EnemyExplode","stat":"explode_corpse","stat_set":1},"policy_source_row":7,"source_row":8},
+            {"list":"unbound_retained_entries","key":{"skill":"UnboundPresent","stat":"implicit_stat","stat_set":1,"stat_id":"implicit_b"},"policy_source_row":8,"source_row":9}
+        ])
+    );
+}
+
+#[test]
+fn forward_keeps_integrity_and_unsupported_numeric_ownership_failures_fatal() {
+    for case in [
+        "duplicate",
+        "wrong-owner",
+        "dangling",
+        "missing-primary",
+        "no-positive",
+    ] {
+        let mut f = fixture();
+        match case {
+            "duplicate" => {
+                let mut legacy = doc(&f, SOURCE);
+                let duplicate = legacy["overrides"][3].clone();
+                legacy["overrides"].as_array_mut().unwrap().push(duplicate);
+                write(&f, SOURCE, &legacy);
+            }
+            "wrong-owner" => {
+                let mut codec = doc(&f, CODEC);
+                codec["labels"][0]["set_id"] = json!("ConstantSet");
+                write(&f, CODEC, &codec);
+            }
+            "dangling" => f.values("GrantedEffects", 0)["StatSet"] = json!(99),
+            "missing-primary" => {
+                for row in [0, 1, 4] {
+                    f.values("GrantedEffectStatSetsPerLevel", row)["StatSet"] = json!(0);
+                }
+            }
+            _ => {
+                f.values("GrantedEffectStatSetsPerLevel", 0)["GemLevel"] = json!(-3);
+                f.values("GrantedEffectStatSetsPerLevel", 1)["GemLevel"] = json!(-1);
+            }
+        }
+        reseal(&mut f);
+        let strict = run(args(&f)).unwrap_err();
+        let forward = run(Args {
+            mode: AdapterMode::Forward,
+            ..args(&f)
+        })
+        .unwrap_err();
+        assert_eq!(forward, strict, "{case}");
+        assert!(!f.root.join("out").exists());
+    }
+}
