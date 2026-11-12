@@ -23,6 +23,7 @@ use std::fs;
 use std::path::{Path, PathBuf};
 use std::process::ExitCode;
 
+#[cfg(test)]
 use serde::Deserialize;
 
 mod facts;
@@ -121,6 +122,7 @@ fn parse_args_from(args: impl Iterator<Item = String>) -> Result<Mode, String> {
     }
 }
 
+#[cfg(test)]
 pub(crate) fn read_json<T: for<'de> Deserialize<'de>>(path: &Path) -> Result<T, String> {
     let bytes = fs::read(path).map_err(|e| format!("failed to read {}: {e}", path.display()))?;
     serde_json::from_slice(&bytes).map_err(|e| format!("failed to parse {}: {e}", path.display()))

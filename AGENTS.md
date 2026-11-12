@@ -154,7 +154,7 @@ Symptom, cause, fix.
 | Documentation only | Check relative links and anchors; no tests |
 | Python in `RePoE/client/`, `RePoE/native/`, `RePoE/parser/` | `mise run check`; `RePoE/__init__.py`, `client/__init__.py`, `client/export_receipt.py`, `client/source_io.py` and `client/source_rebinding.py` are release-build inputs, so also the release row below |
 | `RePoE/release/`, `release/`, the adapter or its policies | `mise run check`, `mise run adapter:check`, `mise run adapter:keystones`, and `release:build -- --config release/<dir> --fetch --check` for every declaration (CI does this too) |
-| Adapter comments or docs inside `src/` | As above: `implementation_sha256` includes the sources, so the receipt's `implementation_revision` moves while the zip must not |
+| Adapter comments or docs inside `src/` | As above: `implementation_sha256` includes the sources, so the receipt's `implementation_revision` moves while the zip must not; `implementation_revision_covers_every_production_source` requires every non-test Rust source to be hashed or explicitly excluded with a reason |
 | `schema/` | `mise run schema:check`, then the procedure in [schema/README.md](schema/README.md) |
 | `RePoE/schema/*.json` | `mise run models:generate -- <paths>`, then `mise run check` |
 | `mise.toml`, workflows, `build.CODE` | `mise run check` (`test_release_workflow_paths_cover_the_build_code` in `tests/release/test_build.py` guards the `release-build.yml` paths list against `build.CODE`) |

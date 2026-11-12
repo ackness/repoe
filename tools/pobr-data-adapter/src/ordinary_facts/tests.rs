@@ -1,4 +1,4 @@
-use std::collections::BTreeMap;
+use std::collections::{BTreeMap, BTreeSet};
 use std::fs;
 use std::path::PathBuf;
 use std::sync::atomic::{AtomicU64, Ordering};
@@ -9,6 +9,67 @@ use serde_json::{Value, json};
 use super::{Args, parse_args, reader, run, sha256_hex};
 
 static NEXT: AtomicU64 = AtomicU64::new(0);
+
+#[test]
+fn implementation_revision_covers_every_production_source() {
+    let exclusions = [
+        (
+            "tree.rs",
+            "The --tree mode does not produce ordinary-domain receipts.",
+        ),
+        (
+            "special_derived.rs",
+            "The --emit-special-derived mode does not produce ordinary-domain receipts.",
+        ),
+        (
+            "facts/testing.rs",
+            "Fixture helpers compiled only under cfg(test).",
+        ),
+    ];
+    let mut covered = BTreeSet::new();
+    for (name, _) in super::implementation_sources() {
+        if name.ends_with(".rs") {
+            assert!(covered.insert(name.to_string()), "duplicate source: {name}");
+        }
+    }
+    for (name, reason) in exclusions {
+        assert!(
+            !reason.trim().is_empty(),
+            "missing exclusion reason: {name}"
+        );
+        assert!(covered.insert(name.to_string()), "already hashed: {name}");
+    }
+
+    let root = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("src");
+    let mut pending = vec![root.clone()];
+    let mut sources = BTreeSet::new();
+    while let Some(dir) = pending.pop() {
+        for entry in fs::read_dir(dir).unwrap() {
+            let path = entry.unwrap().path();
+            let name = path.file_name().unwrap().to_str().unwrap();
+            if path.is_dir() {
+                if name != "tests" {
+                    pending.push(path);
+                }
+            } else if path.extension().is_some_and(|ext| ext == "rs")
+                && name != "tests.rs"
+                && !name.ends_with("_tests.rs")
+            {
+                sources.insert(
+                    path.strip_prefix(&root)
+                        .unwrap()
+                        .to_str()
+                        .unwrap()
+                        .to_string(),
+                );
+            }
+        }
+    }
+    assert_eq!(
+        sources, covered,
+        "every production source must be hashed or explicitly excluded with a reason"
+    );
+}
 
 /// Seal a synthetic selected-table package through the real supplemental reader.
 pub(super) fn supplement(f: &Fixture, tables: &Value) -> super::BranchCodecArgs {

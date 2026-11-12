@@ -89,6 +89,15 @@ Policies name selected input files by the same IDs (`game_constants/v1`,
 `passive_tree/v1`, …); the type-path spellings older policies used were
 rewritten for game 0.5.5.5-2 and are no longer accepted.
 
+The receipt's `adapter.implementation_revision` hashes the compiled source bytes
+and pinned build inputs listed in `ordinary_facts::implementation_sources`,
+including the schema ID registry. The coverage test
+`implementation_revision_covers_every_production_source` requires every
+non-test `src/**/*.rs` file to be hashed or explicitly excluded with a reason.
+The separate `--tree` and `--emit-special-derived` modes do not produce ordinary
+domain receipts, so their modules are excluded. Updating the revision changes
+receipt bytes; the release checks still require identical game-package zip bytes.
+
 The schema-4 (native runtime) modes `--native-facts` and `--native-runtime` were
 removed on 2026-11-04, after PoBR deleted its schema-4 loader; Git history keeps
 them.
