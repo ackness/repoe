@@ -16,6 +16,10 @@ Old inputs must already be cached or available as pinned local Git blobs.
 `tools/pobr-data-adapter/policies` for rehearsals. The staged facts package
 must contain exactly one fresh `repoe-native-facts/v4` candidate. Historical
 old declarations using the original/rebound envelope are supported too.
+Keep each candidate's [export receipt](../native/native_facts.md#export-receipt)
+beside its directory when staging. Rebinding leaves the staged packages,
+candidate manifests and receipts unchanged; publication and build receipt checks
+still apply.
 
 The command verifies the packages and facts using the release build's readers.
 It matches members by their package name and relative path and derives both
