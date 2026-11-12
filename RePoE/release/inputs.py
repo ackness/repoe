@@ -53,15 +53,7 @@ CHINA_MEMBERS = CHINA_CAPTURE | {
     for directory, (_, payloads) in CHINA_CANDIDATES.items()
     for member in (*payloads, "source-lock.json", "manifest.json")
 }
-CANDIDATE_FORMATS = {
-    "repoe-native-facts/v4",
-    "repoe-item-inheritance/v1",
-    "repoe-native-player-context/v1",
-    crafting_catalog.FORMAT,
-    *(format_ for format_, _ in CHINA_CANDIDATES.values()),
-}
-# What the receipted exporters write: such a candidate needs its export receipt. Crafting is not receipted yet.
-RECEIPTED_FORMATS = CANDIDATE_FORMATS - {crafting_catalog.FORMAT}
+CANDIDATE_FORMATS = export_receipt.FORMATS | {crafting_catalog.FORMAT}
 
 
 def asset_name(name, patch):
@@ -155,15 +147,16 @@ def validate_targets(archive, target, directory):
             actual = identity.get(key)
             require(actual == expected, f"{member}: source_identity.{key}: expected {expected!r}, actual {actual!r}")
 
-    for member in archive.namelist():
-        path = Path(directory).absolute() / member
-        if member.endswith("manifest.json"):
-            check(archive.read(member), str(path))
-        elif member.endswith(".zip"):
-            with zipfile.ZipFile(io.BytesIO(archive.read(member))) as nested:
-                for name in nested.namelist():
-                    if name.endswith("manifest.json"):
-                        check(nested.read(name), f"{path}!{name}")
+    def walk(archive, prefix):
+        for member in archive.namelist():
+            path = f"{prefix}{member}"
+            if member.endswith("manifest.json"):
+                check(archive.read(member), path)
+            elif member.lower().endswith(".zip"):
+                with zipfile.ZipFile(io.BytesIO(archive.read(member))) as nested:
+                    walk(nested, f"{path}!")
+
+    walk(archive, f"{Path(directory).absolute()}/")
 
 
 def package(name, directory, target, out):
@@ -195,7 +188,7 @@ def package(name, directory, target, out):
     with zipfile.ZipFile(path) as archive:
         validate_targets(archive, target, directory)
         try:
-            receipts = export_receipt.package_receipts(archive.namelist(), archive.read, RECEIPTED_FORMATS)
+            receipts = export_receipt.package_receipts(archive.namelist(), archive.read, export_receipt.FORMATS)
         except ValueError as error:
             raise ValueError(f"{name}: {error}") from error
         # The files must not have changed while they were read.

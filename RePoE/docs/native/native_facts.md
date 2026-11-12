@@ -221,10 +221,14 @@ last step (`RePoE/client/export_receipt.py`):
 - Without `--rehearsal` an exporter refuses a dirty checkout before it reads
   any input: exit 1, no output. With `--rehearsal` it exports, the manifest
   bytes are those of a clean run and the receipt says `rehearsal: true`.
+- Before writing the receipt, the exporter checks that the checkout commit and
+  dirty paths still match the start of the run; a change leaves no receipt.
 - `release:inputs` requires the field and a receipt that pins the manifest and
   its target, and publishes only receipts that are clean, not a rehearsal and
   from a commit on `origin/master`. `release:build` repeats the check, refuses
   a rehearsal or dirty receipt and copies the commits into its `receipt.json`.
+  These checks include candidate directories inside ZIPs; only the exact frozen
+  historical package and envelope bytes are exempt from requiring the field.
   `rehearsal` absent means false, in every receipt.
 
 ## Physical tables

@@ -65,6 +65,12 @@ def check_exporter(test, export, exporter):
     verified = export_receipt.verify(sibling(rehearsal).read_bytes(), manifest)
     test.assertEqual((verified["producer"], verified["rehearsal"]), (dirty, True))
     test.assertEqual(export_receipt.refusal(verified), "is a rehearsal")
+    for index, changed in enumerate((dirty, identity(commit="d" * 40))):
+        name = f"receipt-changed-{index}"
+        with mock.patch.object(export_receipt, "checkout_identity", side_effect=[identity(), changed]):
+            with test.assertRaisesRegex(ValueError, "checkout changed during export"):
+                export(name)
+        test.assertFalse(sibling(clean.with_name(name)).exists())
 
 
 class CheckoutIdentityTest(GitRepoCase):

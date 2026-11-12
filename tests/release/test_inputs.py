@@ -14,7 +14,7 @@ from RePoE.client import export_receipt
 from RePoE.release.pins import decode, encoded, pin
 from RePoE.release import assets, build, crafting_catalog, inputs, publish
 from tests.client.test_export_receipt import DIRTY, candidate, receipt_for
-from tests.release.test_build import serve
+from tests.release.test_build import serve, zip_bytes
 from tests.release.test_crafting_catalog import crafting_package, fixture as crafting_fixture
 from tests.release.test_publish import GitRepoCase, Runner, git
 
@@ -134,20 +134,22 @@ class PackageTest(unittest.TestCase):
             ("stat-descriptions/item-descriptions/manifest.json", "repoe-native-descriptions/v1"),
             ("display-tables/traditional-chinese/manifest.json", "repoe-localized-tables/v1"),
         )
-        for nested in (False, True):
+        for depth in (0, 1, 2):
             for member, format_ in manifests:
                 for key, actual in (("game_patch", "8.8"), ("realm", "china"), ("game_patch", None)):
-                    with self.subTest(nested=nested, member=member, key=key, actual=actual):
+                    with self.subTest(depth=depth, member=member, key=key, actual=actual):
                         source = tree(self.root / "candidates", {"keep.json": b"{}"})
                         identity = {**TARGET, key: actual}
                         if actual is None:
                             del identity[key]
                         raw = encoded({"format": format_, "source_identity": identity})
-                        if nested:
-                            path = source / "ordinary-input.zip"
-                            with zipfile.ZipFile(path, "w") as archive:
-                                archive.writestr(member, raw)
-                            expected_file = f"{path}!{member}"
+                        if depth:
+                            path = source / "ordinary-input.ZIP"
+                            members = {member: raw}
+                            for _ in range(depth - 1):
+                                members = {"inner.zip": zip_bytes(members)}
+                            build.write_zip(path, members)
+                            expected_file = f"{path}!" + "inner.zip!" * (depth - 1) + member
                         else:
                             tree(source, {member: raw})
                             expected_file = str(source / member)
@@ -155,7 +157,7 @@ class PackageTest(unittest.TestCase):
                             inputs.stage({"ordinary": source}, TARGET, self.root / "candidate-stage")
                         self.assertIn(expected_file, str(error.exception))
                         self.assertIn(f"expected {TARGET[key]!r}, actual {actual!r}", str(error.exception))
-                        if nested:
+                        if depth:
                             path.unlink()
                         else:
                             (source / member).unlink()
@@ -195,6 +197,36 @@ class PackageTest(unittest.TestCase):
         rehearsal = {**files, beside: receipt_for(manifest, rehearsal=True, dirty_paths=DIRTY)}
         staged = inputs.stage({"ordinary": tree(self.root / "rehearsal", rehearsal)}, TARGET, self.root / "out")
         self.assertEqual(publish.unpublishable(staged["receipts"]), [f"ordinary:{beside} is a rehearsal"])
+
+    def test_every_export_format_requires_a_receipt_including_inside_an_archive(self):
+        for index, format_ in enumerate(sorted(export_receipt.FORMATS)):
+            for nested in (False, True):
+                with self.subTest(format=format_, nested=nested):
+                    raw = encoded({"format": format_, "source_identity": TARGET})
+                    source = self.root / f"stripped-{index}-{nested}"
+                    files = {"candidate/manifest.json": raw}
+                    if nested:
+                        source.mkdir()
+                        build.write_zip(source / "envelope.ZIP", files)
+                    else:
+                        tree(source, files)
+                    with self.assertRaisesRegex(ValueError, "candidate/manifest.json: no export receipt"):
+                        inputs.stage({"ordinary": source}, TARGET, self.root / "stripped-stage")
+        # A copied receipt keeps its rehearsal flag through archive packaging.
+        manifest = candidate()
+        source = self.root / "nested-rehearsal"
+        source.mkdir()
+        build.write_zip(source / "envelope.zip", receipted({"candidate/manifest.json": manifest}, rehearsal=True))
+        staged = inputs.stage({"ordinary": source}, TARGET, self.root / "nested-stage")
+        self.assertEqual(
+            publish.unpublishable(staged["receipts"]),
+            ["ordinary:envelope.zip!candidate.export-receipt.json is a rehearsal"],
+        )
+        # A bare candidate at an archive root is not a release package manifest.
+        (source / "envelope.zip").unlink()
+        build.write_zip(source / "envelope.zip", {"manifest.json": manifest})
+        with self.assertRaisesRegex(ValueError, "envelope.zip!manifest.json: candidate manifest must be inside"):
+            inputs.stage({"ordinary": source}, TARGET, self.root / "bare-stage")
 
     def test_refuses_dot_files_unreadable_directories_and_overlapping_stages(self):
         (self.source / ".complete").write_text("x")

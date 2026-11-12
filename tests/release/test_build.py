@@ -21,7 +21,7 @@ import zipfile
 from RePoE.client import export_receipt
 from RePoE.release.pins import encoded, pin
 from RePoE.release import build
-from tests.client.test_export_receipt import DIRTY, receipt_for
+from tests.client.test_export_receipt import DIRTY, candidate, receipt_for
 
 TARGET = {"game": "poe2", "game_patch": "9.9", "realm": "international"}
 ORIGINAL = "a" * 64
@@ -377,6 +377,38 @@ class ReleaseBuildTest(unittest.TestCase):
         self.assertEqual(outcome["manifest"]["class"], "fresh-manifest")
         self.assertTrue(receipt["reference"]["members_identical"])
         self.assertFalse(outcome["package"]["identical_to_reference"])
+
+    def test_build_requires_receipts_for_every_export_format_and_checks_nested_receipts(self):
+        for format_ in sorted(export_receipt.FORMATS):
+            with self.subTest(format=format_):
+                stripped = encoded({"format": format_, "source_identity": TARGET})
+                config = self.fixture(extra_inputs={"candidate/manifest.json": stripped})
+                with self.assertRaisesRegex(ValueError, "inputs: candidate/manifest.json: no export receipt"):
+                    self.run_build(config)
+        manifest = candidate()
+        nested = zip_bytes(
+            {
+                "candidate/manifest.json": manifest,
+                "candidate.export-receipt.json": receipt_for(manifest, rehearsal=True),
+            }
+        )
+        config = self.fixture(extra_inputs={"envelope.zip": nested})
+        with self.assertRaisesRegex(ValueError, "inputs:envelope.zip!candidate.export-receipt.json is a rehearsal"):
+            self.run_build(config)
+        bare = zip_bytes({"manifest.json": manifest})
+        config = self.fixture(extra_inputs={"envelope.zip": bare})
+        with self.assertRaisesRegex(ValueError, "envelope.zip!manifest.json: candidate manifest must be inside"):
+            self.run_build(config)
+        # The historical extraction branch cannot unwrap an arbitrary unreceipted envelope under another name.
+        files = {"handoff.json": encoded({"archive": pin(bare)}), "envelope.bin": bare}
+        for name, raw in files.items():
+            build.write_new(self.root / "unreceipted" / name, raw)
+        package = build.Package("inputs", {}, b"", self.root / "unreceipted", {n: pin(r) for n, r in files.items()})
+        with (
+            mock.patch.object(build.source_rebinding, "verify", side_effect=AssertionError("unreviewed extraction")),
+            self.assertRaisesRegex(ValueError, "Only the frozen historical facts envelope"),
+        ):
+            build.prepare_facts(package, {"handoff": "handoff.json", "archive": "envelope.bin"}, self.root / "cache")
 
     def test_fresh_facts_root_builds_with_one_pinned_identity(self):
         from RePoE.release import inputs

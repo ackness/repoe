@@ -12,10 +12,12 @@ The exporters, ``release:inputs`` and ``release:build`` import this module, so
 it uses the standard library and ``source_io`` only.
 """
 
+import io
 import os
 from pathlib import Path
 import re
 import subprocess
+import zipfile
 
 from .source_io import decode, encoded, sha256
 
@@ -25,6 +27,18 @@ FIELD = "producer_receipt"
 SUFFIX = ".export-receipt.json"
 REPOSITORY = "ackness/repoe"
 TARGET = ("game", "game_patch", "realm")
+FORMATS = frozenset(
+    {
+        *(f"repoe-native-facts/v{version}" for version in range(1, 5)),
+        "repoe-native-tables/v1",
+        "repoe-localized-tables/v1",
+        "repoe-native-descriptions/v1",
+        "repoe-item-inheritance/v1",
+        "repoe-native-player-context/v1",
+    }
+)
+# The frozen pre-receipt source envelope carried by the historical ordinary input package.
+HISTORICAL_ARCHIVES = {"7e399fe98e62d4feab6518b454e255c47837ba04167d93b23c9a9e444e02f8b5"}
 # The code and environment the exporters load, tracked or untracked. Shared client modules they import
 # (source_io, limits, this module) are covered by the glob, not by each manifest's ``producer`` file
 # hashes. Source locks, request files and declarations are left out: they change for every patch
@@ -123,6 +137,7 @@ def begin(out, exporter, *, rehearsal=False):
 
     def seal(manifest_raw):
         # Written last: a candidate directory without its receipt is incomplete and cannot be packaged.
+        _require(checkout_identity() == identity, "Exporter checkout changed during export; export again")
         raw = receipt_bytes(manifest_raw, exporter, identity, rehearsal)
         with path.open("xb") as stream:
             stream.write(raw)
@@ -192,16 +207,23 @@ def package_receipts(names, read, formats=()):
     are payloads and a root ``manifest.json`` is the package's own. A candidate
     that carries ``producer_receipt``, or whose ``format`` is in ``formats``,
     must carry the field and have ``<directory>.export-receipt.json`` pinning it.
+    Nested ZIPs follow the same rule; receipt keys include the archive member.
     """
     names = set(names)
     receipts = {}
     for name in sorted(names):
         directory, _, base = name.rpartition("/")
-        if base != "manifest.json" or not directory:
+        if base != "manifest.json":
             continue
         raw = read(name)
         try:
             manifest = decode(raw)
+            if not directory:
+                _require(
+                    not isinstance(manifest, dict) or manifest.get("format") not in formats,
+                    "candidate manifest must be inside a directory beside its export receipt",
+                )
+                continue
             if not isinstance(manifest, dict) or (FIELD not in manifest and manifest.get("format") not in formats):
                 continue
             member = receipt_name(directory)
@@ -214,4 +236,13 @@ def package_receipts(names, read, formats=()):
             not name.endswith(SUFFIX) or name in receipts,
             f"{name}: export receipt without a candidate manifest that carries {FIELD}",
         )
+        if name.lower().endswith(".zip"):
+            raw = read(name)
+            nested_formats = () if sha256(raw) in HISTORICAL_ARCHIVES else formats
+            with zipfile.ZipFile(io.BytesIO(raw)) as archive:
+                try:
+                    nested = package_receipts(archive.namelist(), archive.read, nested_formats)
+                except ValueError as error:
+                    raise ValueError(f"{name}!{error}") from error
+                receipts.update({f"{name}!{member}": receipt for member, receipt in nested.items()})
     return receipts

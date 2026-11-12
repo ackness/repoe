@@ -55,6 +55,8 @@ RECEIPT = "repoe-release-receipt/v2"
 PACKAGE = "repoe-release-package/v1"
 PART_SCHEMA = "pobr-build-data-part/v1"
 FACTS_IDENTITIES = ("rebound", "original")
+# The pre-receipt ordinary input of release/0.5.5.5-2 and -3. Only these exact package bytes are exempt.
+HISTORICAL_INPUT_PACKAGES = {"a1290a172e280f08bd46722684e9ac7304634f906cfa400cfed34f9eebb84141"}
 # Adapter file options and the SHA-256 option the adapter requires next to them.
 # Directory options pin the directory's manifest.json.
 PAIRED = {
@@ -378,6 +380,10 @@ def prepare_facts(package, spec, cache):
         handoff_raw = package.read(spec["handoff"])
         handoff = decode(handoff_raw)
         archive = package.path(spec["archive"])
+        require(
+            package.members[spec["archive"]]["sha256"] in export_receipt.HISTORICAL_ARCHIVES,
+            "Only the frozen historical facts envelope is supported; use a receipted facts root",
+        )
         handoff_pin, archive_pin = pin(handoff_raw), handoff["archive"]
         root = cache / "facts" / handoff["archive"]["sha256"]
         if not (root / ".complete").is_file():
@@ -857,7 +863,8 @@ def export_commits(packages):
     commits = {}
     for key, package in packages.items():
         try:
-            receipts = export_receipt.package_receipts(package.members, package.read)
+            formats = () if package.spec.get("sha256") in HISTORICAL_INPUT_PACKAGES else export_receipt.FORMATS
+            receipts = export_receipt.package_receipts(package.members, package.read, formats)
         except ValueError as error:
             raise ValueError(f"{key}: {error}") from error
         for member, receipt in receipts.items():

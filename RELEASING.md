@@ -203,8 +203,9 @@ must also carry `producer_receipt` and have its
 [export receipt](RePoE/docs/native/native_facts.md#export-receipt) beside its
 directory (`facts.export-receipt.json` next to `facts/`), pinning its bytes
 and target. Copies embedded in another candidate (`parent-manifest.json`,
-`input-manifest.json`) and the facts inside a historical envelope ZIP need
-none, and the crafting export is not receipted yet. A receipt that says
+`input-manifest.json`) and the facts inside the exact frozen historical envelope
+ZIP need none, and the crafting export is not receipted yet. New ZIPs must also
+carry receipts beside their candidate directories. A receipt that says
 rehearsal or dirty, or whose commit is not on `origin/master`, still stages
 but is listed under `publish refused` (exit 1), and `--yes` never publishes it.
 
