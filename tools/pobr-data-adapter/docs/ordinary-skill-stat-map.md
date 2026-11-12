@@ -53,10 +53,11 @@ legacy assets remain0.5.5.4.2 / vendor bb52d6b3, not0.5.5.5 facts.
 
 ## Target identity and branch checks
 
-Only F Stats, GrantedEffects and GrantedEffectStatSets are selected through
-reader::open / Tables::selected. Consumed schemas, physical keys and unique
-stable IDs validate. Every global and per-scope stat occurrence records the exact
-Stats.Id physical row or explicit absence. Policy `absent_target_stat_ids` must
+Only F Stats, GrantedEffects, GrantedEffectStatSets, GemEffects, SkillGems and
+BaseItemTypes are selected through reader::open / Tables::selected. Consumed
+schemas, physical keys and unique stable IDs validate. Every global and per-scope
+stat occurrence records the exact Stats.Id physical row or explicit absence.
+Policy `absent_target_stat_ids` must
 equal the actual absent ID set: both new absences and unused/stale exceptions fail.
 Constructor parameters are not treated as target game numbers.
 
@@ -78,6 +79,23 @@ effect and codec record are absent. Every declared exception must be consumed;
 newly matching, partial, missing or unused exceptions fail. No ownership override
 or fallback is introduced.
 
+The target gem effect universe contains the distinct non-support
+`GrantedEffects.Id` values referenced by normal gems. A normal gem is a
+`SkillGems` row whose `BaseItemType` resolves to a nonempty `BaseItemTypes.Id`
+and a `Name` for which `crate::is_placeholder` is false, matching the base skills
+export's filter. Missing bases and placeholder names (including DNT, OLD, UNUSED
+and empty names) contribute no effects. Unlinked `GemEffects` rows are also
+excluded because PoBR does not expose these gems.
+
+All `SkillGems.GemEffects` links of each normal gem count, using both
+`GemEffects.GrantedEffect` and `GemEffects.AdditionalGrantedEffects`. There is no
+single-variant gate here. A null primary reference contributes no effect;
+additional references still count. Only `GrantedEffects.IsSupport` filters
+support effects: a support gem's non-support effects remain eligible, regardless
+of `SkillGems.GemType`. Every physical reference must resolve, including those
+on excluded gems and unlinked variants. Consumed column schemas, base names and
+boolean support flags are checked.
+
 Parent source probe `e25640a3e17b6dfd7dc04f1e30303bf8065497bb6f092ac7ce3b9f1281f45d91`
 observed975 global /618 scoped entries,400 scopes with399 raw-owned and exactly
 BloodbarrierPlayer/1 absent from both effect and codec,132 absent stat IDs, and two
@@ -93,6 +111,21 @@ row/record and raw owner primary/ordered additional references, or explicit
 unbound policy status. Unused table columns retain full metadata and row ranges.
 Legacy versions/meta/pins, target F provenance, all output hashes and compiled
 conversion/DTO revision remain separate. Unapplied or missing is not effectless.
+
+The domain receipt under top-level `conversion` also reports:
+
+- `target_gem_effects`: the number of distinct non-support effects in the universe.
+- `target_gem_effects_without_codec`: sorted, deduplicated effect IDs with no
+  `stat_set_labels` record, with their count in
+  `target_gem_effects_without_codec_count`.
+- `target_gem_effects_without_map_scope`: sorted, deduplicated effect IDs with no
+  `per_stat_set` scope in the map (an empty effect object supplies no scope), with
+  their count in `target_gem_effects_without_map_scope_count`.
+
+These lists report coverage and do not gate conversion. Comparing receipts across
+patches shows newly uncovered gem effects. Codec presence and map scope presence
+are checked independently; neither proves gameplay correctness or calculation
+support. The report leaves the map, branch codec and policy output bytes intact.
 
 ```text
 fresh-skill-stat-map/

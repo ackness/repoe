@@ -9,13 +9,21 @@ use std::path::PathBuf;
 
 use pobr_data::catalog::StatSetLabelsDef;
 use pobr_data::catalog::stat_map::{SkillStatMapDef, StatMapEntry};
+use serde::Deserialize;
 use serde_json::{Value, json};
 
 use super::stat_set_codec::{self, read_pinned};
 use crate::facts::reader::{Tables, VerifiedFacts};
 use crate::raw_source::sha256_hex;
 
-pub(super) const TABLES: [&str; 3] = ["Stats", "GrantedEffects", "GrantedEffectStatSets"];
+pub(super) const TABLES: [&str; 6] = [
+    "Stats",
+    "GrantedEffects",
+    "GrantedEffectStatSets",
+    "GemEffects",
+    "SkillGems",
+    "BaseItemTypes",
+];
 
 pub(super) struct Converted {
     pub overlay: BTreeMap<String, Vec<u8>>,
@@ -168,9 +176,22 @@ pub(super) fn convert(
         .filter(|r| r["unextractable"] == true)
         .cloned()
         .collect();
+    let target_gem_effects = target_gem_effects(input, &tables)?;
+    let codec_effects: BTreeSet<_> = labels.labels.iter().map(|row| &row.skill).collect();
+    let without_codec: Vec<_> = target_gem_effects
+        .iter()
+        .filter(|id| !codec_effects.contains(id))
+        .collect();
+    let without_map_scope: Vec<_> = target_gem_effects
+        .iter()
+        .filter(|id| map.per_stat_set.get(*id).is_none_or(BTreeMap::is_empty))
+        .collect();
     let receipt = json!({
         "global_entries":global.len(),"scoped_entries":scoped_entries,"scope_count":scopes.len(),
         "raw_owned_scopes":bound_count,"unbound_scopes":scopes.len()-bound_count,
+        "target_gem_effects":target_gem_effects.len(),
+        "target_gem_effects_without_codec":without_codec,"target_gem_effects_without_codec_count":without_codec.len(),
+        "target_gem_effects_without_map_scope":without_map_scope,"target_gem_effects_without_map_scope_count":without_map_scope.len(),
         "global_records":global,"scope_records":scopes,"absent_target_stat_ids":absent,
         "unextractable_records":unextractable,
         "legacy_source":{"file":"overlay/skill_stat_map.json","bytes":source.bytes.len(),"sha256":sha256_hex(&source.bytes),
@@ -195,6 +216,128 @@ pub(super) fn convert(
         protected_parents: [source.parent, codec.parent, pinned_policy.parent],
         receipt,
     })
+}
+
+fn target_gem_effects(
+    input: &VerifiedFacts,
+    tables: &Tables<'_>,
+) -> Result<BTreeSet<String>, String> {
+    for (table, field, kind, array, target) in [
+        ("GrantedEffects", "IsSupport", "bool", false, None),
+        ("BaseItemTypes", "Id", "string", false, None),
+        ("BaseItemTypes", "Name", "string", false, None),
+        (
+            "SkillGems",
+            "BaseItemType",
+            "foreignrow",
+            false,
+            Some("BaseItemTypes"),
+        ),
+        (
+            "SkillGems",
+            "GemEffects",
+            "foreignrow",
+            true,
+            Some("GemEffects"),
+        ),
+        (
+            "GemEffects",
+            "GrantedEffect",
+            "foreignrow",
+            false,
+            Some("GrantedEffects"),
+        ),
+        (
+            "GemEffects",
+            "AdditionalGrantedEffects",
+            "foreignrow",
+            true,
+            Some("GrantedEffects"),
+        ),
+    ] {
+        super::convert::column(
+            input,
+            table,
+            &[field],
+            &json!({
+                "name":field,"type":kind,"array":array,"interval":false,
+                "references":target.map(|table| json!({"table":table}))
+            }),
+        )?;
+    }
+    let mut non_support = BTreeSet::new();
+    for row in 0..tables.len("GrantedEffects") {
+        let values = tables.row("GrantedEffects", row)?;
+        if !values["IsSupport"]
+            .as_bool()
+            .ok_or_else(|| format!("GrantedEffects/{row}.IsSupport: boolean required"))?
+        {
+            non_support.insert(values["Id"].as_str().ok_or("invalid source Id")?);
+        }
+    }
+    let mut variants = Vec::new();
+    for row in 0..tables.len("GemEffects") {
+        let values = tables.row("GemEffects", row)?;
+        let mut references = super::convert::resolve_list(
+            tables,
+            "GrantedEffects",
+            &values["AdditionalGrantedEffects"],
+        )
+        .map_err(|e| format!("GemEffects/{row}.AdditionalGrantedEffects: {e}"))?;
+        if !values["GrantedEffect"].is_null() {
+            references.push(
+                super::convert::resolve(tables, "GrantedEffects", &values["GrantedEffect"], "Id")
+                    .map_err(|e| format!("GemEffects/{row}.GrantedEffect: {e}"))?,
+            );
+        }
+        variants.push(references);
+    }
+    let mut normal_bases = Vec::new();
+    for row in 0..tables.len("BaseItemTypes") {
+        let values = tables.row("BaseItemTypes", row)?;
+        let id = super::convert::text(&values["Id"])
+            .map_err(|e| format!("BaseItemTypes/{row}.Id: {e}"))?;
+        let name = super::convert::text(&values["Name"])
+            .map_err(|e| format!("BaseItemTypes/{row}.Name: {e}"))?;
+        normal_bases.push(!id.is_empty() && !crate::is_placeholder(name));
+    }
+    #[derive(Deserialize)]
+    struct Gem {
+        #[serde(rename = "BaseItemType")]
+        base: Option<usize>,
+        #[serde(rename = "GemEffects")]
+        variants: Vec<usize>,
+    }
+    let mut effects = BTreeSet::new();
+    for row in 0..tables.len("SkillGems") {
+        let gem: Gem = serde_json::from_value(tables.row("SkillGems", row)?.clone())
+            .map_err(|e| format!("SkillGems/{row}: {e}"))?;
+        let normal = gem
+            .base
+            .map(|key| {
+                normal_bases
+                    .get(key)
+                    .copied()
+                    .ok_or_else(|| format!("SkillGems/{row}: dangling BaseItemType {key}"))
+            })
+            .transpose()?
+            .unwrap_or(false);
+        for key in gem.variants {
+            // Excluded gems still require valid physical references.
+            let references = variants
+                .get(key)
+                .ok_or_else(|| format!("SkillGems/{row}: dangling GemEffects {key}"))?;
+            if normal {
+                effects.extend(
+                    references
+                        .iter()
+                        .filter(|id| non_support.contains(id.as_str()))
+                        .cloned(),
+                );
+            }
+        }
+    }
+    Ok(effects)
 }
 
 fn identities(tables: &Tables<'_>, table: &str) -> Result<BTreeMap<String, usize>, String> {
@@ -235,12 +378,23 @@ fn pointer_token(value: &str) -> String {
 
 fn unmapped(input: &VerifiedFacts, tables: &Tables<'_>) -> Result<Vec<Value>, String> {
     TABLES.iter().map(|table|{
-        let used:&[&str]=if *table=="GrantedEffects"{&["Id","StatSet","AdditionalStatSets"]}else{&["Id"]};
+        let used:&[&str]=match *table {
+            "GrantedEffects" => &["Id","IsSupport","StatSet","AdditionalStatSets"],
+            "GemEffects" => &["GrantedEffect","AdditionalGrantedEffects"],
+            "SkillGems" => &["BaseItemType","GemEffects"],
+            "BaseItemTypes" => &["Id","Name"],
+            _ => &["Id"],
+        };
         let path=format!("tables/{table}.json");
         let columns:Vec<_>=input.documents[&path]["columns"].as_array().ok_or("missing columns")?.iter()
             .filter(|c|c["physical_fields"].as_array().is_some_and(|fields|fields.iter().any(|f|!used.iter().any(|name|f.as_str()==Some(*name))))).collect();
         Ok(json!({"table":table,"payload":path,"columns":columns,"source_row_range":{"start":0,"end_exclusive":tables.len(table)},
-            "identity":"Id in pinned physical rows; global_records/scope_records give map-used stat/owner references",
+            "identity":match *table {
+                "GemEffects" => "physical rows; primary/additional granted-effect references of normal gems define the target gem effect universe",
+                "SkillGems" => "physical rows; BaseItemType and GemEffects references select normal gems and their effects",
+                "BaseItemTypes" => "Id and Name in pinned physical rows; nonempty Id and non-placeholder Name identify normal gems",
+                _ => "Id in pinned physical rows; global_records/scope_records give map-used stat/owner references",
+            },
             "status":"remaining columns and unused owner references not certified/applied; not effectless"}))
     }).collect()
 }
