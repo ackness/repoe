@@ -78,6 +78,8 @@ CLASSES = tuple(f"{p}-{c}" for p in PROVENANCE[:2] for c in ("identical", "diffe
 KINDS = {"adapter", "special-derived", "historical-trees", "crafting-catalog", "gem-descriptions", "snapshot-manifest"}
 # Job kinds that read the facts envelope (under the identity the job names in ``facts``).
 FACTS_KINDS = {"adapter", "gem-descriptions"}
+COVERAGE_ACTIONS = ("quarantined", "emitted-with-gap", "retained-legacy", "listed")
+BUILD_ERRORS = (ValueError, KeyError, TypeError, OSError, zipfile.BadZipFile)
 CODE = (
     "RePoE/release/build.py",
     "RePoE/release/assets.py",
@@ -191,6 +193,10 @@ def load_config(config):
         f"{display(config)} declares game patch {target['game_patch']}",
     )
     require(domains["target"] == target and frozen["target"] == target, "Config target mismatch")
+    require(
+        "adapter_mode" not in domains or domains["adapter_mode"] == "forward",
+        'domains.json: adapter_mode must be "forward" when present; omit it for strict mode',
+    )
     packages = lock["packages"]
     require(isinstance(packages, dict) and packages, "No input packages")
     for name, spec in packages.items():
@@ -419,9 +425,11 @@ def prepare_facts(package, spec, cache):
 
 
 class Context:
-    def __init__(self, target, packages, facts, work, adapter, policies=POLICIES):
+    def __init__(self, target, packages, facts, work, adapter, policies=POLICIES, adapter_mode="strict"):
         self.target, self.packages, self.facts, self.work, self.adapter = target, packages, facts, work, adapter
         self.policies = Path(policies)
+        self.adapter_mode = adapter_mode
+        self.coverage = {}  # job id -> conversion.coverage from the adapter receipt
         self.outputs = {}  # job id -> {relative output: Path}
         self.members = {}  # package member -> (bytes, job id)
         self.inputs = {}  # input reference -> pin
@@ -517,6 +525,8 @@ def run_adapter_job(ctx, job, out):
         "--out",
         str(out),
     ]
+    if ctx.adapter_mode == "forward":
+        command += ["--mode", "forward"]
     for flag, ref in job.get("options", {}).items():
         directory = flag in DIRECTORY_OPTIONS
         path = ctx.resolve(ref, job, directory=directory)
@@ -525,6 +535,8 @@ def run_adapter_job(ctx, job, out):
             command += [PAIRED[flag], file_pin(path / "manifest.json" if directory else path)["sha256"]]
     execute(command, ctx.work / "logs" / job["id"])
     receipt = decode((out / "producer-receipt.json").read_bytes())
+    if ctx.adapter_mode == "forward" and "coverage" in receipt.get("conversion", {}):
+        ctx.coverage[job["id"]] = receipt["conversion"]["coverage"]
     files = receipt["files"]
     business = {name for name in files if name.startswith(BUSINESS)}
     require(business == set(job["outputs"]), f"{job['id']}: adapter outputs {sorted(business)} != declared")
@@ -771,6 +783,115 @@ def snapshot_manifest(ctx, job, members):
     return runtime_encoded(template), {"retained_external_pins": retained}, carried
 
 
+def job_dependencies(value):
+    """Find job references, including those nested in materialized policy inputs."""
+    if isinstance(value, str):
+        return {value.split(":", 2)[1]} if value.startswith("job:") else set()
+    children = value.values() if isinstance(value, dict) else value if isinstance(value, list) else ()
+    return {dependency for child in children for dependency in job_dependencies(child)}
+
+
+def run_job(ctx, job, jobs, passthrough):
+    """Publish a job's outputs to dependants only after its validation succeeds."""
+    forward = ctx.adapter_mode == "forward"
+    if forward:
+        unavailable = {name for name, result in jobs.items() if result["status"] in ("failed", "skipped")}
+        inputs = [job.get(key) for key in ("options", "tree", "policy", "trees", "gem_effects", "granted_effects")]
+        dependencies = set(jobs) if job["kind"] == "snapshot-manifest" else job_dependencies(inputs)
+        blocked = sorted(dependencies & unavailable)
+        if blocked:
+            jobs[job["id"]] = {"kind": job["kind"], "status": "skipped", "dependencies": blocked}
+            return
+    try:
+        if job["kind"] == "snapshot-manifest":
+            member = job["member"]
+            prefix = f"data/{ctx.target['game_patch']}/"
+            require(member == prefix + "manifest.json" and member not in ctx.members, "Invalid snapshot member")
+            raw, evidence, carried = snapshot_manifest(ctx, job, ctx.members)
+            members = {member: (raw, job["id"])}
+            outputs = {}
+        else:
+            log(f"job {job['id']}")
+            (ctx.work / "jobs").mkdir(exist_ok=True)
+            outputs, evidence = RUNNERS[job["kind"]](ctx, job, ctx.work / "jobs" / job["id"])
+            members = {}
+            for output, member in job["outputs"].items():
+                require(member not in ctx.members and member not in members, f"{member} produced twice")
+                members[member] = (outputs[output].read_bytes(), job["id"])
+            carried = carried_inputs(ctx, job, {m: raw for m, (raw, _) in members.items()})
+        check_passthrough(job, carried)
+    except BUILD_ERRORS as error:
+        if not forward:
+            raise
+        jobs[job["id"]] = {"kind": job["kind"], "status": "failed", "error": str(error)}
+        return
+    if job["kind"] != "snapshot-manifest":
+        ctx.outputs[job["id"]] = dict(outputs)
+    ctx.members.update(members)
+    passthrough.update(carried)
+    jobs[job["id"]] = {
+        "kind": job["kind"],
+        **({"status": "succeeded"} if forward else {}),
+        **evidence,
+        "outputs": {m: pin(raw) for m, (raw, _) in members.items()},
+        **({"passthrough": carried} if carried else {}),
+    }
+
+
+def open_tree_issues(jobs):
+    """D40 counts each quarantined or incomplete passive-tree issue, including repeated entities."""
+    return (
+        issue
+        for job in jobs.values()
+        for issue in job["issues"]
+        if issue["domain"] == "passive-tree" and issue["action"] in ("quarantined", "emitted-with-gap")
+    )
+
+
+def build_coverage(ctx):
+    jobs = {
+        name: {key: coverage[key] for key in ("counts", "issues")} for name, coverage in sorted(ctx.coverage.items())
+    }
+    totals = {action: sum(job["counts"][action] for job in jobs.values()) for action in COVERAGE_ACTIONS}
+    return {
+        "format": "pobr-build-coverage/v1",
+        "jobs": jobs,
+        "totals": totals,
+        "open_tree_issues": sum(1 for _ in open_tree_issues(jobs)),
+    }
+
+
+def coverage_report(receipt):
+    lines = []
+    for name, job in receipt["jobs"].items():
+        if job.get("status") == "failed":
+            lines.append(f"job {name}: failed: {job['error']}")
+        elif job.get("status") == "skipped":
+            lines.append(f"job {name}: skipped: unavailable dependencies: {', '.join(job['dependencies'])}")
+    coverage = receipt["coverage"]
+    for name, job in coverage["jobs"].items():
+        lines.append(f"coverage {name}: {len(job['issues'])} issues")
+        kinds = {}
+        for issue in job["issues"]:
+            kinds[issue["kind"]] = kinds.get(issue["kind"], 0) + 1
+        lines.extend(f"  {kind}: {count}" for kind, count in sorted(kinds.items()))
+        for issue in job["issues"]:
+            observed = (
+                f" observed={json.dumps(issue['observed'], ensure_ascii=False, sort_keys=True)}"
+                if "observed" in issue
+                else ""
+            )
+            lines.append(
+                f"  {issue['domain']}/{issue['kind']} {issue['entity']} [{issue['action']}]: {issue['message']}{observed}"
+            )
+    lines.append(
+        "coverage totals: " + ", ".join(f"{action}={coverage['totals'][action]}" for action in COVERAGE_ACTIONS)
+    )
+    entities = {issue["entity"] for issue in open_tree_issues(coverage["jobs"])}
+    lines.append(f"open tree issues: {coverage['open_tree_issues']} ({len(entities)} entities)")
+    return "\n".join(lines)
+
+
 # --- assembly ------------------------------------------------------------------------------------
 
 
@@ -959,29 +1080,14 @@ def build(
     if "facts" in lock:
         log("verifying the facts input")
         facts = prepare_facts(packages[lock["facts"]["package"]], lock["facts"], cache / "inputs")
-    ctx = Context(target, packages, facts, work, adapter, policies)
+    ctx = Context(target, packages, facts, work, adapter, policies, domains.get("adapter_mode", "strict"))
     prefix = f"data/{target['game_patch']}/"
     jobs, snapshot_job, passthrough = {}, None, {}
     for job in domains["jobs"]:
         if job["kind"] == "snapshot-manifest":
             snapshot_job = job
             continue
-        log(f"job {job['id']}")
-        (work / "jobs").mkdir(exist_ok=True)
-        outputs, evidence = RUNNERS[job["kind"]](ctx, job, work / "jobs" / job["id"])
-        ctx.outputs[job["id"]] = {name: path for name, path in outputs.items()}
-        for output, member in job["outputs"].items():
-            require(member not in ctx.members, f"{member} produced twice")
-            ctx.members[member] = (outputs[output].read_bytes(), job["id"])
-        carried = carried_inputs(ctx, job, {m: ctx.members[m][0] for m in job["outputs"].values()})
-        check_passthrough(job, carried)
-        passthrough.update(carried)
-        jobs[job["id"]] = {
-            "kind": job["kind"],
-            **evidence,
-            "outputs": {m: pin(ctx.members[m][0]) for m in job["outputs"].values()},
-            **({"passthrough": carried} if carried else {}),
-        }
+        run_job(ctx, job, jobs, passthrough)
 
     source = packages[frozen["source"]]
     source_prefix = f"data/{source.game_patch}/" if any(m.startswith(prefix) for m in frozen["members"]) else prefix
@@ -995,18 +1101,7 @@ def build(
         ctx.members[member] = (raw, "frozen")
 
     if snapshot_job:
-        member = snapshot_job["member"]
-        require(member == prefix + "manifest.json" and member not in ctx.members, "Invalid snapshot member")
-        raw, evidence, carried = snapshot_manifest(ctx, snapshot_job, ctx.members)
-        check_passthrough(snapshot_job, carried)
-        passthrough.update(carried)
-        ctx.members[member] = (raw, snapshot_job["id"])
-        jobs[snapshot_job["id"]] = {
-            "kind": "snapshot-manifest",
-            **evidence,
-            "outputs": {member: pin(raw)},
-            **({"passthrough": carried} if carried else {}),
-        }
+        run_job(ctx, snapshot_job, jobs, passthrough)
 
     reference = packages[lock["reference"]]
     reference_manifest = decode(reference.read("manifest.json"))
@@ -1041,6 +1136,11 @@ def build(
         "provenance": provenance_counts(counts),
         "reference": {"package": lock["reference"], "members_identical": identical},
     }
+    if ctx.adapter_mode == "forward":
+        receipt["coverage"] = build_coverage(ctx)
+        if any(job["status"] == "failed" for job in jobs.values()):
+            (out / "receipt.json").write_bytes(encoded(receipt))
+            raise ValueError(coverage_report(receipt))
     # The zip depends only on the members and the declaration (never on the
     # producer commit); the receipt then pins the zip, and package.json both.
     if mode == "retain-if-identical" and identical:
@@ -1100,6 +1200,8 @@ def report(receipt, outcome):
     lines.append(f"identical to reference package: {package['identical_to_reference']}")
     if "expect" in package:
         lines.append(f"matches the declared expect pin: {package['matches_expect']}")
+    if "coverage" in receipt:
+        lines.append(coverage_report(receipt))
     return "\n".join(lines)
 
 
@@ -1134,7 +1236,7 @@ def main(argv=None):
     args = parser.parse_args(argv)
     try:
         out, receipt, outcome = build(args.config, args.out, args.adapter, args.cache, args.fetch, args.manifest)
-    except (ValueError, KeyError, TypeError, OSError, zipfile.BadZipFile) as error:
+    except BUILD_ERRORS as error:
         parser.exit(1, f"release:build: {error}\n")
     print(report(receipt, outcome))
     print(f"output: {out}")

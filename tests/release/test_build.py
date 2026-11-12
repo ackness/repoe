@@ -275,6 +275,274 @@ class ReleaseBuildTest(unittest.TestCase):
                 **kwargs,
             )
 
+    def forward_config(self, config, issues=None):
+        """Reuse the strict fixture and teach its adapter the frozen coverage interface."""
+        path = config / "domains.json"
+        domains = json.loads(path.read_text())
+        domains["adapter_mode"] = "forward"
+        path.write_text(json.dumps(domains))
+        policy_path = self.policies / "p.json"
+        policy = json.loads(policy_path.read_text())
+        policy["issues"] = issues or {}
+        policy_path.write_text(json.dumps(policy))
+        self.adapter.write_text(
+            self.adapter.read_text()
+            + textwrap.dedent(
+                """
+                if values.get("--mode") == "forward":
+                    issues = json.loads(Path(values["--codec-policy"]).read_text())["issues"].get(domain, [])
+                    actions = ("quarantined", "emitted-with-gap", "retained-legacy", "listed")
+                    receipt["conversion"] = {"coverage": {
+                        "format": "pobr-adapter-coverage/v1",
+                        "counts": {action: sum(i["action"] == action for i in issues) for action in actions},
+                        "issues": issues,
+                    }}
+                    (out / "producer-receipt.json").write_text(json.dumps(receipt))
+                """
+            )
+        )
+        return config
+
+    def test_adapter_mode_accepts_only_forward_when_present(self):
+        config = self.fixture()
+        path = config / "domains.json"
+        domains = json.loads(path.read_text())
+        self.assertNotIn("adapter_mode", build.load_config(config)[2])
+        for mode in ("forward", "strict", "unknown", None, False, 1, [], {}):
+            with self.subTest(mode=mode):
+                domains["adapter_mode"] = mode
+                path.write_text(json.dumps(domains))
+                if mode == "forward":
+                    self.assertEqual(build.load_config(config)[2]["adapter_mode"], mode)
+                else:
+                    with self.assertRaisesRegex(ValueError, "adapter_mode"):
+                        build.load_config(config)
+
+    def test_forward_zero_coverage_preserves_members_and_strict_command(self):
+        config = self.forward_config(self.fixture())
+        path = config / "domains.json"
+        domains = json.loads(path.read_text())
+        del domains["adapter_mode"]
+        path.write_text(json.dumps(domains))
+        out, strict, _ = self.run_build(config)
+        strict_command = json.loads((out / "work/logs/a/command.json").read_text())["command"]
+        strict_zip = (out / "game-build-part.zip").read_bytes()
+        self.assertNotIn("coverage", strict)
+        self.assertNotIn("--mode", strict_command)
+        domains["adapter_mode"] = "forward"
+        path.write_text(json.dumps(domains))
+        out, receipt, outcome = self.run_build(config)
+        command = json.loads((out / "work/logs/a/command.json").read_text())["command"]
+        index = command.index("--mode")
+        self.assertEqual(command[index : index + 2], ["--mode", "forward"])
+        self.assertEqual(command[:index] + command[index + 2 :], strict_command)
+        self.assertEqual(receipt["members"], strict["members"])
+        self.assertEqual((out / "game-build-part.zip").read_bytes(), strict_zip)
+        coverage = receipt["coverage"]
+        self.assertEqual(coverage["format"], "pobr-build-coverage/v1")
+        self.assertEqual(coverage["jobs"]["a"]["issues"], [])
+        self.assertEqual(
+            coverage["totals"], dict.fromkeys(("quarantined", "emitted-with-gap", "retained-legacy", "listed"), 0)
+        )
+        self.assertEqual(coverage["open_tree_issues"], 0)
+        self.assertIn("coverage a: 0 issues", build.report(receipt, outcome))
+        self.assertEqual(json.loads(receipt_raw(out))["coverage"], coverage)
+
+    def test_forward_aggregates_actions_and_counts_only_open_passive_tree_issues(self):
+        tree_issues = [
+            {"domain": "passive-tree", "kind": kind, "entity": entity, "action": action, "message": kind}
+            for kind, entity, action in (
+                ("missing-reference", "NodeA", "quarantined"),
+                ("missing-text", "NodeA", "emitted-with-gap"),
+                ("missing-text", "NodeB", "emitted-with-gap"),
+                ("kept-entry", "NodeC", "retained-legacy"),
+                ("reference-summary", "target", "listed"),
+            )
+        ]
+        gem_issue = {
+            "domain": "gem-effects",
+            "kind": "codec-gem-absent",
+            "entity": "GemA",
+            "action": "quarantined",
+            "message": "codec gem is absent",
+            "observed": {"gem_id": "GemA"},
+        }
+        config = self.forward_config(
+            self.fixture(domain="passive-tree"), {"passive-tree": tree_issues, "derive": [gem_issue]}
+        )
+        path = config / "domains.json"
+        domains = json.loads(path.read_text())
+        independent = json.loads(json.dumps(domains["jobs"][0]))
+        independent.update(id="gems", domain="derive", outputs={"overlay/a.json": "data/9.9/overlay/gems.json"})
+        domains["jobs"].insert(1, independent)
+        domains["jobs"][-1]["add"] = {"overlay/gems.json": "overlay"}
+        path.write_text(json.dumps(domains))
+        out, receipt, outcome = self.run_build(config)
+        coverage = receipt["coverage"]
+        self.assertEqual(coverage["jobs"]["a"]["issues"], tree_issues)
+        self.assertEqual(coverage["jobs"]["gems"]["issues"], [gem_issue])
+        self.assertEqual(
+            coverage["totals"], {"quarantined": 2, "emitted-with-gap": 2, "retained-legacy": 1, "listed": 1}
+        )
+        self.assertEqual(coverage["open_tree_issues"], 3)
+        report = build.report(receipt, outcome)
+        self.assertIn("missing-text: 2", report)
+        self.assertIn("codec-gem-absent: 1", report)
+        self.assertIn("open tree issues: 3 (2 entities)", report)
+        for issue in [*tree_issues, gem_issue]:
+            self.assertIn(issue["message"], report)
+            self.assertIn(issue["entity"], report)
+        self.assertIn('"gem_id": "GemA"', report)
+        self.assertTrue((out / "game-build-part.zip").is_file())
+
+    def test_forward_failure_skips_dependants_and_reports_independent_failures_and_issues(self):
+        issue = {
+            "domain": "passive-tree",
+            "kind": "missing-text",
+            "entity": "NodeA",
+            "action": "emitted-with-gap",
+            "message": "no reviewed text",
+        }
+        config = self.forward_config(self.fixture(domain="fail"), {"passive-tree": [issue]})
+        path = config / "domains.json"
+        domains = json.loads(path.read_text())
+        failed, snapshot = domains["jobs"]
+        dependent = json.loads(json.dumps(failed))
+        dependent.update(id="dependent", domain="derive", outputs={"overlay/a.json": "data/9.9/overlay/dependent.json"})
+        dependent["options"]["--codec-source"] = "job:a:overlay/a.json"
+        transitive = json.loads(json.dumps(dependent))
+        transitive.update(id="transitive", outputs={"overlay/a.json": "data/9.9/overlay/transitive.json"})
+        transitive["options"]["--codec-source"] = "job:dependent:overlay/a.json"
+        policy_dependent = json.loads(json.dumps(dependent))
+        policy_dependent.update(id="policy-dependent")
+        policy_dependent["options"]["--codec-source"] = "inputs:codec/a.json"
+        policy_dependent["options"]["--codec-policy"]["bindings"] = "job:a:overlay/a.json"
+        independent = json.loads(json.dumps(failed))
+        independent.update(
+            id="independent", domain="passive-tree", outputs={"overlay/a.json": "data/9.9/overlay/tree.json"}
+        )
+        copied = json.loads(json.dumps(failed))
+        copied.update(
+            id="copied",
+            domain="copy",
+            outputs={"overlay/a.json": "data/9.9/overlay/copied.json"},
+            passthrough="job:a:overlay/a.json was the old source; carry the declared codec input over",
+        )
+        survivor = json.loads(json.dumps(dependent))
+        survivor.update(id="survivor", outputs={"overlay/a.json": "data/9.9/overlay/survivor.json"})
+        survivor["options"]["--codec-source"] = "job:independent:overlay/a.json"
+        second_failure = json.loads(json.dumps(failed))
+        second_failure.update(id="second-failure", outputs={"overlay/a.json": "data/9.9/overlay/failure.json"})
+        domains["jobs"] = [
+            failed,
+            dependent,
+            transitive,
+            policy_dependent,
+            {"id": "special", "kind": "special-derived", "tree": "job:a:overlay/a.json", "outputs": {}},
+            {
+                "id": "gem-descriptions",
+                "kind": "gem-descriptions",
+                "facts": "rebound",
+                "gem_effects": "job:dependent:overlay/a.json",
+                "granted_effects": "job:a:overlay/a.json",
+                "outputs": {},
+            },
+            independent,
+            copied,
+            survivor,
+            second_failure,
+            snapshot,
+        ]
+        path.write_text(json.dumps(domains))
+        # Exercise the CLI's exit status and single combined error report.
+        run = build.build
+        stderr = io.StringIO()
+        with (
+            mock.patch.object(build, "prepare_facts", self.fake_facts),
+            mock.patch.object(
+                build,
+                "build",
+                side_effect=lambda *args: run(
+                    args[0],
+                    out=self.root / "out",
+                    adapter=self.adapter,
+                    cache=self.root / "cache",
+                    repo=self.repo,
+                    policies=self.policies,
+                ),
+            ),
+            mock.patch.object(sys, "stderr", stderr),
+            self.assertRaises(SystemExit) as raised,
+        ):
+            build.main(["--config", str(config)])
+        self.assertEqual(raised.exception.code, 1)
+        out = self.root / "out"
+        self.assertFalse((out / "game-build-part.zip").exists())
+        self.assertFalse((out / "package.json").exists())
+        receipt = json.loads(receipt_raw(out))
+        for job in ("a", "second-failure"):
+            self.assertEqual(receipt["jobs"][job]["status"], "failed")
+            self.assertIn("synthetic failure", receipt["jobs"][job]["error"])
+            self.assertIn(f"job {job}: failed:", stderr.getvalue())
+        for job in ("dependent", "transitive", "policy-dependent", "special", "gem-descriptions", "snapshot"):
+            self.assertEqual(receipt["jobs"][job]["status"], "skipped")
+            self.assertIn(f"job {job}: skipped:", stderr.getvalue())
+            self.assertFalse((out / "work/logs" / job).exists())
+        self.assertEqual(receipt["jobs"]["independent"]["status"], "succeeded")
+        self.assertEqual(receipt["jobs"]["copied"]["status"], "succeeded")
+        self.assertTrue((out / "work/logs/copied/command.json").is_file())
+        self.assertEqual(receipt["members"]["data/9.9/overlay/copied.json"]["class"], "passthrough-new")
+        self.assertEqual(receipt["jobs"]["survivor"]["status"], "succeeded")
+        self.assertTrue((out / "work/logs/survivor/command.json").is_file())
+        self.assertEqual(receipt["coverage"]["jobs"]["independent"]["issues"], [issue])
+        self.assertEqual(receipt["coverage"]["open_tree_issues"], 1)
+        self.assertIn("no reviewed text", stderr.getvalue())
+        self.assertNotIn("data/9.9/overlay/a.json", receipt["jobs"]["independent"]["outputs"])
+
+    def test_forward_postflight_failure_does_not_expose_outputs_to_dependants(self):
+        config = self.forward_config(self.fixture(passthrough="stale carry-over claim"))
+        path = config / "domains.json"
+        domains = json.loads(path.read_text())
+        dependent = json.loads(json.dumps(domains["jobs"][0]))
+        dependent.update(id="dependent", outputs={"overlay/a.json": "data/9.9/overlay/dependent.json"})
+        dependent["options"]["--codec-source"] = "job:a:overlay/a.json"
+        del dependent["passthrough"]
+        domains["jobs"].insert(1, dependent)
+        path.write_text(json.dumps(domains))
+        with self.assertRaisesRegex(ValueError, "declared passthrough, but no output"):
+            self.run_build(config)
+        receipt = json.loads(receipt_raw(self.root / "out"))
+        self.assertEqual(receipt["jobs"]["a"]["status"], "failed")
+        self.assertEqual(receipt["jobs"]["dependent"]["status"], "skipped")
+        self.assertEqual(receipt["coverage"]["jobs"]["a"]["issues"], [])
+        self.assertEqual(receipt["members"]["data/9.9/overlay/a.json"]["class"], "missing")
+
+    def test_forward_snapshot_failure_is_reported_with_adapter_coverage_before_packaging(self):
+        config = self.forward_config(self.fixture(snapshot_passthrough=False))
+        with self.assertRaisesRegex(ValueError, "job snapshot: failed: snapshot: outputs carry input content over"):
+            self.run_build(config)
+        out = self.root / "out"
+        receipt = json.loads(receipt_raw(out))
+        self.assertEqual(receipt["jobs"]["a"]["status"], "succeeded")
+        self.assertEqual(receipt["jobs"]["snapshot"]["status"], "failed")
+        self.assertEqual(receipt["coverage"]["jobs"]["a"]["issues"], [])
+        self.assertFalse((out / "game-build-part.zip").exists())
+
+    def test_strict_failure_still_stops_before_independent_jobs(self):
+        config = self.fixture(domain="fail")
+        path = config / "domains.json"
+        domains = json.loads(path.read_text())
+        independent = json.loads(json.dumps(domains["jobs"][0]))
+        independent.update(
+            id="independent", domain="derive", outputs={"overlay/a.json": "data/9.9/overlay/independent.json"}
+        )
+        domains["jobs"].insert(1, independent)
+        path.write_text(json.dumps(domains))
+        with self.assertRaisesRegex(ValueError, r"Producer failed \(1\): synthetic failure; logs in"):
+            self.run_build(config)
+        self.assertFalse((self.root / "out/work/logs/independent").exists())
+        self.assertFalse((self.root / "out/receipt.json").exists())
+
     def test_reproduces_reference_package(self):
         out, receipt, outcome = self.run_build(self.fixture())
         self.assertEqual(receipt["schema"], "repoe-release-receipt/v2")
