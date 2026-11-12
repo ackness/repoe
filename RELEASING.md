@@ -445,6 +445,21 @@ Change the remaining declaration fields below. The source is
 | `contract_version: "adapter"` and the `omit` of `i18n/`/`languages` | Unchanged |
 | `handoff/*` paths and tags in `release/0.5.5.5-2/` and `release/0.5.5.5-3/` | Unchanged: they are historical and stay readable |
 
+Replace the copied `facts` object with the fresh root form below; remove
+`archive` and `handoff`, which cannot be combined with `root`. The manifest
+SHA is that of `ordinary/facts/manifest.json` in the staged package:
+
+```json
+"facts": {
+  "package": "ordinary",
+  "root": "facts",
+  "identities": {
+    "original": "<new facts manifest sha256>",
+    "rebound": "<new facts manifest sha256>"
+  }
+}
+```
+
 Keep `release/0.5.5.5-2/` and `release/0.5.5.5-3/`: a superseded declaration is
 never deleted. Which declarations CI rebuilds is set in [AGENTS.md](AGENTS.md#ci).
 

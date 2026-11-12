@@ -22,8 +22,10 @@ It matches members by their package name and relative path and derives both
 manifest and payload identities, including description payloads, supplements,
 inheritance and player context. The old facts identities both map to the new
 candidate's manifest. Byte pins update their `bytes` and `sha256` together.
-Job input references disambiguate identical old payloads; different possible
-new identities refuse with `ambiguous-counterpart`. A removed pinned member
+Every occurrence of the same old hash must have the same new byte pin, even
+across packages and facts identities. Job references cannot establish which
+policy field owns identical old bytes; different possible new identities
+refuse with `ambiguous-counterpart`. A removed pinned member
 refuses with `missing-counterpart`. An unrecognized manifest identity refuses
 with `unknown-identity`. Historical hashes outside the input inventory remain
 recorded evidence. Packages absent from the stage are carried unchanged from
@@ -39,7 +41,9 @@ The new policy names replace the old patch prefix with `--patch`.
 The new domains file receives those references, the new target, job output
 paths and snapshot-manifest member. Its `previous:` source references retain
 their original paths. `inputs.lock.json` and `frozen-inputs.json` still need
-the edits in [RELEASING step 3](../../../RELEASING.md#3-declare-the-package).
+the edits in [RELEASING step 3](../../../RELEASING.md#3-declare-the-package),
+including replacing the historical `facts.archive` / `facts.handoff` fields
+with `facts.root` for a fresh candidate.
 Rebinding identities does not certify new content or refresh codec rules.
 
 All destinations are preflighted and created exclusively. Existing policies,

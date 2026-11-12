@@ -9,6 +9,7 @@ import copy
 from pathlib import Path
 import tempfile
 
+from RePoE.client import source_io
 from RePoE.release import build
 from RePoE.release.pins import HEX, decode, pin, pinned, relative, require, safe_path
 
@@ -56,7 +57,7 @@ def fresh_facts(package, target, cache):
 
 
 class Identities:
-    """Match byte identities by member path, with job inputs resolving duplicate bytes."""
+    """Match byte identities only when every old member has the same counterpart."""
 
     def __init__(self, old, new, old_facts, new_facts):
         self.members = {}
@@ -64,46 +65,34 @@ class Identities:
             replacement = new[name]
             for member, before in package.members.items():
                 self.members.setdefault(before["sha256"], []).append(
-                    (f"{name}:{member}", before, replacement.members.get(member))
+                    (f"{name}:{member}", replacement.members.get(member))
                 )
-        self.facts = {
-            value[1]["sha256"]: new_facts["roots"][identity][1] for identity, value in old_facts["roots"].items()
-        }
-        for identity, (root, _) in old_facts["roots"].items():
-            new_root = new_facts["roots"][identity][0]
+        for identity, (root, manifest_pin) in old_facts["roots"].items():
+            new_root, new_manifest_pin = new_facts["roots"][identity]
+            self.members.setdefault(manifest_pin["sha256"], []).append(
+                (f"facts:{identity}/manifest.json", new_manifest_pin)
+            )
             before = decode((root / "manifest.json").read_bytes())["files"]
             after = decode((new_root / "manifest.json").read_bytes())["files"]
             for member, expected in before.items():
                 self.members.setdefault(expected["sha256"], []).append(
-                    (f"facts:{identity}/{member}", expected, after.get(member))
+                    (f"facts:{identity}/{member}", after.get(member))
                 )
 
-    def counterpart(self, digest, references, location):
-        if digest in self.facts:
-            return self.facts[digest], ["facts:manifest.json"]
+    def counterpart(self, digest, location):
         candidates = self.members.get(digest)
         if not candidates:
             return None, []
-        # A description option names its payload; its sibling manifest is also an input.
-        local = [
-            item
-            for item in candidates
-            if any(
-                item[0] == ref
-                or item[0].startswith(ref.rstrip("/") + "/")
-                or item[0] == ref.rpartition("/")[0] + "/manifest.json"
-                for ref in references
-            )
-        ]
-        candidates = local or candidates
-        missing = [name for name, _, after in candidates if after is None]
+        # A job reference does not identify which policy field owns duplicate bytes.
+        # Checking every occurrence also prevents a removed member being hidden.
+        missing = [name for name, after in candidates if after is None]
         require(not missing, f"missing-counterpart: {location}: {', '.join(missing)} ({digest})")
-        replacements = {(after["bytes"], after["sha256"]) for _, _, after in candidates}
+        replacements = {(after["bytes"], after["sha256"]) for _, after in candidates}
         require(len(replacements) == 1, f"ambiguous-counterpart: {location}: {[c[0] for c in candidates]}")
-        return candidates[0][2], [name for name, _, _ in candidates]
+        return candidates[0][1], [name for name, _ in candidates]
 
 
-def rebind_document(document, identities, references, old_patch, patch, policy):
+def rebind_document(document, identities, old_patch, patch, policy):
     changes = []
 
     def visit(value, path=()):
@@ -111,7 +100,7 @@ def rebind_document(document, identities, references, old_patch, patch, policy):
             result = {key: visit(child, (*path, key)) for key, child in value.items()}
             # Pins containing a byte count must move both fields together.
             if "sha256" in value and "bytes" in value:
-                after, _ = identities.counterpart(value["sha256"], references, f"{policy}:{'/'.join(map(str, path))}")
+                after, _ = identities.counterpart(value["sha256"], f"{policy}:{'/'.join(map(str, path))}")
                 if after is not None and value["bytes"] != after["bytes"]:
                     result["bytes"] = after["bytes"]
                     changes.append({"path": [*path, "bytes"], "old": value["bytes"], "new": after["bytes"]})
@@ -119,14 +108,20 @@ def rebind_document(document, identities, references, old_patch, patch, policy):
         if isinstance(value, list):
             return [visit(child, (*path, index)) for index, child in enumerate(value)]
         after, members = None, []
+        required_identity = path and (
+            str(path[-1]).endswith("manifest_sha256")
+            or path[-1] in {"descriptions_sha256", "source_sha256", "source_lock_sha256"}
+        )
+        if required_identity:
+            require(
+                isinstance(value, str) and HEX.fullmatch(value),
+                f"unknown-identity: {policy}: {'/'.join(map(str, path))}: {value}",
+            )
         if isinstance(value, str) and HEX.fullmatch(value):
-            replacement, members = identities.counterpart(value, references, f"{policy}:{'/'.join(map(str, path))}")
+            replacement, members = identities.counterpart(value, f"{policy}:{'/'.join(map(str, path))}")
             if replacement is not None:
                 after = replacement["sha256"]
-            elif str(path[-1]).endswith("manifest_sha256") or path[-1] in {
-                "descriptions_sha256",
-                "source_sha256",
-            }:
+            elif required_identity:
                 raise ValueError(f"unknown-identity: {policy}: {'/'.join(map(str, path))}: {value}")
         elif value == old_patch and (
             path == ("version",) or (len(path) >= 2 and path[-2:] == ("target", "game_patch"))
@@ -180,8 +175,7 @@ def rebind(
                 require(member.name.startswith(old_patch + "-"), f"policy-name: {ref} does not name {old_patch}")
                 renamed = member.with_name(patch + member.name[len(old_patch) :]).as_posix()
                 source = decode((policies / member).read_bytes())
-                job_refs = input_references(job)
-                policy, changes = rebind_document(source, identities, job_refs, old_patch, patch, ref)
+                policy, changes = rebind_document(source, identities, old_patch, patch, ref)
                 raw = build.runtime_encoded(policy)
                 destination = policies / renamed
                 require(destination not in outputs or outputs[destination] == raw, f"policy-conflict: {destination}")
@@ -212,10 +206,8 @@ def rebind(
     created = []
     try:
         for path, raw in outputs.items():
-            path.parent.mkdir(parents=True, exist_ok=True)
-            with path.open("xb") as stream:
-                created.append(path)
-                stream.write(raw)
+            source_io.write_new(path, raw)
+            created.append(path)
     except BaseException:
         for path in created:
             path.unlink()

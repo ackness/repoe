@@ -5,6 +5,7 @@ import copy
 import io
 from pathlib import Path
 import tempfile
+from types import SimpleNamespace
 import unittest
 from unittest import mock
 
@@ -49,6 +50,7 @@ class PolicyRebindingTest(unittest.TestCase):
             "descriptions_manifest_sha256": pin(self.old_files["text/manifest.json"])["sha256"],
             "payload": pin(self.old_files["text/descriptions.json"]),
             "player_manifest_sha256": pin(self.old_files["player/manifest.json"])["sha256"],
+            "player": {"source_lock_sha256": pin(self.old_files["player/source-lock.json"])["sha256"]},
             "history": {"version": "0.5", "game_patch": "0.5", "evidence_sha256": "c" * 64},
             "statement": "Do not replace 0.5 or " + pin(self.old_files["text/descriptions.json"])["sha256"],
         }
@@ -104,6 +106,7 @@ class PolicyRebindingTest(unittest.TestCase):
             }
         )
         files["text/descriptions.json"] = payload
+        files["player/source-lock.json"] = encoded({"target": target})
         for directory, format_ in (
             ("text", "repoe-native-descriptions/v1"),
             ("player", "repoe-native-player-context/v1"),
@@ -147,6 +150,9 @@ class PolicyRebindingTest(unittest.TestCase):
             ("player_manifest_sha256", "player/manifest.json"),
         ):
             self.assertEqual(policy[key], pin(self.new_files[member])["sha256"])
+        self.assertEqual(
+            policy["player"]["source_lock_sha256"], pin(self.new_files["player/source-lock.json"])["sha256"]
+        )
         self.assertEqual(policy["history"], self.policy["history"])
         self.assertEqual(policy["statement"], self.policy["statement"])
         changes = {tuple(item["path"]): item for item in reports["text/0.6-policy.json"]}
@@ -233,15 +239,79 @@ class PolicyRebindingTest(unittest.TestCase):
                 self.assertFalse(other.exists())
                 output.unlink()
 
-    def test_duplicate_old_payload_requires_unambiguous_job_counterpart(self):
-        old = {"ordinary": type("Package", (), {"members": {"a.json": pin(b"same"), "b.json": pin(b"same")}})()}
-        new = {"ordinary": type("Package", (), {"members": {"a.json": pin(b"one"), "b.json": pin(b"two")}})()}
+    def test_duplicate_old_payload_refuses_divergence_or_removal_across_members_and_packages(self):
+        for packages in (False, True):
+            for missing in (False, True):
+                with self.subTest(packages=packages, missing=missing):
+                    old = {"ordinary": SimpleNamespace(members={"a.json": pin(b"same")})}
+                    other = "other" if packages else "ordinary"
+                    member = "a.json" if packages else "b.json"
+                    old.setdefault(other, SimpleNamespace(members={})).members[member] = pin(b"same")
+                    new = {"ordinary": SimpleNamespace(members={"a.json": pin(b"one")})}
+                    new.setdefault(other, SimpleNamespace(members={}))
+                    if not missing:
+                        new[other].members[member] = pin(b"two")
+                    identities = rebinding.Identities(old, new, {"roots": {}}, {"roots": {}})
+                    with self.assertRaisesRegex(
+                        ValueError, "missing-counterpart" if missing else "ambiguous-counterpart"
+                    ):
+                        rebinding.rebind_document(
+                            {"source_sha256": pin(b"same")["sha256"], "descriptions_sha256": pin(b"same")["sha256"]},
+                            identities,
+                            "0.5",
+                            "0.6",
+                            "policy:pin",
+                        )
+
+    def test_job_reference_cannot_hide_a_renamed_member_with_the_same_old_payload(self):
+        self.old_files["other/descriptions.json"] = self.old_files["text/descriptions.json"]
+        stage = self.stage("duplicate-old", self.old_files, self.old_target)
+        entries = decode((stage / "lock.json").read_bytes())
+        spec = entries["ordinary"]
+        build.write_new(self.cache / "downloads" / spec["sha256"], (stage / "assets" / spec["asset"]).read_bytes())
+        self.lock["packages"] = entries
+        self.write_config()
+        self.new_files["renamed/descriptions.json"] = self.new_files["text/descriptions.json"]
+        self.new_stage = self.stage("renamed", self.new_files, self.new_target)
+        with self.assertRaisesRegex(ValueError, "missing-counterpart.*ordinary:other/descriptions.json"):
+            self.run_rebind()
+        self.assertFalse((self.policies / "text/0.6-policy.json").exists())
+        self.assertFalse((self.root / "new/domains.json").exists())
+
+    def test_identical_counterparts_are_safe_and_report_all_package_members(self):
+        old = {name: SimpleNamespace(members={"a.json": pin(b"same")}) for name in ("ordinary", "other")}
+        new = {name: SimpleNamespace(members={"a.json": pin(b"one")}) for name in old}
         identities = rebinding.Identities(old, new, {"roots": {}}, {"roots": {}})
-        with self.assertRaisesRegex(ValueError, "ambiguous-counterpart"):
-            identities.counterpart(pin(b"same")["sha256"], [], "policy:pin")
-        self.assertEqual(
-            identities.counterpart(pin(b"same")["sha256"], ["ordinary:a.json"], "policy:pin")[0], pin(b"one")
+        after, members = identities.counterpart(pin(b"same")["sha256"], "policy:pin")
+        self.assertEqual(after, pin(b"one"))
+        self.assertEqual(members, ["ordinary:a.json", "other:a.json"])
+
+    def test_facts_manifest_cannot_override_a_different_payload_counterpart(self):
+        before = pin(self.old_files["facts/manifest.json"])
+        old = {"ordinary": SimpleNamespace(members={"payload.json": before})}
+        new = {"ordinary": SimpleNamespace(members={"payload.json": pin(b"different")})}
+        old_root = self.root / "old-source/facts"
+        new_root = self.root / "new-source/facts"
+        identities = rebinding.Identities(
+            old,
+            new,
+            {"roots": {"original": (old_root, before)}},
+            {"roots": {"original": (new_root, pin(self.new_files["facts/manifest.json"]))}},
         )
+        with self.assertRaisesRegex(ValueError, "ambiguous-counterpart"):
+            identities.counterpart(before["sha256"], "policy:payload")
+
+    def test_malformed_identity_refuses_instead_of_retaining_a_stale_pin(self):
+        for key in ("player_manifest_sha256", "source_lock_sha256"):
+            for value in ("invalid", "f" * 64):
+                with self.subTest(key=key, value=value):
+                    policy = copy.deepcopy(self.policy)
+                    parent = policy if key == "player_manifest_sha256" else policy["player"]
+                    parent[key] = value
+                    self.policy_path.write_bytes(encoded(policy))
+                    with self.assertRaisesRegex(ValueError, "unknown-identity.*" + key):
+                        self.run_rebind()
+                    self.assertFalse((self.root / "new/domains.json").exists())
 
     def test_unknown_direct_payload_pin_and_corrupt_staged_asset_refuse(self):
         self.policy["descriptions_sha256"] = "f" * 64
@@ -282,19 +352,66 @@ class PolicyRebindingTest(unittest.TestCase):
         self.assertFalse((self.root / "new/domains.json").exists())
 
     def test_write_failure_rolls_back_only_new_outputs(self):
-        original = Path.open
+        original = rebinding.source_io.write_new
         output = self.root / "new/domains.json"
 
-        def fail(path, *args, **kwargs):
-            if path == output and args == ("xb",):
+        def fail(path, raw):
+            if path == output:
                 raise OSError("synthetic disk failure")
-            return original(path, *args, **kwargs)
+            return original(path, raw)
 
-        with mock.patch.object(Path, "open", fail), self.assertRaisesRegex(OSError, "synthetic disk failure"):
+        with (
+            mock.patch.object(rebinding.source_io, "write_new", fail),
+            self.assertRaisesRegex(OSError, "synthetic disk failure"),
+        ):
             self.run_rebind()
         self.assertFalse((self.policies / "text/0.6-policy.json").exists())
         self.assertFalse(output.exists())
         self.assertEqual(decode(self.policy_path.read_bytes()), self.policy)
+
+    def test_symlinks_and_exclusive_create_race_preserve_existing_files(self):
+        output = self.root / "new/domains.json"
+        output.parent.mkdir()
+        existing = self.root / "existing.json"
+        existing.write_bytes(b"keep existing")
+        output.symlink_to(existing)
+        with self.assertRaisesRegex(ValueError, "Symlink"):
+            self.run_rebind()
+        output.unlink()
+        output.parent.rmdir()
+        output.parent.symlink_to(self.root / "old", target_is_directory=True)
+        with self.assertRaisesRegex(ValueError, "Symlink"):
+            self.run_rebind()
+        output.parent.unlink()
+        original = rebinding.source_io.write_new
+
+        def race(path, raw):
+            if path == output:
+                path.parent.mkdir()
+                path.write_bytes(b"concurrent file")
+            return original(path, raw)
+
+        with mock.patch.object(rebinding.source_io, "write_new", race), self.assertRaises(FileExistsError):
+            self.run_rebind()
+        self.assertEqual(output.read_bytes(), b"concurrent file")
+        self.assertEqual(existing.read_bytes(), b"keep existing")
+        self.assertFalse((self.policies / "text/0.6-policy.json").exists())
+
+    def test_parent_symlink_created_after_preflight_cannot_redirect_outputs_into_an_input(self):
+        output = self.root / "new/domains.json"
+        original = Path.mkdir
+
+        def redirect(path, *args, **kwargs):
+            original(path, *args, **kwargs)
+            if path == output.parent:
+                path.rmdir()
+                path.symlink_to(self.config, target_is_directory=True)
+
+        before = (self.config / "domains.json").read_bytes()
+        with mock.patch.object(Path, "mkdir", redirect), self.assertRaisesRegex(ValueError, "Symlink"):
+            self.run_rebind()
+        self.assertEqual((self.config / "domains.json").read_bytes(), before)
+        self.assertFalse((self.policies / "text/0.6-policy.json").exists())
 
 
 if __name__ == "__main__":
