@@ -27,6 +27,9 @@ pub(super) fn build(
     let mut gem_sources = Vec::new();
     let mut excluded_gems = Vec::new();
     for row in 0..tables.len("SkillGems") {
+        if source.isolated_gems.contains(&row) {
+            continue;
+        }
         let raw = tables.row("SkillGems", row)?;
         let base_row = index(&raw["BaseItemType"])?;
         let base = tables.row("BaseItemTypes", base_row)?;
