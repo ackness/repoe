@@ -520,7 +520,6 @@ fn virtual_and_unbound_exceptions_are_exact_and_fully_consumed() {
     for mode in [
         "missing-numeric",
         "wrong-key",
-        "wrong-row",
         "stale-numeric",
         "missing-unbound",
         "wrong-presence",
@@ -536,7 +535,6 @@ fn virtual_and_unbound_exceptions_are_exact_and_fully_consumed() {
             "wrong-key" => {
                 p["legacy_numeric_exceptions"][0]["key"]["skill"] = json!("AnotherGhost")
             }
-            "wrong-row" => p["legacy_numeric_exceptions"][0]["source_row"] = json!(4),
             "stale-numeric" => append(
                 &mut f,
                 "GrantedEffects",
@@ -586,6 +584,178 @@ fn virtual_and_unbound_exceptions_are_exact_and_fully_consumed() {
             },
         );
     }
+}
+
+#[test]
+fn inserted_legacy_row_preserves_key_matched_exceptions_and_reports_moves_in_source_order() {
+    let mut f = fixture();
+    let mut legacy = doc(&f, SOURCE);
+    let ghost = legacy["overrides"][3].clone();
+    legacy["overrides"].as_array_mut().unwrap().insert(
+        3,
+        json!({"skill":"UnboundPresent","stat":"base_multiplier","value":999.0}),
+    );
+    write(&f, SOURCE, &legacy);
+    let mut p = doc(&f, POLICY);
+    p["unbound_retained_entries"]
+        .as_array_mut()
+        .unwrap()
+        .reverse();
+    write(&f, POLICY, &p);
+    reseal(&mut f);
+    run(args(&f)).unwrap();
+    assert_eq!(read(&f, OVERLAY)["overrides"][4], ghost);
+    let receipt = read(&f, "producer-receipt.json");
+    assert_eq!(
+        receipt["conversion"]["exception_row_moved"],
+        json!([
+            {"list":"legacy_numeric_exceptions","key":{"skill":"Ghost","stat":"base_multiplier"},"policy_source_row":3,"source_row":4},
+            {"list":"unbound_retained_entries","key":{"skill":"Ghost","stat":"explode_corpse","stat_set":1},"policy_source_row":7,"source_row":8},
+            {"list":"unbound_retained_entries","key":{"skill":"UnboundPresent","stat":"implicit_stat","stat_set":1,"stat_id":"implicit_b"},"policy_source_row":8,"source_row":9}
+        ])
+    );
+    assert_eq!(
+        receipt["conversion"]["entry_records"][4]["binding"]["policy_exception"],
+        p["legacy_numeric_exceptions"][0]
+    );
+    for (source_row, policy_row) in [(8, 1), (9, 0)] {
+        assert_eq!(
+            receipt["conversion"]["entry_records"][source_row]["binding"]["branch"]["policy_exception"],
+            p["unbound_retained_entries"][policy_row]
+        );
+    }
+}
+
+#[test]
+fn key_only_exceptions_omit_row_evidence_from_embedded_receipts() {
+    let f = fixture();
+    let mut p = doc(&f, POLICY);
+    for list in ["legacy_numeric_exceptions", "unbound_retained_entries"] {
+        for exception in p[list].as_array_mut().unwrap() {
+            exception.as_object_mut().unwrap().remove("source_row");
+        }
+    }
+    write(&f, POLICY, &p);
+    run(args(&f)).unwrap();
+    let receipt = read(&f, "producer-receipt.json");
+    assert_eq!(receipt["conversion"]["exception_row_moved"], json!([]));
+    for (pointer, expected) in [
+        (
+            "/conversion/entry_records/3/binding/policy_exception",
+            &p["legacy_numeric_exceptions"][0],
+        ),
+        (
+            "/conversion/entry_records/7/binding/branch/policy_exception",
+            &p["unbound_retained_entries"][0],
+        ),
+        (
+            "/conversion/entry_records/8/binding/branch/policy_exception",
+            &p["unbound_retained_entries"][1],
+        ),
+    ] {
+        let exception = receipt.pointer(pointer).unwrap();
+        assert_eq!(exception, expected);
+        assert!(exception.get("source_row").is_none());
+    }
+}
+
+#[test]
+fn duplicate_exception_keys_fail_with_different_or_absent_row_evidence() {
+    for list in ["legacy_numeric_exceptions", "unbound_retained_entries"] {
+        for source_row in [Some(99), None] {
+            let f = fixture();
+            let mut p = doc(&f, POLICY);
+            let mut duplicate = p[list][0].clone();
+            if let Some(row) = source_row {
+                duplicate["source_row"] = json!(row);
+            } else {
+                duplicate.as_object_mut().unwrap().remove("source_row");
+            }
+            p[list].as_array_mut().unwrap().push(duplicate);
+            write(&f, POLICY, &p);
+            rejects(&f, "invalid/duplicate");
+        }
+    }
+}
+
+#[test]
+fn duplicate_present_exception_rows_fail_and_name_the_key() {
+    for (list, expected) in [
+        (
+            "legacy_numeric_exceptions",
+            "invalid/duplicate legacy numeric exception for AnotherGhost/base_multiplier",
+        ),
+        (
+            "unbound_retained_entries",
+            "invalid/duplicate unbound retained exception for AnotherGhost/explode_corpse/stat_set=1",
+        ),
+    ] {
+        let f = fixture();
+        let mut p = doc(&f, POLICY);
+        let mut duplicate = p[list][0].clone();
+        duplicate["key"]["skill"] = json!("AnotherGhost");
+        p[list].as_array_mut().unwrap().push(duplicate);
+        write(&f, POLICY, &p);
+        rejects(&f, expected);
+    }
+}
+
+#[test]
+fn numeric_exception_row_evidence_only_reports_actual_moves() {
+    for policy_source_row in [3, 4] {
+        let f = fixture();
+        let mut p = doc(&f, POLICY);
+        p["legacy_numeric_exceptions"][0]["source_row"] = json!(policy_source_row);
+        write(&f, POLICY, &p);
+        run(args(&f)).unwrap();
+        let expected = if policy_source_row == 3 {
+            json!([])
+        } else {
+            json!([{"list":"legacy_numeric_exceptions","key":{"skill":"Ghost","stat":"base_multiplier"},"policy_source_row":4,"source_row":3}])
+        };
+        assert_eq!(
+            read(&f, "producer-receipt.json")["conversion"]["exception_row_moved"],
+            expected
+        );
+    }
+}
+
+#[test]
+fn unlisted_exceptions_name_the_override_key_instead_of_its_row() {
+    for (list, key) in [
+        ("legacy_numeric_exceptions", "Ghost/base_multiplier"),
+        (
+            "unbound_retained_entries",
+            "Ghost/explode_corpse/stat_set=1",
+        ),
+    ] {
+        let f = fixture();
+        let mut p = doc(&f, POLICY);
+        p[list].as_array_mut().unwrap().remove(0);
+        write(&f, POLICY, &p);
+        let error = run(args(&f)).unwrap_err();
+        assert!(error.contains(key), "{error}");
+        assert!(!error.contains("at "), "{error}");
+        assert!(!f.root.join("out").exists());
+    }
+}
+
+#[test]
+fn unused_exceptions_name_their_full_keys() {
+    let mut f = fixture();
+    let mut legacy = doc(&f, SOURCE);
+    for source_row in [8, 7, 3] {
+        legacy["overrides"]
+            .as_array_mut()
+            .unwrap()
+            .remove(source_row);
+    }
+    write(&f, SOURCE, &legacy);
+    reseal(&mut f);
+    rejects(
+        &f,
+        "unused/stale numeric or unbound retained exception: Ghost/base_multiplier, Ghost/explode_corpse/stat_set=1, UnboundPresent/implicit_stat/stat_set=1/stat_id=implicit_b",
+    );
 }
 
 #[test]
