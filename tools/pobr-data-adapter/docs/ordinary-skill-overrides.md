@@ -117,6 +117,40 @@ from its current row, with `list` (`legacy_numeric_exceptions` or
 It is empty when no rows moved. An absent policy `source_row` is not a move and
 remains absent from the entry's embedded `policy_exception`.
 
+### Forward mode
+
+`--mode forward` continues at the following content decisions and records every
+issue in [the coverage report](ordinary-coverage.md). The default strict mode
+keeps its existing errors and output.
+
+| Decision | Issue kind | Action |
+| --- | --- | --- |
+| Base multiplier has no target effect and no matching numeric exception | `base-multiplier-no-target` | `retained-legacy`: keep the authored entry unchanged, without target numeric ownership |
+| Retained entry has no codec/target binding and no matching presence exception | `retained-unbound` | `retained-legacy`: keep the authored entry without a target branch claim |
+| Non-delegated implicit entry's stat ID is absent from target `Stats` | `implicit-stat-absent` | `quarantined`: omit the entry from the overlay |
+| Numeric exception now has a target effect, unbound exception now has a binding, or its presence evidence changed | `exception-stale` | `listed`: consume the stale exception and use the current facts/binding checks |
+| Numeric or unbound exception has no corresponding override | `exception-unused` | `listed`: report each unused key |
+
+Every issue's entity is the complete override key
+`skill/stat[/stat_set=…][/stat_id=…]`. Observed evidence includes the key and
+missing stat ID, codec/effect presence, or the exception and its policy list.
+A changed unbound presence exception produces both `retained-unbound` and
+`exception-stale`: the first records the retained entry, the second the stale
+policy evidence. Consumed stale exceptions are not listed again as unused.
+
+Quarantined entries retain their original source index, key and hash in
+`entry_records`, with `emitted: false` and a null output hash. They remain in
+the verbatim archived source and are excluded from emitted-entry counts.
+V2 delegated implicit entries retain their existing handling; their old stat
+IDs do not become target-presence gates. `exception_row_moved` stays receipt
+evidence, including for consumed stale exceptions, and never produces a
+coverage issue.
+
+Pins, input shapes, duplicate identities and dangling references still fail.
+A codec set outside its target owner and missing/empty positive primary
+numeric rows also remain fatal: these paths cannot establish the target
+ownership needed to emit the entry.
+
 Validation and serialization finish before output reservation. The existing
 Output directory-handle protection covers all auxiliary parents, F, production
 data, symlinks and existing leaves. The domain marker is first and receipt last.
