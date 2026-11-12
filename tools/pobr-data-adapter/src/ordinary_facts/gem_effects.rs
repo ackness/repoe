@@ -13,6 +13,7 @@ use pobr_data::catalog::{GemEffectDef, GemEffectsDef};
 use serde::Serialize;
 use serde_json::{Value, json};
 
+use super::coverage::{Action, Coverage, Issue};
 use crate::facts::reader::{Tables, VerifiedFacts};
 use crate::raw_source::sha256_hex;
 
@@ -22,6 +23,15 @@ pub(super) const TABLES: [&str; 5] = [
     "GemEffects",
     "GrantedEffects",
     "GrantedEffectStatSets",
+];
+const OWN_GEM_FIELDS: [&str; 7] = [
+    "GemType",
+    "GemColour",
+    "MinLevelReq",
+    "StrengthRequirementPercent",
+    "DexterityRequirementPercent",
+    "IntelligenceRequirementPercent",
+    "ItemExperienceType",
 ];
 
 pub(super) struct Converted {
@@ -52,7 +62,7 @@ struct Target {
 pub(super) fn convert(
     input: &VerifiedFacts,
     args: &super::CodecArgs,
-    _coverage: &mut super::coverage::Coverage,
+    coverage: &mut Coverage,
 ) -> Result<Converted, String> {
     // Share the established pin-before-parse auxiliary reader, not a second envelope.
     let policy_input =
@@ -71,9 +81,9 @@ pub(super) fn convert(
     }
     let codec: GemEffectsDef =
         serde_json::from_value(source.document).map_err(|e| format!("gem-effects codec: {e}"))?;
-    let tables = Tables::selected(input, &TABLES)?;
+    let tables = gem_tables(input, &TABLES)?;
     check_columns(input)?;
-    let mut target = target(&tables)?;
+    let mut target = target(input, &tables, coverage)?;
     let mut legacy_gems = BTreeSet::new();
     let mut legacy_owners = BTreeMap::new();
     let mut matches = Vec::new();
@@ -90,12 +100,22 @@ pub(super) fn convert(
                 "codec row {codec_source_row}: duplicate gem/primary identity"
             ));
         }
-        let new = target.gems.get_mut(&old.gem_id).ok_or_else(|| {
-            format!(
-                "codec row {codec_source_row}: gem {} absent from target normal gems",
-                old.gem_id
-            )
-        })?;
+        let Some(new) = target.gems.get_mut(&old.gem_id) else {
+            coverage.decide(
+                Issue::new(
+                    "codec-gem-absent",
+                    &old.gem_id,
+                    Action::Quarantined,
+                    format!(
+                        "codec row {codec_source_row}: gem {} absent from target normal gems",
+                        old.gem_id
+                    ),
+                )
+                .observed("legacy", tuple(old)),
+            )?;
+            continue;
+        };
+        let mut mismatch = false;
         for (field, equal) in [
             ("variant_id", old.variant_id == new.variant_id),
             (
@@ -112,11 +132,25 @@ pub(super) fn convert(
             ),
         ] {
             if !equal {
-                return Err(format!(
-                    "codec row {codec_source_row} ({}): target tuple mismatch: {field}",
-                    old.gem_id
-                ));
+                coverage.decide(
+                    Issue::new(
+                        "codec-tuple-mismatch",
+                        &old.gem_id,
+                        Action::EmittedWithGap,
+                        format!(
+                            "codec row {codec_source_row} ({}): target tuple mismatch: {field}",
+                            old.gem_id
+                        ),
+                    )
+                    .observed("legacy", tuple(old))
+                    .observed("target", tuple(new)),
+                )?;
+                mismatch = true;
+                break;
             }
+        }
+        if mismatch {
+            continue;
         }
         let mut display_positions = BTreeSet::new();
         for &position in &old.granted_effect_display_order {
@@ -138,6 +172,12 @@ pub(super) fn convert(
             "effect_count":1 + new.additional_granted_effect_ids.len()
         }));
     }
+    let new_gems: Vec<_> = target
+        .gems
+        .keys()
+        .filter(|id| !legacy_gems.contains(id))
+        .cloned()
+        .collect();
 
     // This ordering preserves BuildData's existing base-first + overlay-last-wins
     // selection while retaining every gem for GameData's by-gem lookup.
@@ -151,7 +191,7 @@ pub(super) fn convert(
     let mut preferred = BTreeMap::new();
     let mut collisions = Vec::new();
     for (primary, members) in &groups {
-        let legacy = legacy_owners.get(primary);
+        let legacy = legacy_owners.get(primary).filter(|id| members.contains(id));
         let owner = legacy.unwrap_or(&members[0]);
         preferred.insert(primary.clone(), owner.clone());
         if members.len() > 1 {
@@ -195,7 +235,8 @@ pub(super) fn convert(
         },"gems":gems
     });
     let receipt = json!({
-        "gems":gems.len(),"new_gems_without_legacy_codec":gems.len()-codec.gems.len(),
+        "gems":gems.len(),"new_gems_without_legacy_codec":new_gems.len(),
+        "new_gems_without_legacy_codec_ids":new_gems,
         "legacy_source":legacy_source,
         "codec_policy":{"file":"codec-policy.json","bytes":policy_input.bytes.len(),"sha256":sha256_hex(&policy_input.bytes)},
         "legacy_tuple_matches":matches,"source_records":records,"filtered_placeholders":target.exclusions,
@@ -222,7 +263,124 @@ pub(super) fn convert(
     })
 }
 
-fn target(tables: &Tables<'_>) -> Result<Target, String> {
+fn tuple(gem: &GemEffectDef) -> Value {
+    json!([
+        gem.variant_id,
+        gem.granted_effect_id,
+        gem.additional_granted_effect_ids,
+        gem.additional_stat_set_ids
+    ])
+}
+
+pub(super) fn gem_issue(
+    kind: &'static str,
+    id: &str,
+    placeholder: bool,
+    message: impl Into<String>,
+    fields: &Value,
+) -> Issue {
+    Issue::new(
+        kind,
+        id,
+        if placeholder {
+            Action::Listed
+        } else {
+            Action::Quarantined
+        },
+        message,
+    )
+    .observed("fields", fields.clone())
+}
+
+pub(super) fn gem_tables<'a>(
+    input: &'a VerifiedFacts,
+    selected: &[&'static str],
+) -> Result<Tables<'a>, String> {
+    if selected.contains(&"SkillGems") {
+        let fields = &input.documents["tables/SkillGems.json"]["physical_fields"];
+        // Older projections contain only base/link fields. Check own fields when carried.
+        for field in OWN_GEM_FIELDS {
+            if !fields
+                .as_array()
+                .is_some_and(|fields| fields.contains(&json!(field)))
+            {
+                continue;
+            }
+            let reference = field == "ItemExperienceType";
+            super::convert::column(
+                input,
+                "SkillGems",
+                &[field],
+                &json!({
+                    "name":field,"type":if reference {"foreignrow"} else {"i32"},
+                    "array":false,"interval":false,
+                    "references":if reference {json!({"table":"ItemExperienceTypes"})} else {Value::Null}
+                }),
+            )?;
+        }
+    }
+    Tables::selected(input, selected)
+}
+
+pub(super) fn isolate_own_fields(
+    input: &VerifiedFacts,
+    row: usize,
+    id: &str,
+    placeholder: bool,
+    fields: &Value,
+    coverage: &mut Coverage,
+) -> Result<bool, String> {
+    let mut isolated = false;
+    for field in OWN_GEM_FIELDS {
+        let Some(value) = fields.get(field) else {
+            continue;
+        };
+        let error = if field == "ItemExperienceType" {
+            if let Some(key) = gem_key(value) {
+                // A parseable key to a missing row is integrity, never isolation.
+                u32::try_from(key)
+                    .map_err(|_| format!("SkillGems/{row}.{field}: reference exceeds u32"))?;
+                // The pinned envelope carries the reference table's row count;
+                // these domains do not open or publish its unconsumed payload.
+                let total = input.manifest["summary"]["item_experience_types"]
+                    .as_u64()
+                    .ok_or("missing item_experience_types summary")?;
+                if key as u64 >= total {
+                    return Err(format!(
+                        "SkillGems/{row}.{field}: unresolved physical row ItemExperienceTypes/{key}"
+                    ));
+                }
+                continue;
+            }
+            format!("invalid physical reference: {value}")
+        } else {
+            match value.as_i64().and_then(|number| i32::try_from(number).ok()) {
+                Some(number) if number >= 0 => continue,
+                Some(_) => "negative value for unsigned ordinary field".into(),
+                None => "expected signed i32".into(),
+            }
+        };
+        coverage.decide(
+            gem_issue(
+                "gem-invalid-field",
+                id,
+                placeholder,
+                format!("SkillGems/{row}.{field}: {error}"),
+                fields,
+            )
+            .observed("field", field)
+            .observed("value", value.clone()),
+        )?;
+        isolated = true;
+    }
+    Ok(isolated)
+}
+
+fn target(
+    input: &VerifiedFacts,
+    tables: &Tables<'_>,
+    coverage: &mut Coverage,
+) -> Result<Target, String> {
     // Validate every consumed field/reference, including unused variants and excluded gems.
     for row in 0..tables.len("BaseItemTypes") {
         tables.row("BaseItemTypes", row)?["Name"]
@@ -269,45 +427,120 @@ fn target(tables: &Tables<'_>) -> Result<Target, String> {
     let mut base_keys = BTreeSet::new();
     for row in 0..tables.len("SkillGems") {
         let values = tables.row("SkillGems", row)?;
-        let gem_variants = refs(tables, "SkillGems", row, "GemEffects", "GemEffects")?;
-        if gem_variants.len() > 1 {
-            return Err(format!(
-                "SkillGems/{row}: multiple GemEffects; the gem definition holds one"
-            ));
-        }
+        let references = refs(tables, "SkillGems", row, "GemEffects", "GemEffects");
+        // Defer base errors until after the original relationship checks.
         let base = if values["BaseItemType"].is_null() {
-            None
+            Ok(None)
         } else {
-            Some(
-                resolve(tables, "BaseItemTypes", &values["BaseItemType"])
-                    .map_err(|e| format!("SkillGems/{row}.BaseItemType: {e}"))?,
-            )
+            resolve(tables, "BaseItemTypes", &values["BaseItemType"])
+                .map(Some)
+                .map_err(|e| format!("SkillGems/{row}.BaseItemType: {e}"))
         };
-        let Some(base) = base else {
-            result.exclusions.push(json!({"skill_gem_source_row":row,"reason":"null BaseItemType dev placeholder","gem_effects":occurrences(&gem_variants)}));
-            continue;
+        let identity = base.as_ref().ok().and_then(Option::as_ref);
+        let name = identity
+            .and_then(|base| tables.row("BaseItemTypes", base.source_row).ok()?["Name"].as_str());
+        let placeholder = name.is_none_or(crate::is_placeholder);
+        let id = identity.map_or("null BaseItemType", |base| base.id.as_str());
+        let invalid_fields = invalid_gem_links(&values["GemEffects"]);
+        let gem_variants = match references {
+            Err(message) if invalid_fields => {
+                if base.is_err() {
+                    return Err(message);
+                }
+                // An earlier dangling link stays fatal even if a later element is malformed.
+                for key in values["GemEffects"]
+                    .as_array()
+                    .into_iter()
+                    .flatten()
+                    .map(gem_key)
+                    .take_while(Option::is_some)
+                    .flatten()
+                {
+                    tables.row("GemEffects", key).map_err(|_| message.clone())?;
+                }
+                coverage.decide(gem_issue(
+                    "gem-invalid-field",
+                    id,
+                    placeholder,
+                    message,
+                    values,
+                ))?;
+                // A malformed value must not hide a separate dangling reference.
+                for key in valid_gem_links(&values["GemEffects"]) {
+                    tables.row("GemEffects", key)?;
+                    if !placeholder {
+                        required_primary(row, variants[key].primary.as_ref())?;
+                    }
+                }
+                Vec::new()
+            }
+            references => references?,
         };
-        if !base_keys.insert(base.source_row) {
+        if gem_variants.len() > 1 {
+            coverage.decide(gem_issue(
+                "gem-effects-count",
+                id,
+                placeholder,
+                format!("SkillGems/{row}: multiple GemEffects; the gem definition holds one"),
+                values,
+            ))?;
+        }
+        let base = base?;
+        if let Some(base) = &base
+            && !base_keys.insert(base.source_row)
+        {
             return Err(format!(
                 "SkillGems/{row}: duplicate base gem identity {}",
                 base.id
             ));
         }
-        let name = tables.row("BaseItemTypes", base.source_row)?["Name"]
-            .as_str()
-            .ok_or("invalid base Name")?;
-        if crate::is_placeholder(name) {
+        let isolated_fields = isolate_own_fields(
+            input,
+            row,
+            base.as_ref()
+                .map_or("null BaseItemType", |base| base.id.as_str()),
+            placeholder,
+            values,
+            coverage,
+        )?;
+        if !placeholder && (gem_variants.len() > 1 || isolated_fields) {
+            for variant in &gem_variants {
+                required_primary(row, variants[variant.source_row].primary.as_ref())?;
+            }
+        }
+        if invalid_fields || gem_variants.len() > 1 || isolated_fields {
+            continue;
+        }
+        if placeholder && gem_variants.is_empty() {
+            coverage.note(gem_issue(
+                "gem-effects-count",
+                base.as_ref()
+                    .map_or("null BaseItemType", |base| base.id.as_str()),
+                true,
+                format!("SkillGems/{row}: placeholder has no GemEffects reference"),
+                values,
+            ));
+        }
+        let Some(base) = base else {
+            result.exclusions.push(json!({"skill_gem_source_row":row,"reason":"null BaseItemType dev placeholder","gem_effects":occurrences(&gem_variants)}));
+            continue;
+        };
+        if placeholder {
             result.exclusions.push(json!({"skill_gem_source_row":row,"base":base,"name":name,"reason":"existing is_placeholder(Name)","gem_effects":occurrences(&gem_variants)}));
             continue;
         }
-        let variant = gem_variants.first().ok_or_else(|| {
-            format!("SkillGems/{row}: normal gem requires one GemEffects reference")
-        })?;
+        let Some(variant) = gem_variants.first() else {
+            coverage.decide(gem_issue(
+                "gem-effects-count",
+                &base.id,
+                false,
+                format!("SkillGems/{row}: normal gem requires one GemEffects reference"),
+                values,
+            ))?;
+            continue;
+        };
         let link = &variants[variant.source_row];
-        let primary = link
-            .primary
-            .as_ref()
-            .ok_or_else(|| format!("SkillGems/{row}: normal gem requires primary GrantedEffect"))?;
+        let primary = required_primary(row, link.primary.as_ref())?;
         let additional_sets = &sets[primary.source_row];
         result.sources.insert(
             base.id.clone(),
@@ -335,6 +568,24 @@ fn target(tables: &Tables<'_>) -> Result<Target, String> {
         );
     }
     Ok(result)
+}
+
+fn gem_key(value: &Value) -> Option<usize> {
+    value.as_u64().and_then(|key| usize::try_from(key).ok())
+}
+
+pub(super) fn valid_gem_links(value: &Value) -> impl Iterator<Item = usize> + '_ {
+    value.as_array().into_iter().flatten().filter_map(gem_key)
+}
+
+pub(super) fn required_primary<T>(row: usize, primary: Option<T>) -> Result<T, String> {
+    primary.ok_or_else(|| format!("SkillGems/{row}: normal gem requires primary GrantedEffect"))
+}
+
+pub(super) fn invalid_gem_links(value: &Value) -> bool {
+    value
+        .as_array()
+        .is_none_or(|values| valid_gem_links(value).count() != values.len())
 }
 
 fn resolve(tables: &Tables<'_>, table: &str, value: &Value) -> Result<Reference, String> {

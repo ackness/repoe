@@ -740,3 +740,378 @@ fn gem_effects_preserves_prior_base_domains_and_stat_set_codec_bytes_and_shapes(
         }
     }
 }
+
+#[test]
+fn new_gem_ids_are_sorted_conversion_baseline_in_both_modes_without_issues() {
+    use super::super::coverage::AdapterMode;
+
+    for mode in [AdapterMode::Strict, AdapterMode::Forward] {
+        let f = fixture();
+        run(Args { mode, ..args(&f) }).unwrap();
+        let receipt = read(&f, "producer-receipt.json");
+        assert_eq!(receipt.as_object().unwrap().len(), 10);
+        assert!(receipt.get("new_gems_without_legacy_codec_ids").is_none());
+        assert_eq!(receipt["files"].as_object().unwrap().len(), 6);
+        let conversion = &receipt["conversion"];
+        assert_eq!(conversion["new_gems_without_legacy_codec"], 3);
+        assert_eq!(
+            conversion["new_gems_without_legacy_codec_ids"],
+            json!(["AFirst", "ANew", "ZNew"])
+        );
+        if mode == AdapterMode::Forward {
+            assert_eq!(conversion["coverage"]["issues"], json!([]));
+            assert!(
+                conversion["coverage"]["counts"]
+                    .as_object()
+                    .unwrap()
+                    .values()
+                    .all(|count| count == 0)
+            );
+        } else {
+            assert!(conversion.get("coverage").is_none());
+        }
+    }
+}
+
+#[test]
+fn forward_gem_jobs_report_absent_codec_changed_tuple_and_unreviewed_quality_together() {
+    use super::super::coverage::AdapterMode;
+
+    let mut f = fixture();
+    let mut old = codec(&f);
+    old["gems"][0]["gem_id"] = json!("RemovedGem");
+    old["gems"][1]["variant_id"] = json!("OldCompound");
+    old["gems"][1]["granted_effect_id"] = json!("OldPrimary");
+    old["gems"][1]["additional_granted_effect_ids"] = json!([]);
+    old["gems"][1]["additional_stat_set_ids"] = json!([]);
+    write_codec(&f, &old);
+    reseal(&mut f);
+    assert_eq!(
+        run(args(&f)).unwrap_err(),
+        "codec row 0: gem RemovedGem absent from target normal gems"
+    );
+    run(Args {
+        mode: AdapterMode::Forward,
+        ..args(&f)
+    })
+    .unwrap();
+    let receipt = read(&f, "producer-receipt.json");
+    assert_eq!(receipt.as_object().unwrap().len(), 10);
+    assert_eq!(receipt["files"].as_object().unwrap().len(), 6);
+    assert_eq!(receipt["conversion"]["new_gems_without_legacy_codec"], 4);
+    let issues = receipt["conversion"]["coverage"]["issues"]
+        .as_array()
+        .unwrap();
+    assert_eq!(issues.len(), 2);
+    let mismatch = issues
+        .iter()
+        .find(|issue| issue["kind"] == "codec-tuple-mismatch")
+        .unwrap();
+    assert_eq!(mismatch["entity"], "BCompound");
+    assert_eq!(mismatch["action"], "emitted-with-gap");
+    assert_eq!(
+        mismatch["observed"],
+        json!({
+            "legacy":["OldCompound","OldPrimary",[],[]],
+            "target":["Compound","CompoundPrimary",["Additional","SharedPrimary","Additional"],["SetZ","SetA","SetZ"]]
+        })
+    );
+    assert_eq!(issues[0]["kind"], "codec-gem-absent");
+    assert_eq!(issues[0]["entity"], "RemovedGem");
+    assert_eq!(issues[0]["action"], "quarantined");
+    assert_eq!(
+        receipt["conversion"]["new_gems_without_legacy_codec_ids"],
+        json!(["AFirst", "ANew", "ZLegacy", "ZNew"])
+    );
+    let dto: GemEffectsDef = serde_json::from_value(read(&f, "overlay/gem_effects.json")).unwrap();
+    assert_eq!(dto.gems.len(), 5);
+    assert!(!dto.gems.iter().any(|gem| gem.gem_id == "RemovedGem"));
+    let compound = dto
+        .gems
+        .iter()
+        .find(|gem| gem.gem_id == "BCompound")
+        .unwrap();
+    assert_eq!(compound.variant_id, "Compound");
+    assert_eq!(compound.granted_effect_id, "CompoundPrimary");
+    assert!(compound.granted_effect_display_order.is_empty());
+    let shared_owner = dto
+        .gems
+        .iter()
+        .rfind(|gem| gem.granted_effect_id == "SharedPrimary")
+        .unwrap();
+    assert_eq!(shared_owner.gem_id, "AFirst");
+
+    let q = super::super::quality::tests::fixture();
+    let path = q.root.join("policy/policy.json");
+    let mut p: Value = crate::read_json(&path).unwrap();
+    p["compatibility"]["effects"] = json!(["z_attack"]);
+    fs::write(&path, serde_json::to_vec_pretty(&p).unwrap()).unwrap();
+    assert_eq!(
+        run(super::super::quality::tests::args(&q)).unwrap_err(),
+        "quality: effect a_non_gem_support has no reviewed compatibility decision"
+    );
+    run(Args {
+        mode: AdapterMode::Forward,
+        ..super::super::quality::tests::args(&q)
+    })
+    .unwrap();
+    let quality_receipt = read(&q, "producer-receipt.json");
+    let quality_issues = quality_receipt["conversion"]["coverage"]["issues"]
+        .as_array()
+        .unwrap();
+    assert_eq!(quality_issues.len(), 1);
+    assert_eq!(quality_issues[0]["kind"], "unreviewed-quality");
+    assert_eq!(quality_issues[0]["entity"], "a_non_gem_support");
+    assert_eq!(quality_issues[0]["action"], "quarantined");
+    assert_eq!(
+        read(&q, "overlay/gem_quality_stats.json")["effects"]
+            .as_array()
+            .unwrap()
+            .len(),
+        1
+    );
+}
+
+#[test]
+fn forward_isolates_gem_rows_with_unchanged_strict_errors() {
+    use super::super::coverage::AdapterMode;
+
+    for (table, row, field, value, expected, kind) in [
+        (
+            "SkillGems",
+            0,
+            "GemEffects",
+            json!([4, 4]),
+            "SkillGems/0: multiple GemEffects; the gem definition holds one",
+            "gem-effects-count",
+        ),
+        (
+            "SkillGems",
+            0,
+            "GemEffects",
+            json!([]),
+            "SkillGems/0: normal gem requires one GemEffects reference",
+            "gem-effects-count",
+        ),
+        (
+            "SkillGems",
+            0,
+            "GemEffects",
+            json!([null]),
+            "SkillGems/0.GemEffects[0]: physical reference must be usize (not null, negative or fractional)",
+            "gem-invalid-field",
+        ),
+        (
+            "SkillGems",
+            0,
+            "GemEffects",
+            json!(null),
+            "SkillGems/0.GemEffects: array required",
+            "gem-invalid-field",
+        ),
+    ] {
+        let mut f = fixture();
+        f.values(table, row)[field] = value;
+        reseal(&mut f);
+        assert_eq!(run(args(&f)).unwrap_err(), expected);
+        run(Args {
+            mode: AdapterMode::Forward,
+            ..args(&f)
+        })
+        .unwrap();
+        let receipt = read(&f, "producer-receipt.json");
+        let issues = receipt["conversion"]["coverage"]["issues"]
+            .as_array()
+            .unwrap();
+        assert!(issues.iter().any(|issue| issue["kind"] == kind
+            && issue["entity"] == "BCompound"
+            && issue["action"] == "quarantined"));
+        assert!(
+            !read(&f, "overlay/gem_effects.json")["gems"]
+                .as_array()
+                .unwrap()
+                .iter()
+                .any(|gem| gem["gem_id"] == "BCompound")
+        );
+    }
+    for mode in [AdapterMode::Strict, AdapterMode::Forward] {
+        for links in [json!([4]), json!([null, 4])] {
+            if mode == AdapterMode::Strict && links != json!([4]) {
+                continue;
+            }
+            let mut f = fixture();
+            f.values("GemEffects", 4)["GrantedEffect"] = json!(null);
+            f.values("SkillGems", 0)["GemEffects"] = links;
+            reseal(&mut f);
+            assert_eq!(
+                run(Args { mode, ..args(&f) }).unwrap_err(),
+                "SkillGems/0: normal gem requires primary GrantedEffect"
+            );
+            assert!(!f.root.join("out").exists());
+        }
+    }
+}
+
+#[test]
+fn forward_lists_placeholder_defects_and_never_hides_dangling_links_or_duplicate_bases() {
+    use super::super::coverage::AdapterMode;
+
+    for value in [json!([]), json!([5, 5]), json!([null])] {
+        let mut f = fixture();
+        f.values("SkillGems", 5)["GemEffects"] = value.clone();
+        reseal(&mut f);
+        if value == json!([5, 5]) {
+            assert_eq!(
+                run(args(&f)).unwrap_err(),
+                "SkillGems/5: multiple GemEffects; the gem definition holds one"
+            );
+        }
+        run(Args {
+            mode: AdapterMode::Forward,
+            ..args(&f)
+        })
+        .unwrap();
+        let receipt = read(&f, "producer-receipt.json");
+        assert!(
+            receipt["conversion"]["coverage"]["issues"]
+                .as_array()
+                .unwrap()
+                .iter()
+                .any(|issue| issue["entity"] == "Dev" && issue["action"] == "listed")
+        );
+    }
+    for (row, value) in [
+        (0, json!([4, 999])),
+        (5, json!([null, 999])),
+        (5, json!([999, null])),
+    ] {
+        let mut f = fixture();
+        f.values("SkillGems", row)["GemEffects"] = value;
+        reseal(&mut f);
+        assert!(
+            run(Args {
+                mode: AdapterMode::Forward,
+                ..args(&f)
+            })
+            .is_err()
+        );
+        assert!(!f.root.join("out").exists());
+    }
+    let mut f = fixture();
+    f.values("SkillGems", 0)["GemEffects"] = json!([4, 4]);
+    f.values("SkillGems", 4)["BaseItemType"] = json!(4);
+    reseal(&mut f);
+    assert!(
+        run(Args {
+            mode: AdapterMode::Forward,
+            ..args(&f)
+        })
+        .unwrap_err()
+        .contains("duplicate base gem identity BCompound")
+    );
+}
+
+pub(in crate::ordinary_facts) fn own_field_cases() -> Vec<(&'static str, Value, &'static str)> {
+    let mut cases = Vec::new();
+    for field in [
+        "GemType",
+        "GemColour",
+        "MinLevelReq",
+        "StrengthRequirementPercent",
+        "DexterityRequirementPercent",
+        "IntelligenceRequirementPercent",
+    ] {
+        for value in [
+            json!(-1),
+            json!(null),
+            json!(0.5),
+            json!("1"),
+            json!(2147483648u64),
+        ] {
+            let message = if value == json!(-1) {
+                "negative value for unsigned ordinary field"
+            } else {
+                "expected signed i32"
+            };
+            cases.push((field, value, message));
+        }
+    }
+    for value in [json!(null), json!(-1), json!(0.5), json!([999]), json!("0")] {
+        cases.push(("ItemExperienceType", value, "invalid physical reference"));
+    }
+    cases
+}
+
+pub(in crate::ordinary_facts) fn add_own_field(f: &mut Fixture, field: &str) {
+    let doc = f.documents.get_mut("tables/SkillGems.json").unwrap();
+    doc["physical_fields"]
+        .as_array_mut()
+        .unwrap()
+        .push(json!(field));
+    let columns = doc["columns"].as_array_mut().unwrap();
+    columns.push(json!({
+        "source_column":columns.len(),
+        "physical_fields":[field],
+        "schema":{
+            "name":field,
+            "type":if field == "ItemExperienceType" {"foreignrow"} else {"i32"},
+            "array":false,"interval":false,
+            "references":if field == "ItemExperienceType" {json!({"table":"ItemExperienceTypes"})} else {Value::Null}
+        }
+    }));
+    for row in doc["rows"].as_array_mut().unwrap() {
+        row["values"][field] = json!(0);
+    }
+    if field == "ItemExperienceType" {
+        f.manifest["summary"]["item_experience_types"] = json!(1);
+    }
+}
+
+#[test]
+fn own_gem_fields_match_skills_isolation_in_gem_effects() {
+    use super::super::coverage::AdapterMode;
+
+    for (field, value, expected) in own_field_cases() {
+        for (row, id, action) in [(0, "BCompound", "quarantined"), (5, "Dev", "listed")] {
+            let mut f = fixture();
+            add_own_field(&mut f, field);
+            f.values("SkillGems", row)[field] = value.clone();
+            reseal(&mut f);
+            assert!(run(args(&f)).unwrap_err().contains(expected));
+            run(Args {
+                mode: AdapterMode::Forward,
+                ..args(&f)
+            })
+            .unwrap();
+            let receipt = read(&f, "producer-receipt.json");
+            assert!(
+                receipt["conversion"]["coverage"]["issues"]
+                    .as_array()
+                    .unwrap()
+                    .iter()
+                    .any(|issue| issue["kind"] == "gem-invalid-field"
+                        && issue["entity"] == id
+                        && issue["action"] == action)
+            );
+            assert!(
+                !read(&f, "overlay/gem_effects.json")["gems"]
+                    .as_array()
+                    .unwrap()
+                    .iter()
+                    .any(|gem| gem["gem_id"] == id)
+            );
+        }
+    }
+    for mode in [AdapterMode::Strict, AdapterMode::Forward] {
+        let mut f = fixture();
+        add_own_field(&mut f, "ItemExperienceType");
+        f.values("SkillGems", 0)["ItemExperienceType"] = json!(999);
+        reseal(&mut f);
+        assert!(
+            run(Args { mode, ..args(&f) })
+                .unwrap_err()
+                .contains("unresolved physical row ItemExperienceTypes/999")
+        );
+        assert!(!f.root.join("out").exists());
+    }
+}

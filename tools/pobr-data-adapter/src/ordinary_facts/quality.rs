@@ -7,7 +7,7 @@ mod publication;
 pub(super) mod tests;
 
 use crate::schema_id;
-use std::collections::BTreeMap;
+use std::collections::{BTreeMap, BTreeSet};
 use std::path::PathBuf;
 
 use serde_json::{Value, json};
@@ -42,13 +42,14 @@ pub(super) fn convert(
 ) -> Result<Converted, String> {
     pinned.validate_target(input)?;
     let selected = pinned.tables();
-    let tables = Tables::selected(input, selected)?;
+    let tables = super::gem_effects::gem_tables(input, selected)?;
     check_columns(input)?;
     let effects = identities(&tables, "GrantedEffects")?;
     let stats = identities(&tables, "Stats")?;
     let mut rows = Vec::new();
     let mut owners = Vec::new();
     let mut excluded = Vec::new();
+    let mut source_owners = BTreeSet::new();
     for source_row in 0..tables.len("GrantedEffectQualityStats") {
         let raw = tables.row("GrantedEffectQualityStats", source_row)?;
         let row: RawQuality = serde_json::from_value(raw.clone())
@@ -67,6 +68,7 @@ pub(super) fn convert(
         })?;
         owners
             .push(json!({"effect_id":id, "source_row":source_row, "effect_source_row":row.effect}));
+        source_owners.insert(id.clone());
         if let Some(reason) = pinned.policy.compatibility.excluded_effects.get(id) {
             // Preserve excluded raw values as evidence, not as runtime quality.
             let facts: BTreeMap<_, _> = FIELDS.iter().map(|name| (*name, &raw[*name])).collect();
@@ -92,6 +94,8 @@ pub(super) fn convert(
             input,
             &tables,
             &pinned.policy.compatibility,
+            &source_owners,
+            coverage,
         )?)
     } else {
         None

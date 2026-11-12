@@ -322,3 +322,236 @@ fn all_429_real_source_vectors_retain_rates_order_channels_and_native_scopes() {
     assert_eq!(converted.scopes["SnipePlayer"].main, [1, 2, 3]);
     assert_eq!(converted.scopes["SnipePlayer"].alt, [0]);
 }
+
+#[test]
+fn forward_publication_isolates_gems_with_shared_business_id_and_strict_messages() {
+    for (row, value, kind, expected, action) in [
+        (
+            0,
+            json!([0, 0]),
+            "gem-effects-count",
+            Some("SkillGems/0: multiple GemEffects"),
+            "quarantined",
+        ),
+        (
+            0,
+            json!([]),
+            "gem-effects-count",
+            Some("SkillGems/0: normal gem requires GemEffects"),
+            "quarantined",
+        ),
+        (
+            0,
+            json!([null]),
+            "gem-invalid-field",
+            Some("SkillGems/0: invalid type: null, expected usize"),
+            "quarantined",
+        ),
+        (
+            1,
+            json!([1, 1]),
+            "gem-effects-count",
+            Some("SkillGems/1: multiple GemEffects"),
+            "listed",
+        ),
+        (1, json!([]), "gem-effects-count", None, "listed"),
+        (
+            1,
+            json!([null]),
+            "gem-invalid-field",
+            Some("SkillGems/1: invalid type: null, expected usize"),
+            "listed",
+        ),
+    ] {
+        let mut f = publication_fixture();
+        f.values("BaseItemTypes", row)["Id"] = json!("BCompound");
+        f.values("SkillGems", row)["GemEffects"] = value;
+        reseal(&mut f);
+        if let Some(expected) = expected {
+            assert_eq!(run(args(&f)).unwrap_err(), expected);
+        }
+        run(Args {
+            mode: AdapterMode::Forward,
+            ..args(&f)
+        })
+        .unwrap();
+        let receipt = read(&f, "producer-receipt.json");
+        assert_eq!(receipt.as_object().unwrap().len(), 10);
+        assert_eq!(receipt["files"].as_object().unwrap().len(), 5);
+        let issues = receipt["conversion"]["coverage"]["issues"]
+            .as_array()
+            .unwrap();
+        assert_eq!(issues.len(), 1);
+        assert_eq!(issues[0]["kind"], kind);
+        assert_eq!(issues[0]["entity"], "BCompound");
+        assert_eq!(issues[0]["action"], action);
+        let owners = receipt["conversion"]["publication"]["owners"]
+            .as_object()
+            .unwrap();
+        assert!(owners.values().all(|owner| {
+            owner["gem_links"]
+                .as_array()
+                .unwrap()
+                .iter()
+                .all(|link| link["gem_id"] != "BCompound")
+        }));
+        if row == 0
+            && kind == "gem-effects-count"
+            && !issues[0]["observed"]["fields"]["GemEffects"]
+                .as_array()
+                .unwrap()
+                .is_empty()
+        {
+            assert!(
+                read(&f, "overlay/gem_quality_stats.json")["effects"]
+                    .as_array()
+                    .unwrap()
+                    .iter()
+                    .any(|effect| effect["effect_id"] == "z_attack")
+            );
+        }
+    }
+    let mut f = publication_fixture();
+    f.values("GemEffects", 0)["GrantedEffect"] = json!(null);
+    reseal(&mut f);
+    assert_eq!(
+        run(args(&f)).unwrap_err(),
+        "SkillGems/0: normal gem requires primary GrantedEffect"
+    );
+    assert_eq!(
+        run(Args {
+            mode: AdapterMode::Forward,
+            ..args(&f)
+        })
+        .unwrap_err(),
+        "SkillGems/0: normal gem requires primary GrantedEffect"
+    );
+    assert!(!f.root.join("out").exists());
+    f.values("SkillGems", 0)["GemEffects"] = json!([null, 0]);
+    reseal(&mut f);
+    assert_eq!(
+        run(Args {
+            mode: AdapterMode::Forward,
+            ..args(&f)
+        })
+        .unwrap_err(),
+        "SkillGems/0: normal gem requires primary GrantedEffect"
+    );
+    assert!(!f.root.join("out").exists());
+}
+
+#[test]
+fn forward_publication_lists_missing_reviews_and_disappeared_exclusions_without_guessing() {
+    let f = publication_fixture();
+    let mut p = policy(&f);
+    p["compatibility"]["effects"] = json!(["a_non_gem_support", "GoneEnabled"]);
+    p["compatibility"]["excluded_effects"] = json!({"excluded":"fixture","GoneExcluded":"removed"});
+    write_policy(&f, &p);
+    run(Args {
+        mode: AdapterMode::Forward,
+        ..args(&f)
+    })
+    .unwrap();
+    let receipt = read(&f, "producer-receipt.json");
+    let issues = receipt["conversion"]["coverage"]["issues"]
+        .as_array()
+        .unwrap();
+    assert_eq!(issues.len(), 3);
+    assert_eq!(issues[0]["entity"], "GoneEnabled");
+    assert_eq!(issues[1]["entity"], "GoneExcluded");
+    assert_eq!(issues[2]["entity"], "z_attack");
+    assert_eq!(issues[2]["kind"], "unreviewed-quality");
+    assert_eq!(
+        read(&f, "overlay/gem_quality_stats.json")["effects"]
+            .as_array()
+            .unwrap()
+            .len(),
+        1
+    );
+    let owners = receipt["conversion"]["publication"]["owners"]
+        .as_object()
+        .unwrap();
+    assert!(!owners.contains_key("GoneEnabled"));
+    assert!(!owners.contains_key("GoneExcluded"));
+}
+
+#[test]
+fn forward_publication_keeps_dangling_references_and_invalid_partitions_fatal() {
+    for value in [json!([0, 999]), json!([null, 999]), json!([999, null])] {
+        let mut f = publication_fixture();
+        f.values("SkillGems", 0)["GemEffects"] = value;
+        reseal(&mut f);
+        assert!(
+            run(Args {
+                mode: AdapterMode::Forward,
+                ..args(&f)
+            })
+            .unwrap_err()
+            .contains("dangling GemEffects 999")
+        );
+        assert!(!f.root.join("out").exists());
+    }
+    let mut f = publication_fixture();
+    f.values("GemEffects", 0)["AdditionalGrantedEffects"] = json!([2]);
+    f.values("SkillGems", 1)["GemEffects"] = json!([null]);
+    reseal(&mut f);
+    assert!(
+        run(Args {
+            mode: AdapterMode::Forward,
+            ..args(&f)
+        })
+        .unwrap_err()
+        .contains("except verified DNT-only")
+    );
+}
+
+#[test]
+fn own_gem_fields_match_skills_isolation_in_quality_publication() {
+    use crate::ordinary_facts::gem_effects::tests::{add_own_field, own_field_cases};
+
+    for (field, value, expected) in own_field_cases() {
+        for (row, id, action) in [(0, "real_gem", "quarantined"), (1, "placeholder", "listed")] {
+            let mut f = publication_fixture();
+            add_own_field(&mut f, field);
+            f.values("SkillGems", row)[field] = value.clone();
+            reseal(&mut f);
+            assert!(run(args(&f)).unwrap_err().contains(expected));
+            run(Args {
+                mode: AdapterMode::Forward,
+                ..args(&f)
+            })
+            .unwrap();
+            let receipt = read(&f, "producer-receipt.json");
+            let issues = receipt["conversion"]["coverage"]["issues"]
+                .as_array()
+                .unwrap();
+            assert_eq!(issues.len(), 1);
+            assert_eq!(issues[0]["kind"], "gem-invalid-field");
+            assert_eq!(issues[0]["entity"], id);
+            assert_eq!(issues[0]["action"], action);
+            assert!(
+                receipt["conversion"]["publication"]["owners"]
+                    .as_object()
+                    .unwrap()
+                    .values()
+                    .all(|owner| owner["gem_links"]
+                        .as_array()
+                        .unwrap()
+                        .iter()
+                        .all(|link| link["gem_id"] != id))
+            );
+        }
+    }
+    for mode in [AdapterMode::Strict, AdapterMode::Forward] {
+        let mut f = publication_fixture();
+        add_own_field(&mut f, "ItemExperienceType");
+        f.values("SkillGems", 0)["ItemExperienceType"] = json!(999);
+        reseal(&mut f);
+        assert!(
+            run(Args { mode, ..args(&f) })
+                .unwrap_err()
+                .contains("unresolved physical row ItemExperienceTypes/999")
+        );
+        assert!(!f.root.join("out").exists());
+    }
+}
