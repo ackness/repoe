@@ -81,6 +81,24 @@ handles primary/additional rows. Additional rows pair with primary rows in
 pair/default effectiveness/multiplier fallbacks. The existing fewer-than-five
 source rows rule controls actor-level scaling.
 
+## Forward mode
+
+`--mode forward` isolates a `SkillGems` row whose `GemEffects` link count is
+not one (`gem-effects-count`), or whose own field value or GemEffects
+array shape or element is invalid (`gem-invalid-field`). The issue entity is its
+`BaseItemTypes.Id`. A normal gem is `quarantined`; a placeholder gem is `listed`.
+No variant is guessed. Observed values identify the physical row and base row,
+plus the invalid field/value or link count and references.
+
+Isolated rows are omitted from `skill_gems.json`, gem provenance and placeholder
+exclusions in the receipt. All six output files are still written. Effects,
+levels and stat sets remain independently sourced and validated. Duplicate keys,
+invalid base identities, dangling references, column contracts, pins
+and defects in effects, levels or stat sets remain fatal in both modes,
+including references on isolated gems. Strict mode retains the original first
+error and its exact message. See [ordinary coverage](ordinary-coverage.md) for
+the coverage shape.
+
 ## Receipt and pending compatibility
 
 ```text

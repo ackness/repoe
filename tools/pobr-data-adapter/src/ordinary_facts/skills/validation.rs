@@ -9,6 +9,7 @@ use crate::facts::reader::{Tables, VerifiedFacts};
 use crate::skills::SkillTables;
 
 use super::super::convert::column;
+use super::super::coverage::{Action, Coverage, Issue};
 
 pub(super) const FIELDS: [(&str, &str); 15] = [
     ("BaseItemTypes", "Id Name"),
@@ -52,11 +53,22 @@ pub(super) const FIELDS: [(&str, &str); 15] = [
 pub(super) struct PhysicalSkills<'a> {
     pub tables: Tables<'a>,
     pub optional_level_multiplier: bool,
+    pub isolated_gems: BTreeSet<usize>,
 }
 
 impl<'a> PhysicalSkills<'a> {
+    #[cfg(test)]
     pub fn checked(input: &'a VerifiedFacts) -> Result<Self, String> {
+        let mut coverage = Coverage::new(super::super::coverage::AdapterMode::Strict, "skills");
+        Self::checked_with_coverage(input, &mut coverage)
+    }
+
+    pub fn checked_with_coverage(
+        input: &'a VerifiedFacts,
+        coverage: &mut Coverage,
+    ) -> Result<Self, String> {
         let tables = Tables::selected(input, &super::TABLES)?;
+        let mut isolated_gems = BTreeSet::new();
         for (table, fields) in FIELDS {
             for field in fields.split_whitespace() {
                 let (kind, array, target) = schema(field);
@@ -72,16 +84,48 @@ impl<'a> PhysicalSkills<'a> {
                 )?;
                 for row in 0..tables.len(table) {
                     let value = &tables.row(table, row)?[field];
-                    let checked = if array {
-                        list(value).and_then(|values| {
-                            values
-                                .iter()
-                                .try_for_each(|v| scalar(&tables, field, kind, target, v))
+                    let mut invalid_reference = false;
+                    let mut check_scalar = |value: &Value| {
+                        scalar(&tables, field, kind, target, value).inspect_err(|_| {
+                            invalid_reference = kind == "foreignrow" && index(value).is_err();
                         })
-                    } else {
-                        scalar(&tables, field, kind, target, value)
                     };
-                    checked.map_err(|error| format!("{table}/{row}.{field}: {error}"))?;
+                    let checked = if array {
+                        list(value).and_then(|values| values.iter().try_for_each(&mut check_scalar))
+                    } else {
+                        check_scalar(value)
+                    };
+                    if let Err(error) = checked {
+                        let message = format!("{table}/{row}.{field}: {error}");
+                        // Missing foreign-key targets stay fatal, even on isolated gems.
+                        if table == "SkillGems"
+                            && (target.is_none()
+                                || (field != "BaseItemType" && invalid_reference)
+                                || (array && !value.is_array()))
+                        {
+                            coverage.decide(
+                                gem_issue(&tables, row, "gem-invalid-field", message)?
+                                    .observed("field", field)
+                                    .observed("value", value.clone()),
+                            )?;
+                            isolated_gems.insert(row);
+                            // A malformed link must not hide a later dangling reference.
+                            if array {
+                                for link in value
+                                    .as_array()
+                                    .into_iter()
+                                    .flatten()
+                                    .filter(|link| index(link).is_ok())
+                                {
+                                    scalar(&tables, field, kind, target, link).map_err(
+                                        |error| format!("{table}/{row}.{field}: {error}"),
+                                    )?;
+                                }
+                            }
+                        } else {
+                            return Err(message);
+                        }
+                    }
                 }
             }
         }
@@ -121,10 +165,11 @@ impl<'a> PhysicalSkills<'a> {
                 }
             }
         }
-        validate_joins(&tables)?;
+        validate_joins(&tables, coverage, &mut isolated_gems)?;
         Ok(Self {
             tables,
             optional_level_multiplier: optional.is_some(),
+            isolated_gems,
         })
     }
 }
@@ -137,6 +182,7 @@ impl SkillTables for PhysicalSkills<'_> {
             .ok_or_else(|| format!("unselected skills table: {table}"))?
             .1;
         (0..self.tables.len(table))
+            .filter(|row| table != "SkillGems" || !self.isolated_gems.contains(row))
             .map(|index| {
                 let raw = self.tables.row(table, index)?;
                 let mut row = serde_json::Map::new();
@@ -257,17 +303,57 @@ pub(super) fn index(value: &Value) -> Result<usize, String> {
         .ok_or_else(|| format!("invalid physical reference: {value}"))
 }
 
-fn validate_joins(tables: &Tables<'_>) -> Result<(), String> {
+fn gem_issue(
+    tables: &Tables<'_>,
+    row: usize,
+    kind: &'static str,
+    message: String,
+) -> Result<Issue, String> {
+    let raw = tables.row("SkillGems", row)?;
+    let base_row = index(&raw["BaseItemType"])?;
+    let base = tables.row("BaseItemTypes", base_row)?;
+    let action = if crate::is_placeholder(base["Name"].as_str().ok_or("invalid base Name")?) {
+        Action::Listed
+    } else {
+        Action::Quarantined
+    };
+    Ok(Issue::new(
+        kind,
+        base["Id"].as_str().ok_or("invalid base Id")?,
+        action,
+        message,
+    )
+    .observed("source_row", row)
+    .observed("base_source_row", base_row))
+}
+
+fn validate_joins(
+    tables: &Tables<'_>,
+    coverage: &mut Coverage,
+    isolated_gems: &mut BTreeSet<usize>,
+) -> Result<(), String> {
     let mut bases = BTreeSet::new();
     for row in 0..tables.len("SkillGems") {
         let raw = tables.row("SkillGems", row)?;
         if !bases.insert(index(&raw["BaseItemType"])?) {
             return Err(format!("SkillGems/{row}: duplicate BaseItemType"));
         }
-        if list(&raw["GemEffects"])?.len() != 1 {
-            return Err(format!(
-                "SkillGems/{row}: expected exactly one GemEffects reference"
-            ));
+        // Malformed links were isolated at the field check above.
+        if let Some(variants) = raw["GemEffects"].as_array()
+            && variants.iter().all(|link| index(link).is_ok())
+            && variants.len() != 1
+        {
+            coverage.decide(
+                gem_issue(
+                    tables,
+                    row,
+                    "gem-effects-count",
+                    format!("SkillGems/{row}: expected exactly one GemEffects reference"),
+                )?
+                .observed("count", variants.len())
+                .observed("gem_effects", raw["GemEffects"].clone()),
+            )?;
+            isolated_gems.insert(row);
         }
     }
     for (table, key, level) in [
