@@ -7,6 +7,7 @@ import unittest
 from unittest.mock import patch
 
 from RePoE.native import item_inheritance as producer
+from tests.client.test_export_receipt import check_exporter, checkout
 
 
 BASE = "Metadata/Items/Item.it"
@@ -28,6 +29,7 @@ class ItemInheritanceTests(unittest.TestCase):
         temp = tempfile.TemporaryDirectory(prefix="item-inheritance-test-", dir=cache)
         self.addCleanup(temp.cleanup)
         self.root = Path(temp.name)
+        checkout(self)
         self.raw = self.root / "raw"
         self.lock = self.root / "lock.json"
         self.source = {
@@ -56,14 +58,22 @@ class ItemInheritanceTests(unittest.TestCase):
         self.lock.write_bytes(producer.envelope._json({"schema_version": 1, "sources": {"test": self.source}}))
         self.digest = producer.envelope._sha(self.lock.read_bytes())
 
-    def create(self, name="a"):
+    def create(self, name="a", **options):
         return producer.create_candidate(
             source_lock=self.lock,
             source="test",
             raw=self.raw,
             out=self.root / name,
             expected_source_lock_sha256=self.digest,
+            **options,
         )
+
+    def test_export_writes_a_receipt_refuses_a_dirty_checkout_and_rehearses_the_same_bytes(self):
+        def export(name, **options):
+            self.create(name, **options)
+            return self.root / name
+
+        check_exporter(self, export, "RePoE.native.item_inheritance")
 
     def test_replay_no_network_duplicate_occurrences_and_exact_spans(self):
         with patch("socket.socket", side_effect=AssertionError("network forbidden")):

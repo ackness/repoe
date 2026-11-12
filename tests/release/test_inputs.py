@@ -10,8 +10,10 @@ import unittest
 from unittest import mock
 import zipfile
 
+from RePoE.client import export_receipt
 from RePoE.release.pins import decode, encoded, pin
 from RePoE.release import assets, build, crafting_catalog, inputs, publish
+from tests.client.test_export_receipt import DIRTY, candidate, receipt_for
 from tests.release.test_build import serve
 from tests.release.test_crafting_catalog import crafting_package, fixture as crafting_fixture
 from tests.release.test_publish import GitRepoCase, Runner, git
@@ -24,6 +26,16 @@ def tree(root, files):
         (root / name).parent.mkdir(parents=True, exist_ok=True)
         (root / name).write_bytes(raw)
     return root
+
+
+def receipted(files, **identity):
+    """``files`` plus the export receipt beside each candidate directory, exported from ``identity``."""
+    receipts = {
+        export_receipt.receipt_name(name.rpartition("/")[0]): receipt_for(raw, **identity)
+        for name, raw in files.items()
+        if name.endswith("/manifest.json")
+    }
+    return {**files, **receipts}
 
 
 def china_files():
@@ -44,14 +56,10 @@ def china_files():
     for directory, (format_, payloads) in candidates.items():
         payloads = {**payloads, "source-lock.json": b'{"schema_version": 1}\n'}
         files.update({f"{directory}/{name}": raw for name, raw in payloads.items()})
-        files[f"{directory}/manifest.json"] = encoded(
-            {
-                "format": format_,
-                "source_identity": {**TARGET, "realm": "china"},
-                "files": {name: pin(raw) for name, raw in payloads.items()},
-            }
+        files[f"{directory}/manifest.json"] = candidate(
+            format_, {**TARGET, "realm": "china"}, files={name: pin(raw) for name, raw in payloads.items()}
         )
-    return files
+    return receipted(files)
 
 
 class PackageTest(unittest.TestCase):
@@ -152,9 +160,41 @@ class PackageTest(unittest.TestCase):
                         else:
                             (source / member).unlink()
         # All supported candidates can share one target, including additional packages.
-        good = {member: encoded({"format": format_, "source_identity": TARGET}) for member, format_ in manifests}
+        good = receipted({member: candidate(format_) for member, format_ in manifests})
         source = tree(self.root / "valid-candidates", good)
-        inputs.stage({"ordinary": self.source, "supplements": source}, TARGET, self.root / "valid-stage")
+        staged = inputs.stage({"ordinary": self.source, "supplements": source}, TARGET, self.root / "valid-stage")
+        self.assertEqual(
+            sorted(staged["receipts"]),
+            sorted(f"supplements:{name}" for name in good if name.endswith(export_receipt.SUFFIX)),
+        )
+
+    def test_a_new_candidate_needs_the_field_and_the_receipt_that_pins_its_manifest(self):
+        member, beside = "facts/manifest.json", "facts.export-receipt.json"
+        manifest = candidate("repoe-native-facts/v4")
+        files = {
+            member: manifest,
+            beside: receipt_for(manifest),
+            # Embedded copies are payloads; a historical envelope zip keeps its frozen producer identity.
+            "player/parent-manifest.json": manifest,
+            "player/input-manifest.json": encoded({"format": "repoe-native-facts/v4", "source_identity": TARGET}),
+        }
+        stripped = encoded({"format": "repoe-native-facts/v4", "source_identity": TARGET})
+        # The pairing rule itself is tested in tests/client/test_export_receipt.py; here, that packaging applies it
+        # with the exporters' formats, so a new export stripped of the field is not taken for a historical one.
+        for number, (message, change) in enumerate(
+            (
+                (f"ordinary: {member}: no export receipt {beside}", {beside: None}),
+                (f"ordinary: {member}: candidate manifest lacks producer_receipt", {member: stripped}),
+            )
+        ):
+            with self.subTest(message=message):
+                changed = {name: raw for name, raw in {**files, **change}.items() if raw is not None}
+                with self.assertRaisesRegex(ValueError, message):
+                    inputs.stage({"ordinary": tree(self.root / f"case-{number}", changed)}, TARGET, self.root / "out")
+        # Staging accepts a rehearsal, so it can be built and served locally; publishing it is refused.
+        rehearsal = {**files, beside: receipt_for(manifest, rehearsal=True, dirty_paths=DIRTY)}
+        staged = inputs.stage({"ordinary": tree(self.root / "rehearsal", rehearsal)}, TARGET, self.root / "out")
+        self.assertEqual(publish.unpublishable(staged["receipts"]), [f"ordinary:{beside} is a rehearsal"])
 
     def test_refuses_dot_files_unreadable_directories_and_overlapping_stages(self):
         (self.source / ".complete").write_text("x")
@@ -242,6 +282,18 @@ class PackageTest(unittest.TestCase):
         (source / "capture/capture-receipt.json").write_bytes(b"not JSON")
         with self.assertRaisesRegex(ValueError, "invalid derived file capture/capture-receipt.json"):
             inputs.collect(source, "china_text")
+        tree(source, china_files())
+        # One export receipt per candidate directory, derived from the candidate list.
+        for directory in inputs.CHINA_CANDIDATES:
+            beside = source / export_receipt.receipt_name(directory)
+            original = beside.read_bytes()
+            beside.unlink()
+            with self.assertRaisesRegex(ValueError, f"missing derived file {directory}.export-receipt.json"):
+                inputs.collect(source, "china_text")
+            beside.write_bytes(original.replace(b'"china"', b'"international"'))
+            with self.assertRaisesRegex(ValueError, f"china_text: {directory}/manifest.json: receipt target differs"):
+                inputs.stage({"china_text": source}, {**TARGET, "realm": "china"}, self.root / "refused")
+            beside.write_bytes(original)
 
 
 class MainTest(GitRepoCase):
@@ -262,6 +314,32 @@ class MainTest(GitRepoCase):
             except SystemExit as exit:
                 code = exit.code
         return code, stdout.getvalue() + stderr.getvalue(), runner
+
+    def test_export_receipts_must_be_clean_and_from_a_commit_on_origin_master(self):
+        manifest = candidate("repoe-native-facts/v4")
+        beside = self.source / "facts.export-receipt.json"
+        tree(self.source, {"facts/manifest.json": manifest})
+        unpushed = self.commit("unpushed.txt")
+        git(self.repo, "reset", "-q", "--hard", self.head)
+        for expected, identity in (
+            ("ordinary:facts.export-receipt.json is a rehearsal", {"rehearsal": True, "dirty_paths": DIRTY}),
+            ("ordinary:facts.export-receipt.json is a rehearsal", {"rehearsal": True}),
+            (f"export commit {unpushed} is not on origin/master (1 receipts", {"commit": unpushed}),
+            (f"export commit {'e' * 40} cannot be checked against origin/master", {"commit": "e" * 40}),
+        ):
+            with self.subTest(expected=expected):
+                beside.write_bytes(receipt_for(manifest, **{"commit": self.head, **identity}))
+                for mode in ((), ("--yes",)):
+                    code, output, runner = self.run_main(*mode)
+                    self.assertEqual(code, 1, output)
+                    self.assertIn("publish refused:", output)
+                    self.assertIn(expected, output)
+                    self.assertEqual([c for c in runner.commands() if c != "gh auth status"], [])
+        self.assertEqual(git(self.repo, "tag", "--list"), "")
+        beside.write_bytes(receipt_for(manifest, commit=self.head))
+        code, output, runner = self.run_main("--yes")
+        self.assertEqual(code, 0, output)
+        self.assertIn("gh release create", runner.commands())
 
     def test_dry_run_stages_and_prints_the_lock_entries(self):
         code, output, runner = self.run_main()

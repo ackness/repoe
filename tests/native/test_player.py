@@ -8,6 +8,7 @@ import unittest
 from RePoE.native import player
 from RePoE.native import schema_candidate
 from RePoE.native.tools import pinned_pypoe
+from tests.client.test_export_receipt import check_exporter, checkout
 from tests.native.test_facts import dat_bytes
 
 
@@ -24,6 +25,7 @@ class NativePlayerTests(unittest.TestCase):
         temporary = tempfile.TemporaryDirectory(prefix="player-tests-", dir=cache)
         self.addCleanup(temporary.cleanup)
         self.root = Path(temporary.name)
+        checkout(self)
         self.raw, self.parent = self.root / "raw", self.root / "parent"
         self.raw.mkdir()
         (self.parent / "tables").mkdir(parents=True)
@@ -112,6 +114,13 @@ class NativePlayerTests(unittest.TestCase):
                 **overrides,
             }
         )
+
+    def test_export_writes_a_receipt_refuses_a_dirty_checkout_and_rehearses_the_same_bytes(self):
+        def export(name, **options):
+            self.create(out=self.root / name, **options)
+            return self.root / name
+
+        check_exporter(self, export, "RePoE.native.player")
 
     def test_complete_context_preserves_raw_scopes_and_uses_exact_character(self):
         originals = {str(p): p.read_bytes() for root in [self.raw, self.parent] for p in root.rglob("*") if p.is_file()}

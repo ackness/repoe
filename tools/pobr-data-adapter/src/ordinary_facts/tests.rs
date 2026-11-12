@@ -158,6 +158,49 @@ impl Drop for Fixture {
     }
 }
 
+#[test]
+fn selected_tables_producer_receipt_accepts_a_new_producer_and_requires_the_supported_schema() {
+    let f = Fixture::new();
+    let mut selected = supplement(&f, &json!({"Stats":f.documents["tables/Stats.json"]}));
+    let path = selected.path.join("manifest.json");
+    let original: Value = crate::read_json(&path).unwrap();
+    for (field, expected) in [
+        (None, Some("supplement producer identity mismatch")),
+        (Some(json!("repoe-export-receipt/v1")), None),
+        (
+            Some(json!("repoe-export-receipt/v2")),
+            Some("unsupported producer_receipt"),
+        ),
+        (Some(Value::Null), Some("unsupported producer_receipt")),
+    ] {
+        let mut manifest = original.clone();
+        manifest["producer"] = json!({"RePoE/native/tables.py":"a".repeat(64)});
+        if let Some(value) = field {
+            manifest["producer_receipt"] = value;
+        }
+        let bytes = reader::json_bytes(&manifest).unwrap();
+        selected.sha256 = sha256_hex(&bytes);
+        fs::write(&path, bytes).unwrap();
+        let result = reader::selected::open(&selected.path, &selected.sha256, &f.manifest);
+        if let Some(error) = expected {
+            assert_eq!(result.err().unwrap(), error);
+        } else {
+            assert_eq!(
+                result.unwrap().documents["tables/Stats.json"],
+                f.documents["tables/Stats.json"]
+            );
+            let mut other_parent = f.manifest.clone();
+            other_parent["source_identity"]["game_patch"] = json!("9.9.9.9");
+            assert_eq!(
+                reader::selected::open(&selected.path, &selected.sha256, &other_parent)
+                    .err()
+                    .unwrap(),
+                "supplement source identity mismatch"
+            );
+        }
+    }
+}
+
 /// Re-running a prior domain after another domain must preserve its complete output.
 pub(super) fn assert_prior_domains_unchanged(
     cases: &[(super::Domain, usize)],

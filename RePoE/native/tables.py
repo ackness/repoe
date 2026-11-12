@@ -9,6 +9,7 @@ from RePoE.native import descriptions as envelope
 from RePoE.native import facts
 from RePoE.native import schema_candidate
 from RePoE.native.tools import pinned_pypoe
+from RePoE.client import export_receipt
 from RePoE.client.limits import MAX_RESOURCE, MAX_SELECTED_RAW
 
 
@@ -184,6 +185,7 @@ def _payloads(lock_bytes, selected, verified, source, language="English"):
             "trusted_source_pin_sha256": tools["pin_sha256"],
         },
         "producer": producer,
+        export_receipt.FIELD: export_receipt.SCHEMA,
         "row_key": facts.ROW_KEY,
         "summary": {"tables": {name: len(table["rows"]) for name, table in tables.items()}, **_references(tables)},
         "scope": "Selected physical DAT tables only. Preserve every field/order/null; no gameplay, localization or release-membership inference. External references require separately pinned inputs. Source status is not promoted.",
@@ -196,7 +198,9 @@ def _payloads(lock_bytes, selected, verified, source, language="English"):
     return manifest, payloads
 
 
-def create_candidate(*, source_lock, expected_source_lock_sha256, source, raw, out, language="English"):
+def create_candidate(
+    *, source_lock, expected_source_lock_sha256, source, raw, out, language="English", rehearsal=False
+):
     sys.dont_write_bytecode = True
     output = Path(out).absolute()
     cache = ROOT.resolve(strict=True) / ".cache"
@@ -204,6 +208,7 @@ def create_candidate(*, source_lock, expected_source_lock_sha256, source, raw, o
         raise FileExistsError("Refusing to replace selected-table output")
     if output.resolve() == cache or not output.resolve().is_relative_to(cache):
         raise ValueError("Selected-table candidate must be inside this checkout's .cache")
+    seal = export_receipt.begin(output, "RePoE.native.tables", rehearsal=rehearsal)
     args = (source_lock, source, raw, expected_source_lock_sha256, language)
     lock_bytes, selected, verified, raw_root = _inputs(*args)
     if output.resolve().is_relative_to(raw_root):
@@ -215,6 +220,7 @@ def create_candidate(*, source_lock, expected_source_lock_sha256, source, raw, o
         if envelope._sha((ROOT / name).read_bytes()) != digest:
             raise ValueError("Selected-table producer changed during decoding")
     envelope._publish(output, raw_root, payloads)
+    seal(payloads["manifest.json"])
     return manifest
 
 
@@ -223,6 +229,7 @@ def main():
     for name in ["source-lock", "expected-source-lock-sha256", "source", "raw", "out"]:
         parser.add_argument("--" + name, required=True)
     parser.add_argument("--language", choices=LANGUAGES, default="English")
+    export_receipt.add_rehearsal_option(parser)
     args = parser.parse_args()
     try:
         manifest = create_candidate(**vars(args))

@@ -11,6 +11,7 @@ import sys
 import tempfile
 import warnings
 
+from RePoE.client import export_receipt
 from RePoE.client.source_io import numeric_patch
 from RePoE.native import schema_candidate
 from RePoE.native.dat import validate_dat
@@ -638,6 +639,7 @@ def _candidate_payloads(verified, source_identity, tool_identity, *, profile=BAS
             "compatibility_views": 0,
         },
         "producer": producer,
+        export_receipt.FIELD: export_receipt.SCHEMA,
         "files": {},
     }
     if profile != BASE_PROFILE:
@@ -657,11 +659,12 @@ def _candidate_payloads(verified, source_identity, tool_identity, *, profile=BAS
     return manifest, payloads
 
 
-def create_candidate(*, source_lock, source, raw, out, profile=BASE_PROFILE):
+def create_candidate(*, source_lock, source, raw, out, profile=BASE_PROFILE, rehearsal=False):
     sys.dont_write_bytecode = True
     output = Path(out).absolute()
     if output.exists() or output.is_symlink():
         raise FileExistsError(f"Refusing to replace existing output: {output}")
+    seal = export_receipt.begin(output, "RePoE.native.facts", rehearsal=rehearsal)
     source_lock_bytes = Path(source_lock).read_bytes() if profile != BASE_PROFILE else None
     verified, source_identity = _verified_raw(source_lock, source, raw, profile=profile)
     with pinned_pypoe() as tool_identity:
@@ -682,6 +685,7 @@ def create_candidate(*, source_lock, source, raw, out, profile=BASE_PROFILE):
             target = output / name
             target.parent.mkdir(parents=True, exist_ok=True)
             os.link(staging / name, target)
+    seal(payloads["manifest.json"])
     return manifest
 
 
@@ -692,11 +696,10 @@ def main():
     parser.add_argument("--raw", required=True, type=Path)
     parser.add_argument("--out", required=True, type=Path)
     parser.add_argument("--profile", choices=PROFILES, default=BASE_PROFILE)
+    export_receipt.add_rehearsal_option(parser)
     args = parser.parse_args()
     try:
-        manifest = create_candidate(
-            source_lock=args.source_lock, source=args.source, raw=args.raw, out=args.out, profile=args.profile
-        )
+        manifest = create_candidate(**vars(args))
     except (ValueError, OSError, KeyError, TypeError, struct.error) as error:
         parser.exit(1, f"Native facts rejected: {error}\n")
     print(f"{manifest['format']}: {args.out}; {manifest['summary']}; partial candidate, not production")

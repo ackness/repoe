@@ -32,7 +32,11 @@ The output, replaced on each run, holds `game-build-part.zip`, `receipt.json`
 the class of every member and the pin of the zip and its root manifest;
 `repoe-release-receipt/v2`), `package.json`, `manifest.json`, `SHA256SUMS` and
 `work/` (adapter outputs and logs). Nothing is read from the game CDN, a
-vendor tree or a checkout's data directories.
+vendor tree or a checkout's data directories. An input candidate that carries
+`producer_receipt` must have its
+[export receipt](RePoE/docs/native/native_facts.md#export-receipt) in the
+package; the build refuses a rehearsal or dirty one and records the export
+commits in `receipt.json` (`inputs.exports`).
 
 ### Declarations: one directory per package
 
@@ -193,6 +197,17 @@ inside a historical envelope ZIP. An error names the file, the expected
 value and the actual value. Packaging and the lock/notes files are prepared
 in a temporary directory; a failure keeps the previous successful staging.
 
+A manifest written by `facts:candidate`, `tables:candidate`,
+`descriptions:candidate`, `RePoE.native.item_inheritance` or `facts:player`
+must also carry `producer_receipt` and have its
+[export receipt](RePoE/docs/native/native_facts.md#export-receipt) beside its
+directory (`facts.export-receipt.json` next to `facts/`), pinning its bytes
+and target. Copies embedded in another candidate (`parent-manifest.json`,
+`input-manifest.json`) and the facts inside a historical envelope ZIP need
+none, and the crafting export is not receipted yet. A receipt that says
+rehearsal or dirty, or whose commit is not on `origin/master`, still stages
+but is listed under `publish refused` (exit 1), and `--yes` never publishes it.
+
 For `--package crafting=<crafting export>`, the ZIP retains the
 `repoe-native-crafting-facts/v1` root `manifest.json` and its file pins.
 Its lock entry also includes `publication: "published"`, `producer` and
@@ -237,6 +252,7 @@ mise run release:inputs -- --realm china --patch <patch> --package china_text=$P
 | `capture/capture-receipt.json`, `capture/request.json`, `capture/SHA256SUMS` | `client:capture` (hashes and the path list; `capture.json` itself is pinned by SHA-256 only, because it names the install path) |
 | `stat-descriptions/china/{descriptions,diagnostics,source-lock,manifest}.json` | `descriptions:candidate`: the four files the translation repository's native reader requires |
 | `display-tables/{default,simplified-chinese}/{tables,source-lock,manifest}.json` | `tables:candidate`: `repoe-native-tables/v1` and `repoe-localized-tables/v1`, derived JSON, not `.datc64` |
+| `stat-descriptions/china.export-receipt.json`, `display-tables/{default,simplified-chinese}.export-receipt.json` | The export receipt each exporter writes beside its `--out` directory |
 
 `release:inputs` enforces this exact derived-file allowlist for `china_text`,
 checks the candidate formats and their manifest file pins, and requires both
@@ -343,7 +359,7 @@ its historical bounds for transfer re-validation.
 
 | What | Where | Change |
 | --- | --- | --- |
-| Exporter identity | the producer map in `trust.rs`; the `include_bytes!` fixtures `tests/fixtures/ordinary-facts/selected-tables-producer*.json`, `item-inheritance-producer.json` and `tests/fixtures/native-facts/player-context-manifest.json` | The producer table and the three fixtures are the frozen historical acceptance of the 0.5.5.5 packages: never edit them and do not add identities beside them. A new patch is meant to be checked by `target` only, with the producer identified by the commit in the receipt (clean tree); that check is not implemented yet, so until it lands a new export fails the producer identity check ([fixed producer identities](tools/pobr-data-adapter/tests/fixtures/ordinary-facts/README.md#fixed-producer-identities)) |
+| Exporter identity | the producer map in `trust.rs`; the `include_bytes!` fixtures `tests/fixtures/ordinary-facts/selected-tables-producer*.json`, `item-inheritance-producer.json` and `tests/fixtures/native-facts/player-context-manifest.json` | The producer table and the three fixtures are the frozen historical acceptance of the 0.5.5.5 packages: never edit them and do not add identities beside them. A new export carries `producer_receipt` and has an [export receipt](RePoE/docs/native/native_facts.md#export-receipt) naming its commit, which `release:inputs` and `release:build` check. The adapter accepts receipted manifests without comparing the historical producer hashes; its target, schema, decoder and payload checks still apply ([fixed producer identities](tools/pobr-data-adapter/tests/fixtures/ordinary-facts/README.md#fixed-producer-identities)) |
 | Crafting producer | `PRODUCER_KEY_SETS` in `RePoE/release/crafting_catalog.py` | Nothing while the exporters stay where they are: it already accepts the historical keys and the current `RePoE/native/` keys (a test keeps them equal to `native/crafting_facts.PRODUCERS`); add a set only if the exporters move again |
 | Schema constants (only if the dat schema changes) | `trust.rs` (`DECODER_PIN_SHA`, `SCHEMA_REVISION`, `SCHEMA_SHA`, the native specification pin), `RePoE/native/decoded_tables.py` (`SPEC_SHA`), `native/locale_probe.py` (`SCHEMA_REVISION`, `SCHEMA_SHA256`), `native/crafting_facts.py` (`SCHEMA`), `native/facts.py` (`SCHEMA`, `SCHEMA_SHA`) | Add the new schema beside the pinned one |
 
@@ -369,6 +385,12 @@ mise run client:export-lock -- --source-lock <acquisition-lock> \
 
 Use the acquisition lock for `facts:candidate` and the export lock for
 `tables:candidate`, `descriptions:candidate` and `RePoE.native.item_inheritance`.
+Export from a checkout of a master commit. An exporter refuses uncommitted
+exporter code or environment (locks and request files do not count) and writes
+`<out>.export-receipt.json` beside its output, naming that commit
+([export receipt](RePoE/docs/native/native_facts.md#export-receipt)).
+`--rehearsal` exports from a dirty tree with the same manifest bytes, but
+`release:build` and the publish commands refuse its receipt.
 Collect all seven side inputs with the facts in the same acquisition: the
 four supplements' tables (`stat-descriptions`, `passive-tree`, `minions`,
 `spectres`), both descriptions and item inheritance. Export crafting from
@@ -384,6 +406,7 @@ a new patch. A job option `ordinary:<path>` names a path in this layout:
 | `facts/` | One complete candidate output directory, including `manifest.json` and `source-lock.json`; `facts.root` names it | `facts:candidate`, `facts:validate` |
 | `<domain>/supplement/` (`stat-descriptions`, `passive-tree`, `minions`, `spectres`) | `tables.json`, `manifest.json`, `source-lock.json` (`repoe-native-tables/v1`) | `tables:candidate` |
 | `base-items/supplement/` | `inheritance.json`, `manifest.json`, `source-lock.json` (`repoe-item-inheritance/v1`) | `RePoE.native.item_inheritance` |
+| `<candidate directory>.export-receipt.json` (`facts.export-receipt.json`, `passive-tree/supplement.export-receipt.json`, …) | The export receipt of the candidate directory beside it; keep the two together when laying out the package | the exporter, next to `--out` |
 | `passive-tree/tree-descriptions/`, `stat-descriptions/item-descriptions/` | `descriptions.json`, `manifest.json` (`repoe-native-descriptions/v1`) | `descriptions:candidate` |
 | `<domain>/codec-source/*.json` | The 0.5.5.4.2 runtime files the codec policies pin (byte-identical to the `legacy` package's) | copied |
 | `skill-overrides/branch-codec/stat_set_labels.json` | The 0.5.5.4.2 stat-set labels | copied |
@@ -401,8 +424,11 @@ root's manifest. Package the directory directly with
 ### 2. Publish the inputs
 
 `mise run release:inputs -- --patch <new> --package ordinary=<dir> …` (dry
-run), then on a clean master commit `-- --yes`. Paste the printed `lock.json`
-entries into the new declaration's `packages`.
+run), then on a clean master commit `-- --yes`. Commit the refreshed lock and
+request files first, in a PR: `--yes` needs a clean tree, and every export
+receipt must be clean, not a rehearsal, and name a commit on `origin/master`
+(the export commit stays an ancestor of the commit that adds the locks). Paste
+the printed `lock.json` entries into the new declaration's `packages`.
 
 ### 3. Declare the package
 
@@ -500,6 +526,11 @@ rerunning it resumes:
 - **Dirty producer:** any tracked change or untracked file under `RePoE/`,
   `release/`, `tools/pobr-data-adapter/` or the toolchain pins marks the
   receipt `dirty`, and publish refuses it.
+- **Dirty export:** an exporter exits 1 with `Refusing to export from a dirty
+  checkout` and lists the paths; commit them and export again.
+- **Rehearsal or dirty export receipt:** `release:build` refuses the input
+  package and the publish commands refuse to publish it, whatever options are
+  passed. Export again from a clean master commit and repackage.
 
 Tags are never moved or deleted; see
 [AGENTS.md](AGENTS.md#never-move-or-rewrite).

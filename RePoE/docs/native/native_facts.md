@@ -135,6 +135,8 @@ The manifest records:
 - `schema`: frozen input hash/revision, generated native specification hash and
   zero compatibility views;
 - `producer`: hashes of the producer, trusted schema tool, project/lock and schema receipts;
+- `producer_receipt`: the constant `repoe-export-receipt/v1`; the exporting commit is in the
+  [export receipt](#export-receipt) beside the directory;
 - `files`: every payload's exact byte count and SHA-256; the manifest does not hash itself.
 
 `selected_source_sha256` hashes the selected entry using the JSON encoding above,
@@ -172,11 +174,58 @@ cd ../repoe-ebcfa93 && mise run setup && mise run facts:validate -- ...
 ```
 
 A new export from the current tree records the new paths and hashes. Those
-consumers hold only the frozen historical identities and take no additions: the
-intended check for a new patch compares only the target and identifies the
-producer by the clean commit in the receipt. That check is not implemented yet,
-so until it is, a new export fails the producer identity check (see the
-new-patch runbook in [RELEASING.md](../../../RELEASING.md#a-new-game-patch)).
+consumers hold only the frozen historical identities and take no additions.
+Instead a new manifest carries the constant
+`"producer_receipt": "repoe-export-receipt/v1"`. A manifest without the field
+is a historical package, compared with its frozen identity. One with the field
+is accepted without the historical producer comparison. Target (`game`, `realm`,
+`kind`, `game_patch`), schema, decoder and payload checks still apply. Its producer
+is the commit in the export receipt below; its `producer` map stays as evidence
+that no consumer pins (see the new-patch runbook in
+[RELEASING.md](../../../RELEASING.md#a-new-game-patch)). `facts:validate`
+requires the field in every candidate it accepts.
+
+## Export receipt
+
+`facts:candidate`, `tables:candidate`, `descriptions:candidate`,
+`RePoE.native.item_inheritance` and `facts:player` write
+`<out>.export-receipt.json` beside the finished candidate directory, as their
+last step (`RePoE/client/export_receipt.py`):
+
+```json
+{
+  "schema": "repoe-export-receipt/v1",
+  "exporter": "RePoE.native.facts",
+  "manifest": {"bytes": 0, "sha256": "…"},
+  "target": {"game": "poe2", "game_patch": "…", "realm": "…"},
+  "producer": {"repository": "ackness/repoe", "commit": "<40 hex>", "dirty": false, "dirty_paths": []},
+  "rehearsal": false
+}
+```
+
+- `manifest` pins the bytes of the candidate's `manifest.json` and `target`
+  repeats its source identity. The commit is self-reported; the independent
+  check is a `facts:validate` replay at that commit.
+- The commit and `dirty` are in the receipt, not in the manifest, so the same
+  client data exports to the same manifest bytes at every commit that leaves
+  the `producer` files alone, and a rehearsal writes the bytes of the real
+  run. The receipt is a sibling file because candidate directory inventories
+  are closed.
+- `dirty` means a tracked change or an untracked file under the code and
+  environment the exporters load: `RePoE/native`, `RePoE/client/*.py`,
+  `RePoE/__init__.py`, `schema`, `pyproject.toml`, `uv.lock`, `mise.toml` and
+  `mise.lock`. Source locks, request files, declarations and policies do not
+  count: they change for every patch before the export, and a candidate
+  carries its source lock's bytes. Shared client modules such as
+  `RePoE/client/limits.py` are covered here, not by a `producer` map.
+- Without `--rehearsal` an exporter refuses a dirty checkout before it reads
+  any input: exit 1, no output. With `--rehearsal` it exports, the manifest
+  bytes are those of a clean run and the receipt says `rehearsal: true`.
+- `release:inputs` requires the field and a receipt that pins the manifest and
+  its target, and publishes only receipts that are clean, not a rehearsal and
+  from a commit on `origin/master`. `release:build` repeats the check, refuses
+  a rehearsal or dirty receipt and copies the commits into its `receipt.json`.
+  `rehearsal` absent means false, in every receipt.
 
 ## Physical tables
 
@@ -304,7 +353,9 @@ of new candidates. It also accepts the older v1 receipt's 111-source inventory;
 the validating replay always pins all 117 modules. Producer identity changes do
 not invalidate old correct facts: acceptance compares against the supplied raw,
 and records the current validator/replay identities. It does not authenticate
-claims about which historical producer executed. Use optional
+claims about which historical producer executed. A candidate exported before
+the [export receipt](#export-receipt) has no `producer_receipt` and is rejected
+here; re-validate it at its producer commit. Use optional
 `--manifest-sha256 <externally-approved-sha256>` when consuming an already approved
 artifact. Omitting that option enables acceptance of a new manifest, not source
 authentication: the source lock/raw trust boundary remains external.

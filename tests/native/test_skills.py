@@ -209,9 +209,14 @@ class NativeSkillsTests(NativeSkillsFixture):
             self.validate()
         self.create_at_new_output()
         manifest = self.load("manifest.json")
-        manifest["producer"]["RePoE/native/skills.py"] = "b" * 64
+        tampered = {**manifest, "producer": {**manifest["producer"], "RePoE/native/skills.py": "b" * 64}}
+        (self.out / "manifest.json").write_bytes(facts._json(tampered))
+        with self.assertRaisesRegex(ValueError, r"manifest\.producer$"):
+            self.validate()
+        # Stripped of the field, the candidate would be read as a historical package.
+        del manifest["producer_receipt"]
         (self.out / "manifest.json").write_bytes(facts._json(manifest))
-        with self.assertRaisesRegex(ValueError, "manifest.producer"):
+        with self.assertRaisesRegex(ValueError, r"manifest\.producer_receipt$"):
             self.validate()
 
     def create_at_new_output(self):
@@ -236,6 +241,7 @@ class NativeSkillsTests(NativeSkillsFixture):
                     str(out),
                     "--profile",
                     facts.SKILLS_PROFILE,
+                    "--rehearsal",
                 ],
                 cwd=schema_candidate.ROOT,
                 env={**os.environ, "PYTHONHASHSEED": seed},

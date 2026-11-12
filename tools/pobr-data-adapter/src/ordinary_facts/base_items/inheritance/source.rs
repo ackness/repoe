@@ -23,6 +23,7 @@ pub(super) fn open(args: &BranchCodecArgs, parent: &Value) -> Result<Archive, St
         "item inheritance manifest",
     )?;
     let m = &manifest.document;
+    let receipted = reader::producer_receipt(m)?;
     // Historical producer identity of the pinned inheritance package (manifest
     // f8642243); never edited to follow current paths.
     let producer = reader::strict_json(include_bytes!(
@@ -31,7 +32,7 @@ pub(super) fn open(args: &BranchCodecArgs, parent: &Value) -> Result<Archive, St
     if m["format"] != FORMAT
         || m["status"] != "partial-candidate"
         || m["production_ready"] != false
-        || m["producer"] != producer
+        || (!receipted && m["producer"] != producer)
         || m["representation"]
             != json!({"payload":"inheritance.json","format":FORMAT,"tag_policy_id":POLICY})
     {

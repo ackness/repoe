@@ -6,6 +6,7 @@ import json
 from pathlib import Path, PurePosixPath
 import sys
 
+from RePoE.client import export_receipt
 from RePoE.native import descriptions as io
 from RePoE.native import facts
 from RePoE.native import metadata
@@ -312,13 +313,22 @@ def _project(selected, tables, parents, files):
 
 
 def create_candidate(
-    *, source_lock, source, raw, out, expected_source_lock_sha256, parent_facts, expected_parent_manifest_sha256
+    *,
+    source_lock,
+    source,
+    raw,
+    out,
+    expected_source_lock_sha256,
+    parent_facts,
+    expected_parent_manifest_sha256,
+    rehearsal=False,
 ):
     output = Path(out).absolute()
     if output.exists() or output.is_symlink():
         raise FileExistsError("Refusing existing player candidate")
     if not output.resolve().is_relative_to(ROOT / ".cache"):
         raise ValueError("Player candidates must be under this checkout's .cache/")
+    seal = export_receipt.begin(output, "RePoE.native.player", rehearsal=rehearsal)
     raw_root, lock_bytes, selected, verified = _inputs(source_lock, source, raw, expected_source_lock_sha256)
     parent_root, parent_bytes, parent, parents = _parent(parent_facts, expected_parent_manifest_sha256)
     if output.resolve().is_relative_to(raw_root) or output.resolve().is_relative_to(parent_root):
@@ -382,6 +392,7 @@ def create_candidate(
         },
         "decoder": decoder,
         "producer": {name: _sha((ROOT / name).read_bytes()) for name in producer_paths},
+        export_receipt.FIELD: export_receipt.SCHEMA,
         "python_version": sys.version.split()[0],
         "summary": summary,
         "limits": LIMITS,
@@ -389,6 +400,7 @@ def create_candidate(
     }
     payloads["manifest.json"] = io._json(manifest)
     io._publish(output, raw_root, payloads)
+    seal(payloads["manifest.json"])
     return manifest
 
 
@@ -398,6 +410,7 @@ def main():
         parser.add_argument(f"--{name}", required=True, type=Path)
     for name in ["source", "expected-source-lock-sha256", "expected-parent-manifest-sha256"]:
         parser.add_argument(f"--{name}", required=True)
+    export_receipt.add_rehearsal_option(parser)
     args = parser.parse_args()
     try:
         result = create_candidate(**vars(args))

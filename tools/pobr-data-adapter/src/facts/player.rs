@@ -206,10 +206,11 @@ fn verify_manifest(m: &Value) -> Result<(), String> {
     )?;
     // All 14 fixed cf190d05 Git-source fingerprints, independent of package claims.
     // FIXTURE is that historical producer identity (pre-RePoE/native/ paths);
-    // a new player export needs its own fixed identity, never an edit of this one.
+    // new exports use the commit in their export receipt, checked by release commands.
     require(
-        m["producer"] == fixed["producer"]
-            && m["producer"].as_object().is_some_and(|p| p.len() == 14),
+        trust::producer_receipt(m)?
+            || (m["producer"] == fixed["producer"]
+                && m["producer"].as_object().is_some_and(|p| p.len() == 14)),
         "player producer identity mismatch",
     )?;
     let identity = &m["source_identity"];

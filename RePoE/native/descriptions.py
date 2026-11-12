@@ -9,6 +9,7 @@ import re
 import sys
 
 from RePoE.native import csd as native_csd
+from RePoE.client import export_receipt
 from RePoE.client.limits import MAX_RESOURCE, MAX_SELECTED_RAW
 
 
@@ -202,6 +203,7 @@ def _payloads(lock_bytes, selected, verified, source):
             path: _sha((ROOT / path).read_bytes())
             for path in ["RePoE/native/csd.py", "RePoE/native/descriptions.py", "pyproject.toml", "uv.lock"]
         },
+        export_receipt.FIELD: export_receipt.SCHEMA,
         "python_version": sys.version.split()[0],
         "summary": summary,
         "limits": [
@@ -343,7 +345,7 @@ def _publish(output, raw_root, payloads):
             os.close(fd)
 
 
-def create_candidate(*, source_lock, source, raw, out, expected_source_lock_sha256):
+def create_candidate(*, source_lock, source, raw, out, expected_source_lock_sha256, rehearsal=False):
     """Build a new completion-last package under this source checkout's cache."""
     output = Path(out).absolute()
     if output.exists() or output.is_symlink():
@@ -352,11 +354,13 @@ def create_candidate(*, source_lock, source, raw, out, expected_source_lock_sha2
     resolved = output.resolve()
     if resolved == cache or not resolved.is_relative_to(cache):
         raise ValueError("Description candidates must be beneath this checkout's .cache/")
+    seal = export_receipt.begin(output, "RePoE.native.descriptions", rehearsal=rehearsal)
     lock_bytes, selected, verified, raw_root = _inputs(source_lock, source, raw, expected_source_lock_sha256)
     if resolved.is_relative_to(raw_root):
         raise ValueError("Description output cannot be inside raw input")
     manifest, payloads = _payloads(lock_bytes, selected, verified, source)
     _publish(output, raw_root, payloads)
+    seal(payloads["manifest.json"])
     return manifest
 
 
@@ -367,6 +371,7 @@ def main():
     parser.add_argument("--source", required=True)
     parser.add_argument("--raw", required=True, type=Path)
     parser.add_argument("--out", required=True, type=Path)
+    export_receipt.add_rehearsal_option(parser)
     args = parser.parse_args()
     try:
         result = create_candidate(**vars(args))

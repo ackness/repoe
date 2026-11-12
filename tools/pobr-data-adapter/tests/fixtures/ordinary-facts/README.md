@@ -103,7 +103,9 @@ are read by production code (`include_bytes!` in `src/facts/reader/selected.rs`,
 like the producer map in `src/facts/trust.rs`. They are the producer identities
 sealed into the pinned RePoE packages, keyed by the file paths of the producing
 commit (`RePoE/native_*.py`, before the exporters moved to `RePoE/native/`).
-Keep their bytes: a package exported by the current tree records new paths and
-hashes, and accepting it means adding its identity beside these. Re-validating
+Keep their bytes; they are frozen and never extended. A package exported by the
+current tree records new paths and hashes and carries `producer_receipt`: it is
+accepted with the commit in its export receipt, never by an identity added beside
+these. Target, schema, decoder and payload checks still apply. Re-validating
 an old package runs at its producer commit
 ([native facts](../../../../../RePoE/docs/native/native_facts.md#producer-identity-and-re-validation)).

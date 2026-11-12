@@ -12,6 +12,7 @@ on:
       - RePoE/__init__.py
       - RePoE/release/**
       - RePoE/client/__init__.py
+      - RePoE/client/export_receipt.py
       - RePoE/client/source_io.py
       - RePoE/client/source_rebinding.py
       - release/**

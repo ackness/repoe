@@ -79,9 +79,43 @@ fn accepts_the_untampered_envelope_and_reads_only_the_selection() {
 }
 
 #[test]
+fn producer_receipt_accepts_a_new_producer_and_requires_the_supported_schema() {
+    let mut envelope = Envelope::new();
+    envelope.manifest["producer"] = json!({"RePoE/native/facts.py":"a".repeat(64)});
+    assert_eq!(
+        verify(&mut envelope).unwrap_err(),
+        "producer identity mismatch"
+    );
+    envelope.manifest["producer_receipt"] = json!("repoe-export-receipt/v1");
+    verify(&mut envelope).unwrap();
+    for value in [
+        json!("repoe-export-receipt/v2"),
+        Value::Null,
+        json!(false),
+        json!(1),
+        json!([]),
+        json!({}),
+    ] {
+        envelope.manifest["producer_receipt"] = value;
+        assert_eq!(
+            verify(&mut envelope).unwrap_err(),
+            "unsupported producer_receipt"
+        );
+    }
+    envelope.manifest["producer_receipt"] = json!("repoe-export-receipt/v1");
+    envelope.manifest["extra"] = json!(true);
+    assert_eq!(
+        verify(&mut envelope).unwrap_err(),
+        "unexpected or missing JSON object keys"
+    );
+}
+
+#[test]
 fn another_patch_must_match_the_target_version() {
     let scratch = Scratch::new();
     let mut envelope = Envelope::new();
+    envelope.manifest["producer_receipt"] = json!("repoe-export-receipt/v1");
+    envelope.manifest["producer"] = json!({"RePoE/native/facts.py":"a".repeat(64)});
     envelope.manifest["source_identity"]["game_patch"] = json!("0.5.5.8");
     envelope.source()["game_patch"] = json!("0.5.5.8");
     let (_, pin) = envelope.write(&scratch.0);
@@ -239,6 +273,18 @@ fn rejects_wrong_pins_payloads_embedded_lock_and_selection() {
             .err()
             .unwrap()
             .contains("invalid lowercase sha256")
+    );
+
+    // Adding the field cannot turn a package under its historical pin into a receipted export.
+    let mut envelope = Envelope::new();
+    let (lock, historical_pin) = envelope.write(&scratch.0);
+    envelope.manifest["producer_receipt"] = json!("repoe-export-receipt/v1");
+    envelope.write(&scratch.0);
+    assert_eq!(
+        verify_selection(&scratch.0, &historical_pin, &lock, SELECTED)
+            .err()
+            .unwrap(),
+        "external manifest sha256 mismatch"
     );
 
     // A payload changed after sealing.

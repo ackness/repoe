@@ -101,6 +101,36 @@ fn player_package_pins_inventory_and_separate_parent_are_required() {
 }
 
 #[test]
+fn player_producer_receipt_accepts_a_new_producer_and_requires_the_supported_schema() {
+    let (c, parent) = fixture();
+    let (_scratch, mut args) = package(&c);
+    for (field, expected) in [
+        (None, Some("player producer identity mismatch")),
+        (Some(json!("repoe-export-receipt/v1")), None),
+        (
+            Some(json!("repoe-export-receipt/v2")),
+            Some("unsupported producer_receipt"),
+        ),
+        (Some(Value::Null), Some("unsupported producer_receipt")),
+    ] {
+        let mut m: Value = serde_json::from_str(&c.source_archive["manifest.json"]).unwrap();
+        m["producer"] = json!({"RePoE/native/player.py":"a".repeat(64)});
+        if let Some(value) = field {
+            m["producer_receipt"] = value;
+        }
+        let bytes = json_bytes(&m).unwrap();
+        args.manifest_sha256 = sha256_hex(&bytes);
+        std::fs::write(args.root.join("manifest.json"), bytes).unwrap();
+        let result = player::verify(&args, &parent);
+        if let Some(error) = expected {
+            assert_eq!(result.err().unwrap(), error);
+        } else {
+            assert_eq!(result.unwrap().context.facts, c.facts);
+        }
+    }
+}
+
+#[test]
 fn another_player_patch_must_match_the_verified_parent() {
     for patch in ["0.5.5.8", "9.9.9.9"] {
         let (mut c, mut parent) = fixture();
@@ -108,6 +138,8 @@ fn another_player_patch_must_match_the_verified_parent() {
         parent.manifest_bytes = pretty(&parent.manifest);
 
         let mut m: Value = serde_json::from_str(&c.source_archive["manifest.json"]).unwrap();
+        m["producer_receipt"] = json!("repoe-export-receipt/v1");
+        m["producer"] = json!({"RePoE/native/player.py":"a".repeat(64)});
         let mut lock: Value = serde_json::from_str(&c.source_archive["source-lock.json"]).unwrap();
         let source = m["source_identity"]["source"].as_str().unwrap().to_owned();
         lock["sources"][&source]["game_patch"] = json!(patch);

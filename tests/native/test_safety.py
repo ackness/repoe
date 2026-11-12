@@ -19,7 +19,9 @@ from tests.native import test_facts as fixture
 
 
 def run_producer(test, out, *, pythonpath=None, code=None, executable=None):
+    # --rehearsal: the tree under test may be under edit; the candidate bytes are the same.
     arguments = ["--source-lock", str(test.lock), "--source", "fixture", "--raw", str(test.raw), "--out", str(out)]
+    arguments.append("--rehearsal")
     entry = ["-m", "RePoE.native.facts"] if code is None else ["-c", code]
     return subprocess.run(
         [executable or sys.executable, "-B", *entry, *arguments],

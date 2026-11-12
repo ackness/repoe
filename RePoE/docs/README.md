@@ -19,7 +19,7 @@ Formats and contracts, grouped like the code. Release procedure:
 
 | Document | Covers |
 | --- | --- |
-| [native_facts.md](native/native_facts.md) | `facts:candidate` / `facts:validate`: the base profile, producer identity and re-validation |
+| [native_facts.md](native/native_facts.md) | `facts:candidate` / `facts:validate`: the base profile, producer identity, the export receipt and re-validation |
 | [native_core_skills.md](native/native_core_skills.md) | Profile `core-skills-a0` |
 | [native_gems.md](native/native_gems.md) | Profile `gems-constraints-a1` |
 | [native_items_actors.md](native/native_items_actors.md) | Profile `items-actors-bc` |

@@ -12,7 +12,8 @@ with ``--reuse``, verifies the existing build of HEAD), stages the assets under
 ``.cache/release/publish/`` and prints exactly what ``--yes`` would run. In a
 dry run, preflight problems (dirty tree, HEAD not on origin/master) and network
 failures are reported instead of stopping the staging; with ``--yes`` they
-refuse. See RELEASING.md.
+refuse, and a staged receipt that says rehearsal or dirty is never published.
+See RELEASING.md.
 """
 
 import argparse
@@ -25,10 +26,11 @@ import subprocess
 import sys
 import zipfile
 
+from RePoE.client import export_receipt
 from RePoE.release.pins import decode, pin, require
 from RePoE.release import build
 
-REPOSITORY = "ackness/repoe"
+REPOSITORY = export_receipt.REPOSITORY
 REMOTE = "origin"
 BRANCH = "master"
 STAGE = build.CACHE / "publish"
@@ -126,7 +128,13 @@ def stage(build_dir, out):
         require(build.file_pin(assets / name) == expected, f"Staged {name} changed while copying")
     (assets / "SHA256SUMS").write_text(sha256sums({name: value["sha256"] for name, value in pins.items()}))
     pins["SHA256SUMS"] = build.file_pin(assets / "SHA256SUMS")
-    return {"directory": out, "assets": dict(sorted(pins.items())), "receipt": receipt, "package": package}
+    return {
+        "directory": out,
+        "assets": dict(sorted(pins.items())),
+        "receipt": receipt,
+        "receipts": {"receipt.json": receipt},
+        "package": package,
+    }
 
 
 def release_body(staged, tag, sequence):
@@ -190,6 +198,11 @@ def git(repo, *args, online=False):
     return build.git(repo, *args, check=False, online=online)
 
 
+def off_branch(repo, commit, remote=REMOTE, branch=BRANCH):
+    """``merge-base --is-ancestor``: 0 when ``commit`` is on ``<remote>/<branch>``, 1 when not, else one is unknown."""
+    return git(repo, "merge-base", "--is-ancestor", commit, f"refs/remotes/{remote}/{branch}").returncode
+
+
 def preflight(repo, remote=REMOTE, branch=BRANCH, fetch=True):
     """Check HEAD is publishable: a clean tree on a commit of ``<remote>/<branch>``.
 
@@ -211,10 +224,10 @@ def preflight(repo, remote=REMOTE, branch=BRANCH, fetch=True):
             warnings.append(
                 f"could not fetch {remote}/{branch} ({fetched.stderr.decode().strip()}); using the local ref"
             )
-    on_branch = git(repo, "merge-base", "--is-ancestor", commit, tracking).returncode
-    if on_branch == 1:
+    status = off_branch(repo, commit, remote, branch)
+    if status == 1:
         problems.append(f"HEAD {commit} is not on {remote}/{branch}")
-    elif on_branch:
+    elif status:
         problems.append(f"no {remote}/{branch} ref to check HEAD against")
     return commit, problems, warnings
 
@@ -336,6 +349,11 @@ def release_steps(run, staged, tag, commit, action, repository=REPOSITORY):
     return None, "published"
 
 
+def unpublishable(receipts):
+    """Staged ``{name: receipt}`` that say rehearsal or dirty, as ``"<name> is a rehearsal"`` lines."""
+    return [f"{name} {reason}" for name, receipt in receipts.items() if (reason := export_receipt.refusal(receipt))]
+
+
 def carry_out(parser, run, staged, tag, commit, steps, action, problems, warnings, yes, repository=REPOSITORY):
     """Print the staged assets and the plan; with ``yes`` and no problems, run the steps."""
     directory = staged["directory"]
@@ -360,6 +378,9 @@ def carry_out(parser, run, staged, tag, commit, steps, action, problems, warning
     if not yes:
         print("dry run: nothing was tagged, pushed or released; rerun with --yes to publish")
         return
+    # The one refusal every publishing command passes: it reads the staged receipts, so no option overrides it.
+    if refused := unpublishable(staged["receipts"]):
+        parser.exit(1, f"{parser.prog}: refusing to publish:\n" + bullets(refused))
     for index, step in enumerate(steps):
         log(shlex.join(step))
         try:

@@ -61,7 +61,9 @@ pub(crate) fn open(path: &Path, pin: &str, parent: &Value) -> Result<Input, Stri
         "../../../tests/fixtures/ordinary-facts/selected-tables-producer-21ace02.json"
     ))?;
     trust::require(
-        manifest["producer"] == producer || manifest["producer"] == localized_capable_producer,
+        trust::producer_receipt(&manifest)?
+            || manifest["producer"] == producer
+            || manifest["producer"] == localized_capable_producer,
         "supplement producer identity mismatch",
     )?;
     trust::require(

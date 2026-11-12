@@ -40,6 +40,8 @@ literal include records remain in the output.
 
 The output has `descriptions.json`, `diagnostics.json`, exact `source-lock.json` and a completion-last
 `manifest.json`. Existing output directories and symlinks are never replaced.
+The [export receipt](native_facts.md#export-receipt) is written beside the
+output directory; a dirty checkout is refused without `--rehearsal`.
 Outputs must be new directories under this checkout's `.cache/` and outside raw
 input. Publication uses exclusive, directory-relative POSIX operations and
 directory identity checks. An I/O failure or observed namespace change may
