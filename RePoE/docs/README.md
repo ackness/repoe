@@ -37,6 +37,7 @@ Formats and contracts, grouped like the code. Release procedure:
 
 | Document | Covers |
 | --- | --- |
+| [policy-rebinding.md](release/policy-rebinding.md) | `policy:rebind`: new policy identities and domain references from staged inputs |
 | [pobr_crafting_catalog.md](release/pobr_crafting_catalog.md) | The `crafting-catalog` job |
 | [pobr_historical_trees.md](release/pobr_historical_trees.md) | The `historical-trees` job |
 | [pobr_gem_descriptions.md](release/pobr_gem_descriptions.md) | The `gem-descriptions` job (English gem descriptions) |
