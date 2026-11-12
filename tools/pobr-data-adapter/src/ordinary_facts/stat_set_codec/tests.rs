@@ -4,6 +4,7 @@ use std::fs;
 use pobr_data::catalog::StatSetLabelsDef;
 use serde_json::{Value, json};
 
+use super::super::coverage::AdapterMode;
 use super::super::tests::Fixture;
 use super::super::{Args, Domain, parse_args, run};
 use crate::raw_source::sha256_hex;
@@ -162,6 +163,205 @@ fn rejects(f: &Fixture, expected: &str) {
 }
 fn read(f: &Fixture, file: &str) -> Value {
     crate::read_json(&f.root.join("out").join(file)).unwrap()
+}
+
+#[test]
+fn forward_reports_content_gaps_verbatim_and_strict_keeps_exact_messages() {
+    for (case, message, expected) in [
+        (
+            "unknown-owner",
+            "codec row 0: unknown target owner MissingOwner",
+            vec![("codec-owner-unknown", "MissingOwner", "retained-legacy")],
+        ),
+        (
+            "unlisted",
+            "codec row 1: unlisted raw ownership exception for ZOwner/UnknownSet/3",
+            vec![(
+                "codec-ownership-unlisted",
+                "ZOwner/UnknownSet/3",
+                "retained-legacy",
+            )],
+        ),
+        (
+            "stale",
+            "unused/stale codec ownership exception (missing record or now raw-owned)",
+            vec![("codec-exception-stale", "AOwner/GhostSet/1", "listed")],
+        ),
+        (
+            "unused",
+            "unused/stale codec ownership exception (missing record or now raw-owned)",
+            vec![("codec-exception-stale", "StaleOwner/StaleSet/9", "listed")],
+        ),
+        (
+            "evidence-count",
+            "historical codec binding evidence does not describe this snapshot",
+            vec![("codec-evidence-count", "stat-set-codec", "retained-legacy")],
+        ),
+        (
+            "evidence-overflow",
+            "historical codec binding evidence does not describe this snapshot",
+            vec![("codec-evidence-count", "stat-set-codec", "retained-legacy")],
+        ),
+        (
+            "evidence-key",
+            "historical codec binding evidence does not describe this snapshot",
+            vec![("codec-evidence-key", "AOwner/not-in-codec/1", "listed")],
+        ),
+        (
+            "multiple",
+            "codec row 0: unknown target owner MissingOwner",
+            vec![
+                ("codec-evidence-count", "stat-set-codec", "retained-legacy"),
+                ("codec-exception-stale", "StaleOwner/StaleSet/9", "listed"),
+                ("codec-owner-unknown", "MissingOwner", "retained-legacy"),
+                (
+                    "codec-ownership-unlisted",
+                    "ZOwner/UnknownSet/3",
+                    "retained-legacy",
+                ),
+            ],
+        ),
+    ] {
+        let mut f = fixture();
+        let mut p = policy(&f);
+        let mut c = codec(&f);
+        if matches!(case, "unknown-owner" | "multiple") {
+            c["labels"][0]["skill"] = json!("MissingOwner");
+        }
+        if matches!(case, "unlisted" | "multiple") {
+            c["labels"][1]["set_id"] = json!("UnknownSet");
+        }
+        if matches!(case, "unused" | "multiple") {
+            p["raw_ownership_exceptions"]
+                .as_array_mut()
+                .unwrap()
+                .push(json!({
+                    "key":{"skill":"StaleOwner","set_id":"StaleSet","set_index":9},
+                    "reason":"Missing historical codec entry"
+                }));
+        }
+        if matches!(case, "evidence-count" | "multiple") {
+            p["evidence"]["bound_before_prepared_merges_in_both"] = json!(0);
+        }
+        if case == "stale" {
+            f.values("GrantedEffectStatSets", 2)["Id"] = json!("GhostSet");
+            c["labels"].as_array_mut().unwrap().remove(3);
+            p["evidence"]["bound_before_prepared_merges_in_both"] = json!(2);
+        }
+        if case == "evidence-overflow" {
+            p["evidence"]["bound_before_prepared_merges_in_both"] = json!(usize::MAX);
+        }
+        if case == "evidence-key" {
+            p["evidence"]["unbound_before_prepared_merges_in_both"][0]["set_id"] =
+                json!("not-in-codec");
+        }
+        write_codec(&f, &c);
+        write_policy(&f, &p);
+        reseal(&mut f);
+        assert_eq!(run(args(&f)).unwrap_err(), message, "{case}");
+        assert!(!f.root.join("out").exists(), "{case}");
+        run(Args {
+            mode: AdapterMode::Forward,
+            ..args(&f)
+        })
+        .unwrap();
+        for (source, output) in [
+            ("codec/source.json", "overlay/stat_set_labels.json"),
+            ("policy/policy.json", "codec-policy.json"),
+        ] {
+            assert_eq!(
+                fs::read(f.root.join(source)).unwrap(),
+                fs::read(f.root.join("out").join(output)).unwrap(),
+                "{case}: {source}",
+            );
+        }
+        let r = read(&f, "producer-receipt.json");
+        assert_eq!(r.as_object().unwrap().len(), 10);
+        assert_eq!(r["files"].as_object().unwrap().len(), 5);
+        let issues = r["conversion"]["coverage"]["issues"].as_array().unwrap();
+        let actual: Vec<_> = issues
+            .iter()
+            .map(|issue| {
+                assert_eq!(issue["domain"], "stat-set-codec");
+                assert!(issue["observed"].is_object(), "{case}");
+                (
+                    issue["kind"].as_str().unwrap(),
+                    issue["entity"].as_str().unwrap(),
+                    issue["action"].as_str().unwrap(),
+                )
+            })
+            .collect();
+        assert_eq!(actual, expected, "{case}");
+        let first_error = issues.iter().find(|issue| issue["message"] == message);
+        assert!(first_error.is_some(), "{case}");
+        if matches!(case, "evidence-count" | "evidence-overflow" | "multiple") {
+            let counts = &issues[0]["observed"];
+            assert_eq!(counts["codec"], 4);
+            assert_eq!(
+                counts["evidence"],
+                if case == "evidence-overflow" {
+                    Value::Null
+                } else {
+                    json!(1)
+                },
+            );
+        }
+        if case == "multiple" {
+            let conversion = &r["conversion"];
+            assert_eq!(conversion["raw_owned_records"], 1);
+            assert_eq!(conversion["exception_records"], 1);
+            assert_eq!(conversion["codec_owners"], 2);
+            assert_eq!(
+                conversion["target_membership"]["records"][0]["classification"],
+                "unknown-owner"
+            );
+            assert_eq!(
+                conversion["target_membership"]["records"][1]["classification"],
+                "unresolved"
+            );
+            assert_eq!(
+                conversion["coverage"]["counts"],
+                json!({"listed":1,"retained-legacy":3,"emitted-with-gap":0,"quarantined":0}),
+            );
+            run(Args {
+                mode: AdapterMode::Forward,
+                out: f.root.join("again"),
+                ..args(&f)
+            })
+            .unwrap();
+            assert_eq!(
+                fs::read(f.root.join("out/producer-receipt.json")).unwrap(),
+                fs::read(f.root.join("again/producer-receipt.json")).unwrap(),
+            );
+        }
+    }
+}
+
+#[test]
+fn forward_still_rejects_pins_duplicate_keys_columns_and_dangling_references() {
+    for case in ["pin", "duplicate", "column", "dangling"] {
+        let mut f = fixture();
+        let mut c = codec(&f);
+        c["labels"][0]["skill"] = json!("MissingOwner");
+        match case {
+            "duplicate" => c["labels"][3]["set_index"] = json!(1),
+            "column" => {
+                f.documents.get_mut("tables/GrantedEffects.json").unwrap()["columns"][1]["schema"]
+                    ["type"] = json!("i32");
+            }
+            "dangling" => f.values("GrantedEffects", 2)["StatSet"] = json!(999),
+            _ => {}
+        }
+        write_codec(&f, &c);
+        reseal(&mut f);
+        let mut a = args(&f);
+        a.mode = AdapterMode::Forward;
+        if case == "pin" {
+            a.codec.as_mut().unwrap().source_sha256 = "0".repeat(64);
+        }
+        assert!(run(a).is_err(), "{case}");
+        assert!(!f.root.join("out").exists(), "{case}");
+    }
 }
 
 #[test]

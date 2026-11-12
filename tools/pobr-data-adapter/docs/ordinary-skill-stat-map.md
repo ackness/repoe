@@ -127,6 +127,33 @@ patches shows newly uncovered gem effects. Codec presence and map scope presence
 are checked independently; neither proves gameplay correctness or calculation
 support. The report leaves the map, branch codec and policy output bytes intact.
 
+### Forward mode
+
+`--mode forward` records content gaps in `conversion.coverage`; see
+[ordinary coverage](ordinary-coverage.md) for the shared receipt shape. Strict
+mode remains the default and returns the existing error messages.
+
+| Site | Issue kind | Action and entity |
+| --- | --- | --- |
+| Scope has a codec record but its target skill is gone | `scope-skill-removed` | `retained-legacy`, skill ID |
+| Scoped stat is absent without an absence exception | `scope-stat-removed` | `retained-legacy`, `<skill>/<stat>`; shared across that skill's export indices |
+| Codec record is absent, or its set is no longer raw-owned | `scope-binding-incomplete` | `retained-legacy`, `<skill>/<index>` |
+| Scope has neither target effect nor codec record, with no exception | `scope-unbound-unlisted` | `retained-legacy`, `<skill>/<index>` |
+| Unbound exception now matches, is partial, or no longer has a scope | `scope-unbound-stale` | `retained-legacy` when the scope remains, otherwise `listed`; `<skill>/<index>` |
+| Global stat is absent without an absence exception | `stat-absent-unlisted` | `retained-legacy`, stat ID |
+| Absence exception names a present or unused stat | `stat-absent-stale` | `retained-legacy` when the stat remains in the map, otherwise `listed`; stat ID |
+
+Every map, branch codec and policy byte is preserved. Unresolved scopes have
+`binding.status: "unresolved"` and do not contribute to `raw_owned_scopes`.
+Observed values identify the stat, scope, codec record or target owner needed to
+review the exception. Policy mismatches that strict mode reports together keep
+that same message on each individual issue.
+
+The N7 `target_gem_effects_without_codec` and
+`target_gem_effects_without_map_scope` lists are unchanged and are not coverage
+issues. Pins, metadata, schemas, duplicate keys, invalid identities and dangling
+physical references still fail in both modes.
+
 ```text
 fresh-skill-stat-map/
   _domain_candidate.json
