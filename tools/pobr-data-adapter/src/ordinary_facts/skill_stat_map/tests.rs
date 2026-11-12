@@ -55,11 +55,21 @@ pub(in crate::ordinary_facts) fn fixture() -> Fixture {
                         Some("GrantedEffectStatSets"),
                     ),
                     ("_index", "i32", false, None),
+                    ("IsSupport", "bool", false, None),
                 ],
                 json!([
-                    {"Id":"ZOwner","StatSet":1,"AdditionalStatSets":[0,0,0],"_index":999},
-                    {"Id":"AOwner","StatSet":1,"AdditionalStatSets":[],"_index":998},
-                    {"Id":"UnusedOwner","StatSet":999,"AdditionalStatSets":[],"_index":997}
+                    {"Id":"ZOwner","StatSet":1,"AdditionalStatSets":[0,0,0],"_index":999,"IsSupport":false},
+                    {"Id":"AOwner","StatSet":1,"AdditionalStatSets":[],"_index":998,"IsSupport":false},
+                    {"Id":"UnusedOwner","StatSet":999,"AdditionalStatSets":[],"_index":997,"IsSupport":false},
+                    {"Id":"NoCodecGem","StatSet":1,"AdditionalStatSets":[],"_index":996,"IsSupport":false},
+                    {"Id":"UnusedGhost","StatSet":1,"AdditionalStatSets":[],"_index":995,"IsSupport":false},
+                    {"Id":"SupportGem","StatSet":1,"AdditionalStatSets":[],"_index":994,"IsSupport":true},
+                    {"Id":"AdditionalOnlyGem","StatSet":1,"AdditionalStatSets":[],"_index":993,"IsSupport":false},
+                    {"Id":"SupportActiveGem","StatSet":1,"AdditionalStatSets":[],"_index":992,"IsSupport":false},
+                    {"Id":"DntOnlyGem","StatSet":1,"AdditionalStatSets":[],"_index":991,"IsSupport":false},
+                    {"Id":"UnlinkedGem","StatSet":1,"AdditionalStatSets":[],"_index":990,"IsSupport":false},
+                    {"Id":"NoBaseGem","StatSet":1,"AdditionalStatSets":[],"_index":989,"IsSupport":false},
+                    {"Id":"BlankNameGem","StatSet":1,"AdditionalStatSets":[],"_index":988,"IsSupport":false}
                 ]),
             ),
         ),
@@ -70,6 +80,72 @@ pub(in crate::ordinary_facts) fn fixture() -> Fixture {
                 &[("Id", "string", false, None)],
                 json!([
                     {"Id":"Additional"},{"Id":"Primary"},{"Id":"Unowned"}
+                ]),
+            ),
+        ),
+        (
+            "GemEffects",
+            table(
+                "GemEffects",
+                &[
+                    ("Id", "string", false, None),
+                    ("GrantedEffect", "foreignrow", false, Some("GrantedEffects")),
+                    (
+                        "AdditionalGrantedEffects",
+                        "foreignrow",
+                        true,
+                        Some("GrantedEffects"),
+                    ),
+                ],
+                json!([
+                    {"Id":"GemZ","GrantedEffect":0,"AdditionalGrantedEffects":[3,0,3,5]},
+                    {"Id":"GemA","GrantedEffect":1,"AdditionalGrantedEffects":[]},
+                    {"Id":"GemNoCodec","GrantedEffect":3,"AdditionalGrantedEffects":[4,3]},
+                    {"Id":"GemSupport","GrantedEffect":5,"AdditionalGrantedEffects":[7]},
+                    {"Id":"GemNoPrimary","GrantedEffect":null,"AdditionalGrantedEffects":[6,6]},
+                    {"Id":"GemDnt","GrantedEffect":8,"AdditionalGrantedEffects":[]},
+                    {"Id":"GemUnlinked","GrantedEffect":9,"AdditionalGrantedEffects":[]},
+                    {"Id":"GemNoBase","GrantedEffect":10,"AdditionalGrantedEffects":[]},
+                    {"Id":"GemBlankName","GrantedEffect":11,"AdditionalGrantedEffects":[]}
+                ]),
+            ),
+        ),
+        (
+            "SkillGems",
+            table(
+                "SkillGems",
+                &[
+                    ("BaseItemType", "foreignrow", false, Some("BaseItemTypes")),
+                    ("GemEffects", "foreignrow", true, Some("GemEffects")),
+                    ("GemType", "i32", false, None),
+                ],
+                json!([
+                    {"BaseItemType":0,"GemEffects":[0,1,0],"GemType":0},
+                    {"BaseItemType":2,"GemEffects":[2],"GemType":0},
+                    {"BaseItemType":3,"GemEffects":[3],"GemType":1},
+                    {"BaseItemType":4,"GemEffects":[4],"GemType":0},
+                    {"BaseItemType":5,"GemEffects":[5],"GemType":0},
+                    {"BaseItemType":null,"GemEffects":[7],"GemType":0},
+                    {"BaseItemType":6,"GemEffects":[8],"GemType":0}
+                ]),
+            ),
+        ),
+        (
+            "BaseItemTypes",
+            table(
+                "BaseItemTypes",
+                &[
+                    ("Id", "string", false, None),
+                    ("Name", "string", false, None),
+                ],
+                json!([
+                    {"Id":"NormalZ","Name":"Normal Z"},
+                    {"Id":"NormalA","Name":"Normal A"},
+                    {"Id":"NormalNoCodec","Name":"Normal without codec"},
+                    {"Id":"Support","Name":"Support"},
+                    {"Id":"NormalAdditional","Name":"Normal additional"},
+                    {"Id":"Dnt","Name":"[DNT] Hidden gem"},
+                    {"Id":"BlankName","Name":""}
                 ]),
             ),
         ),
@@ -167,6 +243,171 @@ fn scope<'a>(r: &'a Value, skill: &str, index: u32) -> &'a Value {
         .iter()
         .find(|r| r["skill"] == skill && r["set_index"] == index)
         .unwrap()
+}
+
+#[test]
+fn target_gem_coverage_lists_sorted_distinct_normal_gem_primary_and_additional_effects() {
+    let mut f = fixture();
+    let mut map = doc(&f, MAP);
+    map["per_stat_set"]["NoCodecGem"] = json!({});
+    write(&f, MAP, &map);
+    reseal(&mut f);
+    run(args(&f)).unwrap();
+    let r = read(&f, "producer-receipt.json");
+    assert_eq!(r.as_object().unwrap().len(), 10);
+    let c = &r["conversion"];
+    assert_eq!(c["target_gem_effects"], 6);
+    assert_eq!(
+        c["target_gem_effects_without_codec"],
+        json!(["AdditionalOnlyGem", "NoCodecGem", "SupportActiveGem"])
+    );
+    assert_eq!(c["target_gem_effects_without_codec_count"], 3);
+    assert_eq!(
+        c["target_gem_effects_without_map_scope"],
+        json!([
+            "AdditionalOnlyGem",
+            "NoCodecGem",
+            "SupportActiveGem",
+            "UnusedGhost"
+        ])
+    );
+    assert_eq!(c["target_gem_effects_without_map_scope_count"], 4);
+    for (table, unused) in [
+        ("GrantedEffects", vec![json!(["_index"])]),
+        ("GemEffects", vec![json!(["Id"])]),
+        ("SkillGems", vec![json!(["GemType"])]),
+        ("BaseItemTypes", vec![]),
+    ] {
+        let unconsumed = c["unconsumed_source"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .find(|entry| entry["table"] == table)
+            .unwrap();
+        assert_eq!(
+            unconsumed["columns"]
+                .as_array()
+                .unwrap()
+                .iter()
+                .map(|column| column["physical_fields"].clone())
+                .collect::<Vec<_>>(),
+            unused
+        );
+        assert_eq!(
+            unconsumed["source_row_range"]["end_exclusive"],
+            f.documents[&format!("tables/{table}.json")]["rows"]
+                .as_array()
+                .unwrap()
+                .len()
+        );
+    }
+}
+
+#[test]
+fn target_gem_coverage_rejects_dangling_and_malformed_consumed_fields() {
+    for (table, field, value, expected) in [
+        (
+            "GemEffects",
+            "GrantedEffect",
+            json!(999),
+            "GemEffects/0.GrantedEffect",
+        ),
+        (
+            "GemEffects",
+            "AdditionalGrantedEffects",
+            json!([5, 999]),
+            "GemEffects/0.AdditionalGrantedEffects",
+        ),
+        (
+            "GemEffects",
+            "GrantedEffect",
+            json!(-1),
+            "physical reference",
+        ),
+        (
+            "GemEffects",
+            "AdditionalGrantedEffects",
+            json!([null]),
+            "physical reference",
+        ),
+        (
+            "GemEffects",
+            "AdditionalGrantedEffects",
+            Value::Null,
+            "expected array",
+        ),
+        (
+            "GrantedEffects",
+            "IsSupport",
+            Value::Null,
+            "boolean required",
+        ),
+        (
+            "SkillGems",
+            "BaseItemType",
+            json!(999),
+            "dangling BaseItemType",
+        ),
+        (
+            "SkillGems",
+            "GemEffects",
+            json!([999]),
+            "dangling GemEffects",
+        ),
+        ("SkillGems", "GemEffects", Value::Null, "SkillGems/0"),
+        ("BaseItemTypes", "Name", Value::Null, "BaseItemTypes/0.Name"),
+    ] {
+        let mut f = fixture();
+        f.values(table, 0)[field] = value;
+        reseal(&mut f);
+        rejects(&f, expected);
+    }
+    for (table, column) in [
+        ("GrantedEffects", 4),
+        ("GemEffects", 1),
+        ("GemEffects", 2),
+        ("SkillGems", 0),
+        ("SkillGems", 1),
+        ("BaseItemTypes", 0),
+        ("BaseItemTypes", 1),
+    ] {
+        let mut f = fixture();
+        let doc = f
+            .documents
+            .get_mut(&format!("tables/{table}.json"))
+            .unwrap();
+        doc["columns"][column]["schema"]["type"] = json!("invalid");
+        reseal(&mut f);
+        rejects(&f, "source schema type mismatch");
+    }
+    for (table, row, field, value, expected) in [
+        (
+            "SkillGems",
+            4,
+            "GemEffects",
+            json!([999]),
+            "dangling GemEffects",
+        ),
+        (
+            "SkillGems",
+            5,
+            "GemEffects",
+            json!([999]),
+            "dangling GemEffects",
+        ),
+        (
+            "GemEffects",
+            6,
+            "GrantedEffect",
+            json!(999),
+            "GemEffects/6.GrantedEffect",
+        ),
+    ] {
+        let mut f = fixture();
+        f.values(table, row)[field] = value;
+        reseal(&mut f);
+        rejects(&f, expected);
+    }
 }
 
 #[test]
@@ -534,7 +775,7 @@ fn seven_file_replay_keeps_legacy_metadata_and_separates_target_provenance() {
     assert_eq!(r["files"].as_object().unwrap().len(), 6);
     assert_eq!(
         r["input"]["selected_payloads"].as_object().unwrap().len(),
-        4
+        7
     );
     assert_eq!(
         read(&f, "_domain_candidate.json")["domain"],
