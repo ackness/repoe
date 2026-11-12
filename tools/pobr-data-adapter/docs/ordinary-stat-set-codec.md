@@ -120,6 +120,32 @@ pre-merge unbound keys as historical evidence, without claiming that runtime
 binding was performed. Source acquisition remains draft and output is
 `complete_runtime: false`, `adoption: "not-adopted"`.
 
+### Forward mode
+
+`--mode forward` records content gaps in `conversion.coverage`; see
+[ordinary coverage](ordinary-coverage.md) for the shared receipt shape. Strict
+mode remains the default and returns the existing error messages.
+
+| Site | Issue kind | Action and entity |
+| --- | --- | --- |
+| Codec skill has no target owner | `codec-owner-unknown` | `retained-legacy`, skill ID |
+| Set is not raw-owned and no exact exception exists | `codec-ownership-unlisted` | `retained-legacy`, `<skill>/<set_id>/<index>` |
+| Ownership exception is unused or now raw-owned | `codec-exception-stale` | `listed`, `<skill>/<set_id>/<index>` |
+| Historical bound plus unbound count differs from codec length | `codec-evidence-count` | `retained-legacy`, `stat-set-codec` |
+| Historical unbound key is absent from the codec | `codec-evidence-key` | `listed`, `<skill>/<set_id>/<index>` |
+
+The codec and policy bytes stay verbatim. Unknown owners and unlisted ownership
+records have classifications `unknown-owner` and `unresolved`, respectively;
+neither contributes to `raw_owned_records`. Observed values include the exact
+codec or policy key and available raw owner. Count issues include `evidence`
+(bound plus unbound), `codec` (codec length), and the separate `bound` and
+`unbound` counts. An overflowing evidence total is `null`, with its two components
+still reported.
+
+Pins, metadata, schemas, duplicate keys, malformed identities and dangling
+physical references remain fatal in both modes. Forward conversion does not
+infer replacement indices, sets or ownership.
+
 ## Unchanged consumer and verification
 
 GameData already binds codec entries by `(effect_id,set_id)` and gives native

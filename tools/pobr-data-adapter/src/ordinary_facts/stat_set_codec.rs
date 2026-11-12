@@ -13,6 +13,7 @@ use pobr_data::catalog::StatSetLabelsDef;
 use serde::Serialize;
 use serde_json::{Value, json};
 
+use super::coverage::{Action, Coverage, Issue};
 use crate::facts::reader::{self, Tables, VerifiedFacts};
 use crate::raw_source::sha256_hex;
 
@@ -72,7 +73,7 @@ impl Owner {
 pub(super) fn convert(
     input: &VerifiedFacts,
     args: &super::CodecArgs,
-    _coverage: &mut super::coverage::Coverage,
+    coverage: &mut Coverage,
 ) -> Result<Converted, String> {
     let policy_input = read_pinned(&args.policy, &args.policy_sha256, "codec policy")?;
     let policy: policy::Policy =
@@ -116,50 +117,100 @@ pub(super) fn convert(
                 "codec row {source_row}: duplicate (skill,index) or (skill,set_id)"
             ));
         }
-        let owner = owners
-            .get(&row.skill)
-            .ok_or_else(|| format!("codec row {source_row}: unknown target owner {}", row.skill))?;
-        referenced_owners.insert(&row.skill, owner);
-        let classification = if owner.contains(&row.set_id) {
-            "raw-owned"
-        } else {
-            let exception = exceptions.remove(&key).ok_or_else(|| {
-                format!(
-                    "codec row {source_row}: unlisted raw ownership exception for {}/{}/{}",
-                    row.skill, row.set_id, row.set_index
+        let owner = owners.get(&row.skill);
+        if owner.is_none() {
+            coverage.decide(
+                Issue::new(
+                    "codec-owner-unknown",
+                    &row.skill,
+                    Action::RetainedLegacy,
+                    format!("codec row {source_row}: unknown target owner {}", row.skill),
                 )
-            })?;
-            exception_records.push(json!({
-                "key":key, "codec_source_row":source_row, "current_owner":owner,
-                "reason":exception.reason, "action":"preserve unchanged; no remapping or branch application"
-            }));
-            "policy-exception"
+                .observed("key", json!(key)),
+            )?;
+        }
+        let classification = if let Some(owner) = owner {
+            referenced_owners.insert(&row.skill, owner);
+            if owner.contains(&row.set_id) {
+                "raw-owned"
+            } else if let Some(exception) = exceptions.remove(&key) {
+                exception_records.push(json!({
+                    "key":key, "codec_source_row":source_row, "current_owner":owner,
+                    "reason":exception.reason, "action":"preserve unchanged; no remapping or branch application"
+                }));
+                "policy-exception"
+            } else {
+                coverage.decide(
+                    Issue::new(
+                        "codec-ownership-unlisted",
+                        format!("{}/{}/{}", row.skill, row.set_id, row.set_index),
+                        Action::RetainedLegacy,
+                        format!(
+                            "codec row {source_row}: unlisted raw ownership exception for {}/{}/{}",
+                            row.skill, row.set_id, row.set_index
+                        ),
+                    )
+                    .observed("key", json!(key))
+                    .observed("target_owner", json!(owner)),
+                )?;
+                "unresolved"
+            }
+        } else {
+            "unknown-owner"
         };
         records
             .push(json!({"key":key,"codec_source_row":source_row,"classification":classification}));
         keys.insert(key);
     }
-    if !exceptions.is_empty() {
-        return Err(
-            "unused/stale codec ownership exception (missing record or now raw-owned)".into(),
-        );
+    for (key, exception) in exceptions {
+        coverage.decide(
+            Issue::new(
+                "codec-exception-stale",
+                format!("{}/{}/{}", key.skill, key.set_id, key.set_index),
+                Action::Listed,
+                "unused/stale codec ownership exception (missing record or now raw-owned)",
+            )
+            .observed("policy_exception", json!(exception)),
+        )?;
     }
     // These are declared comparison results, not a runtime binding calculation.
     let evidence = &policy.evidence;
-    if evidence
+    let evidence_count = evidence
         .bound_before_prepared_merges_in_both
-        .checked_add(evidence.unbound_before_prepared_merges_in_both.len())
-        != Some(codec.labels.len())
-        || evidence
-            .unbound_before_prepared_merges_in_both
-            .iter()
-            .any(|key| !keys.contains(key))
-    {
-        return Err("historical codec binding evidence does not describe this snapshot".into());
+        .checked_add(evidence.unbound_before_prepared_merges_in_both.len());
+    if evidence_count != Some(codec.labels.len()) {
+        coverage.decide(
+            Issue::new(
+                "codec-evidence-count",
+                "stat-set-codec",
+                Action::RetainedLegacy,
+                "historical codec binding evidence does not describe this snapshot",
+            )
+            .observed("evidence", json!(evidence_count))
+            .observed("codec", codec.labels.len())
+            .observed("bound", evidence.bound_before_prepared_merges_in_both)
+            .observed(
+                "unbound",
+                evidence.unbound_before_prepared_merges_in_both.len(),
+            ),
+        )?;
+    }
+    for key in &evidence.unbound_before_prepared_merges_in_both {
+        if !keys.contains(key) {
+            coverage.decide(
+                Issue::new(
+                    "codec-evidence-key",
+                    format!("{}/{}/{}", key.skill, key.set_id, key.set_index),
+                    Action::Listed,
+                    "historical codec binding evidence does not describe this snapshot",
+                )
+                .observed("key", json!(key)),
+            )?;
+        }
     }
     let receipt = json!({
         "codec_records":codec.labels.len(), "codec_owners":referenced_owners.len(),
-        "raw_owned_records":codec.labels.len()-exception_records.len(),
+        "raw_owned_records":records.iter().filter(|record|record["classification"]=="raw-owned").count(),
         "exception_records":exception_records.len(),
         "empty_labels":codec.labels.iter().filter(|r| r.label.is_empty()).count(),
         "legacy_source":{
