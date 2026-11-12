@@ -13,6 +13,7 @@ use pobr_data::catalog::StatSetLabelsDef;
 use pobr_data::catalog::skill_overrides::{SkillOverrideEntry, SkillOverridesDef};
 use serde_json::{Value, json};
 
+use super::coverage::{Action, Coverage, Issue};
 use super::skill_stat_map::policy::identity;
 use super::stat_set_codec::{self, read_pinned};
 use crate::facts::reader::{self, Tables, VerifiedFacts};
@@ -39,7 +40,7 @@ pub(super) fn convert(
     input: &VerifiedFacts,
     args: &super::CodecArgs,
     branch: &super::BranchCodecArgs,
-    _coverage: &mut super::coverage::Coverage,
+    coverage: &mut Coverage,
 ) -> Result<Converted, String> {
     let pinned_policy = read_pinned(&args.policy, &args.policy_sha256, "skill-overrides policy")?;
     let policy: policy::Policy = serde_json::from_value(pinned_policy.document)
@@ -104,6 +105,7 @@ pub(super) fn convert(
     let mut retained = 0;
     let mut virtual_numeric = 0;
     let mut delegated_implicit = BTreeSet::new();
+    let mut omitted = BTreeSet::new();
     for (source_row, (entry, output)) in dto
         .overrides
         .iter()
@@ -119,11 +121,31 @@ pub(super) fn convert(
         }
         let effect_row = facts.effects.get(&entry.skill).copied();
         let binding = if entry.stat == "base_multiplier" {
+            let exception = numeric_exceptions.remove(&key);
+            if let Some(exception) = exception {
+                record_exception_row_move(
+                    &mut exception_row_moved,
+                    "legacy_numeric_exceptions",
+                    &key,
+                    exception.source_row,
+                    source_row,
+                );
+            }
             if let Some(effect_row) = effect_row {
-                if numeric_exceptions.contains_key(&key) {
-                    return Err(format!(
-                        "stale legacy numeric exception for {key}: target effect now exists"
-                    ));
+                if let Some(exception) = exception {
+                    coverage.decide(
+                        Issue::new(
+                            "exception-stale",
+                            key.to_string(),
+                            Action::Listed,
+                            format!(
+                                "stale legacy numeric exception for {key}: target effect now exists"
+                            ),
+                        )
+                        .observed("exception_list", "legacy_numeric_exceptions")
+                        .observed("exception", json!(exception))
+                        .observed("target_effect_present", true),
+                    )?;
                 }
                 let owner = stat_set_codec::read_owner(&tables, effect_row)?;
                 let numbers = rebuild(
@@ -136,16 +158,18 @@ pub(super) fn convert(
                 target_numeric += 1;
                 json!({"status":"target-primary-numeric","target_owner":owner,"numbers":numbers})
             } else {
-                let exception = numeric_exceptions
-                    .remove(&key)
-                    .ok_or_else(|| format!("unlisted legacy numeric exception for {key}"))?;
-                record_exception_row_move(
-                    &mut exception_row_moved,
-                    "legacy_numeric_exceptions",
-                    &key,
-                    exception.source_row,
-                    source_row,
-                );
+                if exception.is_none() {
+                    coverage.decide(
+                        Issue::new(
+                            "base-multiplier-no-target",
+                            key.to_string(),
+                            Action::RetainedLegacy,
+                            format!("unlisted legacy numeric exception for {key}"),
+                        )
+                        .observed("key", json!(key))
+                        .observed("target_effect_present", false),
+                    )?;
+                }
                 virtual_numeric += 1;
                 json!({"status":"legacy-only-numeric","target_owner":null,"policy_exception":exception,
                     "scope":"virtual community entry retained unchanged; not target numeric acquisition"})
@@ -157,11 +181,32 @@ pub(super) fn convert(
             let owner = effect_row
                 .map(|row| stat_set_codec::read_owner(&tables, row))
                 .transpose()?;
+            let candidate = unbound.remove(&key);
+            if let Some(exception) = candidate {
+                record_exception_row_move(
+                    &mut exception_row_moved,
+                    "unbound_retained_entries",
+                    &key,
+                    exception.source_row,
+                    source_row,
+                );
+            }
             let branch_binding = if let (Some((codec_row, label)), Some(owner)) = (label, &owner) {
-                if unbound.contains_key(&key) {
-                    return Err(format!(
-                        "stale unbound retained exception for {key}: branch now matches"
-                    ));
+                if let Some(exception) = candidate {
+                    coverage.decide(
+                        Issue::new(
+                            "exception-stale",
+                            key.to_string(),
+                            Action::Listed,
+                            format!(
+                                "stale unbound retained exception for {key}: branch now matches"
+                            ),
+                        )
+                        .observed("exception_list", "unbound_retained_entries")
+                        .observed("exception", json!(exception))
+                        .observed("codec_present", true)
+                        .observed("target_effect_present", true),
+                    )?;
                 }
                 if !owner.contains(&label.set_id) {
                     return Err(format!(
@@ -171,20 +216,33 @@ pub(super) fn convert(
                 }
                 json!({"status":"raw-owned","codec_source_row":codec_row,"codec_record":codec.document["labels"][*codec_row],"target_owner":owner})
             } else {
-                let exception = unbound
-                    .remove(&key)
-                    .filter(|e| {
-                        e.codec_present == label.is_some()
-                            && e.target_effect_present == effect_row.is_some()
-                    })
-                    .ok_or_else(|| format!("unlisted/changed unbound retained entry for {key}"))?;
-                record_exception_row_move(
-                    &mut exception_row_moved,
-                    "unbound_retained_entries",
-                    &key,
-                    exception.source_row,
-                    source_row,
-                );
+                let exception = candidate.filter(|e| {
+                    e.codec_present == label.is_some()
+                        && e.target_effect_present == effect_row.is_some()
+                });
+                if exception.is_none() {
+                    let message = format!("unlisted/changed unbound retained entry for {key}");
+                    coverage.decide(
+                        Issue::new(
+                            "retained-unbound",
+                            key.to_string(),
+                            Action::RetainedLegacy,
+                            &message,
+                        )
+                        .observed("key", json!(key))
+                        .observed("codec_present", label.is_some())
+                        .observed("target_effect_present", effect_row.is_some()),
+                    )?;
+                    if let Some(stale) = candidate {
+                        coverage.decide(
+                            Issue::new("exception-stale", key.to_string(), Action::Listed, message)
+                                .observed("exception_list", "unbound_retained_entries")
+                                .observed("exception", json!(stale))
+                                .observed("codec_present", label.is_some())
+                                .observed("target_effect_present", effect_row.is_some()),
+                        )?;
+                    }
+                }
                 json!({"status":"policy-unbound","codec_record":null,"target_owner":owner,"policy_exception":exception,
                     "scope":"retained unchanged without target branch claim; no producer primary fallback or retargeting"})
             };
@@ -194,6 +252,7 @@ pub(super) fn convert(
             {
                 retained -= 1;
                 delegated_implicit.insert(source_row);
+                omitted.insert(source_row);
                 let (_, label) = label.ok_or("delegated implicit stat has no codec binding")?;
                 let primary = owner
                     .as_ref()
@@ -208,25 +267,41 @@ pub(super) fn convert(
                     "legacy_stat_id":entry.stat_id,"legacy_stat_present_in_target":entry.stat_id.as_ref().is_some_and(|id|facts.stats.contains_key(id)),
                     "scope":"raw-owned implicit membership belongs to ordinary-skills; old overlay entry archived and removed even when target membership changes; no old flag is re-injected"})
             } else {
-                let stat =
-                    entry
-                        .stat_id
-                        .as_ref()
-                        .map(|id| {
-                            let row = facts.stats.get(id).ok_or_else(|| {
-                        format!("implicit stat Id {id} absent from target Stats; policy conflict")
-                    })?;
-                            Ok::<_, String>(json!({"table":"Stats","source_row":row,"id":id}))
-                        })
-                        .transpose()?;
-                json!({"status":"retained-community-interpretation","branch":branch_binding,"implicit_stat":stat,
-                "scope":"authored raw JSON preserved; target identity checks are not mechanic correctness certification"})
+                let mut stat = None;
+                if let Some(id) = &entry.stat_id {
+                    if let Some(row) = facts.stats.get(id) {
+                        stat = Some(json!({"table":"Stats","source_row":row,"id":id}));
+                    } else {
+                        coverage.decide(
+                            Issue::new(
+                                "implicit-stat-absent",
+                                key.to_string(),
+                                Action::Quarantined,
+                                format!(
+                                    "implicit stat Id {id} absent from target Stats; policy conflict"
+                                ),
+                            )
+                            .observed("key", json!(key))
+                            .observed("stat_id", id.as_str()),
+                        )?;
+                        omitted.insert(source_row);
+                        retained -= 1;
+                    }
+                }
+                if omitted.contains(&source_row) {
+                    json!({"status":"quarantined-implicit-stat","branch":branch_binding,"legacy_stat_id":entry.stat_id,
+                        "scope":"entry omitted because its implicit stat is absent from target Stats; original entry archived unchanged"})
+                } else {
+                    json!({"status":"retained-community-interpretation","branch":branch_binding,"implicit_stat":stat,
+                    "scope":"authored raw JSON preserved; target identity checks are not mechanic correctness certification"})
+                }
             }
         };
+        let emitted = !omitted.contains(&source_row);
         records.push(json!({"source_row":source_row,"source_pointer":format!("/overrides/{source_row}"),"key":key,
             "source_entry_sha256":sha256_hex(&reader::json_bytes(raw)?),
-            "output_entry_sha256":if delegated_implicit.contains(&source_row){None}else{Some(sha256_hex(&reader::json_bytes(output)?))},
-            "emitted":!delegated_implicit.contains(&source_row),
+            "output_entry_sha256":if emitted{Some(sha256_hex(&reader::json_bytes(output)?))}else{None},
+            "emitted":emitted,
             "entry_value_unchanged":raw.eq(output),"binding":binding}));
     }
     if !numeric_exceptions.is_empty() || !unbound.is_empty() {
@@ -236,13 +311,31 @@ pub(super) fn convert(
             .map(ToString::to_string)
             .collect::<Vec<_>>()
             .join(", ");
-        return Err(format!(
-            "unused/stale numeric or unbound retained exception: {unused}"
-        ));
+        let message = format!("unused/stale numeric or unbound retained exception: {unused}");
+        for (list, key, exception) in numeric_exceptions
+            .iter()
+            .map(|(key, exception)| ("legacy_numeric_exceptions", key, json!(exception)))
+            .chain(
+                unbound
+                    .iter()
+                    .map(|(key, exception)| ("unbound_retained_entries", key, json!(exception))),
+            )
+        {
+            coverage.decide(
+                Issue::new(
+                    "exception-unused",
+                    key.to_string(),
+                    Action::Listed,
+                    &message,
+                )
+                .observed("exception_list", list)
+                .observed("exception", exception),
+            )?;
+        }
     }
     let mut source_row = 0;
     output_entries.retain(|_| {
-        let keep = !delegated_implicit.contains(&source_row);
+        let keep = !omitted.contains(&source_row);
         source_row += 1;
         keep
     });

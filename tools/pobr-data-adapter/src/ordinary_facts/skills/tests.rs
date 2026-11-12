@@ -826,3 +826,325 @@ fn active_skill_types_list_every_row_in_order_with_one_based_index() {
     // The fact reader already refuses an empty row Id.
     rejects(&f, "empty or duplicate stable game id");
 }
+
+#[test]
+fn forward_isolates_gem_rows_and_reports_both_kinds_without_guessing_a_variant() {
+    use super::super::coverage::AdapterMode;
+
+    let baseline = fixture();
+    run(args(&baseline)).unwrap();
+    let mut f = fixture();
+    f.values("SkillGems", 0)["GemEffects"] = json!([]);
+    f.values("SkillGems", 1)["GemEffects"] = json!([2, 1]);
+    f.values("SkillGems", 2)["GemColour"] = json!(-1);
+    f.values("SkillGems", 4)["GemEffects"] = json!([4, 0]);
+    f.seal();
+    let mut a = args(&f);
+    a.mode = AdapterMode::Forward;
+    run(a).unwrap();
+
+    let gems: Vec<SkillGemDef> = read(&f, "base/skill_gems.json");
+    assert_eq!(
+        gems.iter().map(|gem| gem.id.as_str()).collect::<Vec<_>>(),
+        ["Metadata/Minion"]
+    );
+    let receipt: Value = read(&f, "producer-receipt.json");
+    let conversion = &receipt["conversion"];
+    let coverage = &conversion["coverage"];
+    assert_eq!(
+        coverage["counts"],
+        json!({"quarantined":3,"listed":1,"emitted-with-gap":0,"retained-legacy":0})
+    );
+    let issues = coverage["issues"].as_array().unwrap();
+    let decisions: Vec<_> = issues
+        .iter()
+        .map(|issue| {
+            assert_eq!(issue["domain"], "skills");
+            (
+                issue["kind"].as_str().unwrap(),
+                issue["entity"].as_str().unwrap(),
+                issue["action"].as_str().unwrap(),
+            )
+        })
+        .collect();
+    assert_eq!(
+        decisions,
+        [
+            ("gem-effects-count", "Metadata/Attack", "quarantined"),
+            ("gem-effects-count", "Metadata/Compound", "quarantined"),
+            ("gem-effects-count", "Metadata/Dev", "listed"),
+            ("gem-invalid-field", "Metadata/Support", "quarantined"),
+        ]
+    );
+    assert_eq!(issues[0]["observed"]["count"], 2);
+    assert_eq!(issues[0]["observed"]["gem_effects"], json!([2, 1]));
+    assert_eq!(issues[1]["observed"]["count"], 0);
+    assert_eq!(issues[3]["observed"]["field"], "GemColour");
+    assert_eq!(issues[3]["observed"]["value"], -1);
+    assert_eq!(
+        conversion["provenance"]["gems"],
+        json!([{"source_row":3,"id":"Metadata/Minion","base_source_row":2,
+            "gem_effect_source_row":3,"variant_id":"MinionVariant",
+            "experience_type_source_row":0}])
+    );
+    assert_eq!(conversion["excluded_gems"], json!([]));
+    assert_eq!(receipt.as_object().unwrap().len(), 10);
+    assert_eq!(receipt["files"].as_object().unwrap().len(), 9);
+    let members: Vec<_> = receipt["files"]
+        .as_object()
+        .unwrap()
+        .keys()
+        .filter(|path| path.starts_with("base/"))
+        .collect();
+    assert_eq!(members.len(), 6);
+    for file in members {
+        if file != "base/skill_gems.json" {
+            assert_eq!(
+                fs::read(f.root.join("out").join(file)).unwrap(),
+                fs::read(baseline.root.join("out").join(file)).unwrap(),
+                "{file}"
+            );
+        }
+    }
+}
+
+#[test]
+fn strict_gem_count_errors_keep_the_exact_old_message_for_normal_and_placeholder_rows() {
+    for row in [0, 4] {
+        for links in [json!([]), json!([0, 1])] {
+            let mut f = fixture();
+            f.values("SkillGems", row)["GemEffects"] = links;
+            f.seal();
+            assert_eq!(
+                run(args(&f)).unwrap_err(),
+                format!("SkillGems/{row}: expected exactly one GemEffects reference")
+            );
+            assert!(!f.root.join("out").exists());
+        }
+    }
+}
+
+#[test]
+fn invalid_gem_fields_keep_strict_messages_and_isolate_normal_and_placeholder_rows() {
+    use super::super::coverage::AdapterMode;
+
+    for (field, value, message) in [
+        ("GemType", Value::Null, "expected signed i32"),
+        (
+            "GemColour",
+            json!(-1),
+            "negative value for unsigned ordinary field",
+        ),
+        ("MinLevelReq", json!(2147483648_i64), "expected signed i32"),
+        (
+            "StrengthRequirementPercent",
+            json!(1.5),
+            "expected signed i32",
+        ),
+        (
+            "DexterityRequirementPercent",
+            json!("bad"),
+            "expected signed i32",
+        ),
+        (
+            "IntelligenceRequirementPercent",
+            json!(false),
+            "expected signed i32",
+        ),
+        ("GemEffects", Value::Null, "expected array"),
+        (
+            "GemEffects",
+            json!([null]),
+            "invalid physical reference: null",
+        ),
+        ("GemEffects", json!([-1]), "invalid physical reference: -1"),
+        (
+            "GemEffects",
+            json!([0, 1.5]),
+            "invalid physical reference: 1.5",
+        ),
+        (
+            "GemEffects",
+            json!([false, 0]),
+            "invalid physical reference: false",
+        ),
+        (
+            "GemEffects",
+            json!(["bad"]),
+            "invalid physical reference: \"bad\"",
+        ),
+        (
+            "GemEffects",
+            json!([null, null]),
+            "invalid physical reference: null",
+        ),
+        (
+            "ItemExperienceType",
+            Value::Null,
+            "invalid physical reference: null",
+        ),
+        (
+            "ItemExperienceType",
+            json!(-1),
+            "invalid physical reference: -1",
+        ),
+        (
+            "ItemExperienceType",
+            json!([999]),
+            "invalid physical reference: [999]",
+        ),
+    ] {
+        for (row, id, action, remaining) in [
+            (0, "Metadata/Compound", "quarantined", 3),
+            (4, "Metadata/Dev", "listed", 4),
+        ] {
+            let mut f = fixture();
+            f.values("SkillGems", row)[field] = value.clone();
+            f.seal();
+            let expected = format!("SkillGems/{row}.{field}: {message}");
+            assert_eq!(run(args(&f)).unwrap_err(), expected);
+            assert!(!f.root.join("out").exists());
+
+            let mut a = args(&f);
+            a.mode = AdapterMode::Forward;
+            run(a).unwrap();
+            let gems: Vec<SkillGemDef> = read(&f, "base/skill_gems.json");
+            assert_eq!(gems.len(), remaining);
+            assert!(gems.iter().all(|gem| gem.id != id));
+            let receipt: Value = read(&f, "producer-receipt.json");
+            let conversion = &receipt["conversion"];
+            let issues = conversion["coverage"]["issues"].as_array().unwrap();
+            assert_eq!(issues.len(), 1);
+            assert_eq!(issues[0]["entity"], id);
+            assert_eq!(issues[0]["kind"], "gem-invalid-field");
+            assert_eq!(issues[0]["action"], action);
+            assert_eq!(issues[0]["message"], expected);
+            assert_eq!(issues[0]["observed"]["field"], field);
+            assert_eq!(issues[0]["observed"]["value"], value);
+            assert!(
+                conversion["provenance"]["gems"]
+                    .as_array()
+                    .unwrap()
+                    .iter()
+                    .all(|gem| gem["source_row"] != row)
+            );
+        }
+    }
+}
+
+#[test]
+fn forward_keeps_dangling_references_duplicate_keys_and_non_gem_defects_fatal() {
+    use super::super::coverage::AdapterMode;
+
+    for (table, row, field, value, expected) in [
+        ("SkillGems", 0, "GemEffects", json!([999]), "GemEffects/999"),
+        (
+            "SkillGems",
+            4,
+            "GemEffects",
+            json!([0, 999]),
+            "GemEffects/999",
+        ),
+        (
+            "SkillGems",
+            0,
+            "BaseItemType",
+            json!(999),
+            "BaseItemTypes/999",
+        ),
+        (
+            "SkillGems",
+            0,
+            "BaseItemType",
+            Value::Null,
+            "invalid physical reference: null",
+        ),
+        (
+            "SkillGems",
+            0,
+            "ItemExperienceType",
+            json!(999),
+            "ItemExperienceTypes/999",
+        ),
+        (
+            "SkillGems",
+            1,
+            "BaseItemType",
+            json!(3),
+            "duplicate BaseItemType",
+        ),
+        ("Stats", 1, "Id", json!("damage"), "duplicate"),
+        ("GrantedEffects", 0, "CastTime", json!(-1), "negative value"),
+        (
+            "GrantedEffectsPerLevel",
+            0,
+            "CostAmounts",
+            json!([1]),
+            "paired array length",
+        ),
+        (
+            "GrantedEffectStatSets",
+            0,
+            "ConstantStatsValues",
+            json!([]),
+            "paired array length",
+        ),
+        (
+            "GrantedEffectStatSetsPerLevel",
+            0,
+            "GemLevel",
+            json!(-1),
+            "negative value",
+        ),
+        (
+            "ItemExperiencePerLevel",
+            0,
+            "Level",
+            json!(-1),
+            "negative value",
+        ),
+    ] {
+        let mut f = fixture();
+        f.values(table, row)[field] = value;
+        f.seal();
+        let strict = run(args(&f)).unwrap_err();
+        assert!(strict.contains(expected), "{table}.{field}: {strict}");
+        let mut a = args(&f);
+        a.mode = AdapterMode::Forward;
+        assert_eq!(run(a).unwrap_err(), strict);
+        assert!(!f.root.join("out").exists());
+    }
+
+    for row in [0, 4] {
+        for links in [json!([null, 999]), json!([999, null])] {
+            let mut f = fixture();
+            f.values("SkillGems", row)["GemEffects"] = links;
+            f.seal();
+            let mut a = args(&f);
+            a.mode = AdapterMode::Forward;
+            assert!(
+                run(a).unwrap_err().contains("GemEffects/999"),
+                "a malformed link must not hide a dangling reference"
+            );
+            assert!(!f.root.join("out").exists());
+        }
+    }
+
+    // Quarantine must not hide later foreign keys or duplicate base identities.
+    for duplicate in [false, true] {
+        let mut f = fixture();
+        f.values("SkillGems", 0)["GemColour"] = json!(-1);
+        let expected = if duplicate {
+            f.values("SkillGems", 1)["BaseItemType"] = json!(3);
+            "duplicate BaseItemType"
+        } else {
+            f.values("SkillGems", 0)["GemEffects"] = json!([999]);
+            "GemEffects/999"
+        };
+        f.seal();
+        let mut a = args(&f);
+        a.mode = AdapterMode::Forward;
+        assert!(run(a).unwrap_err().contains(expected));
+        assert!(!f.root.join("out").exists());
+    }
+}

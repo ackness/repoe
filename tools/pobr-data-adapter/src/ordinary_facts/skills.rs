@@ -41,7 +41,7 @@ pub(super) fn convert(
     input: &VerifiedFacts,
     _coverage: &mut Coverage,
 ) -> Result<Converted, String> {
-    let source = validation::PhysicalSkills::checked(input)?;
+    let source = validation::PhysicalSkills::checked_with_coverage(input, _coverage)?;
     let mut bundle = skills::adapt_skills_from(&source)?;
     let sets = skills::adapt_stat_sets_from(&source)?;
     let costs = skills::adapt_cost_types_from(&source)?;
