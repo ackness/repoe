@@ -78,11 +78,17 @@ or a new declaration, never by rewriting the old one.
 
 A facts package keeps the producer identity it was sealed with, so
 re-validating a historical package runs at its producer commit, in its own
-worktree. For a new patch the trust check compares only the target, and the
-producer is identified by the commit the receipt records (clean tree). That
-check is not implemented yet: until it is, a new export fails the producer
-identity check in the consumers in the table above. The rule and the
-procedure are in
+worktree. A new export is identified by its commit instead: its manifest
+carries the constant `producer_receipt`, and the exporter writes
+`<out>.export-receipt.json` beside the candidate directory with the commit,
+whether the exporters' code or environment was dirty, and whether the run was
+a `--rehearsal` ([export receipt](RePoE/docs/native/native_facts.md#export-receipt)).
+An exporter refuses a dirty checkout without `--rehearsal`; `release:inputs`
+and `release:build` require the field and the receipt, and a rehearsal or
+dirty export is never built or published (the crafting export is not receipted
+yet). The adapter accepts receipted manifests without comparing the historical
+producer hashes; its target, schema, decoder and payload checks still apply.
+The rule and the procedure are in
 [native facts](RePoE/docs/native/native_facts.md#producer-identity-and-re-validation);
 the new-patch work is in [RELEASING.md](RELEASING.md#a-new-game-patch).
 
@@ -131,6 +137,12 @@ Symptom, cause, fix.
 - A request or lock file looks free to edit but a published receipt pins its
   bytes (see the [never-move table](#never-move-or-rewrite)). Before editing one,
   check whether a published receipt or package pins it; if so, add a new file.
+- An exporter (`facts:candidate`, `tables:candidate`, …) exits 1 with
+  `Refusing to export from a dirty checkout`: a file under the exporters' code
+  or environment is uncommitted (the message lists the paths). Commit it, or
+  pass `--rehearsal` for an export that `release:build` and the publish
+  commands refuse. Tests that export in-process call `checkout()` from
+  `tests/client/test_export_receipt.py`; subprocess runs pass `--rehearsal`.
 - Never move or delete a tag, and never rewrite anything in the
   [never-move table](#never-move-or-rewrite); fix mistakes with a new tag, file
   or declaration.
@@ -140,7 +152,7 @@ Symptom, cause, fix.
 | Change | Run |
 | --- | --- |
 | Documentation only | Check relative links and anchors; no tests |
-| Python in `RePoE/client/`, `RePoE/native/`, `RePoE/parser/` | `mise run check`; `RePoE/__init__.py`, `client/__init__.py`, `client/source_io.py` and `client/source_rebinding.py` are release-build inputs, so also the release row below |
+| Python in `RePoE/client/`, `RePoE/native/`, `RePoE/parser/` | `mise run check`; `RePoE/__init__.py`, `client/__init__.py`, `client/export_receipt.py`, `client/source_io.py` and `client/source_rebinding.py` are release-build inputs, so also the release row below |
 | `RePoE/release/`, `release/`, the adapter or its policies | `mise run check`, `mise run adapter:check`, `mise run adapter:keystones`, and `release:build -- --config release/<dir> --fetch --check` for every declaration (CI does this too) |
 | Adapter comments or docs inside `src/` | As above: `implementation_sha256` includes the sources, so the receipt's `implementation_revision` moves while the zip must not |
 | `schema/` | `mise run schema:check`, then the procedure in [schema/README.md](schema/README.md) |

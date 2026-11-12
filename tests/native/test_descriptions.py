@@ -14,6 +14,7 @@ from unittest.mock import patch
 from RePoE.native import csd
 from RePoE.native import descriptions as producer
 from RePoE.client import limits
+from tests.client.test_export_receipt import check_exporter, checkout
 
 
 BASE = "Data/StatDescriptions/base.csd"
@@ -150,6 +151,7 @@ class CandidateTests(unittest.TestCase):
         self.temporary = tempfile.TemporaryDirectory(prefix="description-test-", dir=cache)
         self.addCleanup(self.temporary.cleanup)
         self.root = Path(self.temporary.name)
+        checkout(self)
         self.raw = self.root / "raw"
         self.resources = {
             BASE: raw(description()),
@@ -191,6 +193,13 @@ class CandidateTests(unittest.TestCase):
             "out": self.root / out,
             "expected_source_lock_sha256": producer._sha(encoded),
         }
+
+    def test_export_writes_a_receipt_refuses_a_dirty_checkout_and_rehearses_the_same_bytes(self):
+        def export(name, **options):
+            producer.create_candidate(**self.args(name), **options)
+            return self.root / name
+
+        check_exporter(self, export, "RePoE.native.descriptions")
 
     def test_offline_candidate_retains_source_and_all_original_bytes(self):
         args = self.args()
@@ -312,6 +321,7 @@ class CandidateTests(unittest.TestCase):
                 str(self.raw),
                 "--out",
                 str(self.root / name),
+                "--rehearsal",
             ]
             completed = subprocess.run(
                 command, cwd=producer.ROOT, env={**os.environ, "PYTHONHASHSEED": seed}, text=True, capture_output=True

@@ -9,8 +9,11 @@ from types import SimpleNamespace
 import unittest
 from unittest import mock
 
+from RePoE.client import export_receipt
 from RePoE.release import build, inputs, policy_rebinding as rebinding
 from RePoE.release.pins import decode, encoded, pin
+from tests.client.test_export_receipt import candidate
+from tests.release.test_inputs import receipted
 
 
 class PolicyRebindingTest(unittest.TestCase):
@@ -96,14 +99,12 @@ class PolicyRebindingTest(unittest.TestCase):
 
     def files(self, target, payload):
         files = {"facts/value.json": encoded({"patch": target["game_patch"]}), "bindings.json": b"{}\n"}
-        files["facts/manifest.json"] = encoded(
-            {
-                "format": "repoe-native-facts/v4",
-                "status": "partial-candidate",
-                "production_ready": False,
-                "source_identity": target,
-                "files": {"value.json": pin(files["facts/value.json"])},
-            }
+        files["facts/manifest.json"] = candidate(
+            "repoe-native-facts/v4",
+            target,
+            status="partial-candidate",
+            production_ready=False,
+            files={"value.json": pin(files["facts/value.json"])},
         )
         files["text/descriptions.json"] = payload
         files["player/source-lock.json"] = encoded({"target": target})
@@ -111,8 +112,8 @@ class PolicyRebindingTest(unittest.TestCase):
             ("text", "repoe-native-descriptions/v1"),
             ("player", "repoe-native-player-context/v1"),
         ):
-            files[directory + "/manifest.json"] = encoded({"format": format_, "source_identity": target})
-        return files
+            files[directory + "/manifest.json"] = candidate(format_, target)
+        return receipted(files)
 
     def stage(self, name, files, target):
         source = self.root / (name + "-source")
@@ -169,6 +170,20 @@ class PolicyRebindingTest(unittest.TestCase):
         self.assertEqual(domains["jobs"][2]["member"], "data/0.6/manifest.json")
         for path, raw in before.items():
             self.assertEqual(path.read_bytes(), raw, path)
+        # Old published inputs have no export receipts; new members need no old counterpart.
+        old = {
+            "ordinary": SimpleNamespace(
+                members={n: pin(r) for n, r in self.old_files.items() if not n.endswith(export_receipt.SUFFIX)}
+            )
+        }
+        new = rebinding.staged_packages(self.new_stage, {"ordinary"}, self.cache, build.ROOT)
+        self.assertEqual(
+            build.export_commits(new),
+            {f"ordinary:{directory}.export-receipt.json": "c" * 40 for directory in ("facts", "player", "text")},
+        )
+        identities = rebinding.Identities(old, new, {"roots": {}}, {"roots": {}})
+        rebound, _ = rebinding.rebind_document(self.policy, identities, "0.5", "0.6", "policy:text/0.5-policy.json")
+        self.assertEqual(rebound, policy)
 
     def test_cli_lists_field_paths_and_changed_payload_members(self):
         output = io.StringIO()

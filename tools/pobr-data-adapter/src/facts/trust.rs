@@ -23,6 +23,17 @@ pub(crate) const SCHEMA_REVISION: &str = "6034b071846ef61b39046ebdb59e6d57171795
 pub(crate) const SCHEMA_SHA: &str =
     "50e098543345cf8323aeb294e2cfef1b6b44842faccf560ada935cebe22727df";
 
+/// The constant a receipted export carries in place of a producer identity known here.
+const PRODUCER_RECEIPT: &str = "repoe-export-receipt/v1";
+
+pub(crate) fn producer_receipt(manifest: &Value) -> Result<bool, String> {
+    match manifest.get("producer_receipt") {
+        None => Ok(false),
+        Some(value) if value == PRODUCER_RECEIPT => Ok(true),
+        Some(_) => Err("unsupported producer_receipt".into()),
+    }
+}
+
 // The 77 physical tables of the profile, in the producer's order: the base
 // passive/skill tables, then those added by the core-skill, gem and item/actor
 // profiles.
@@ -250,7 +261,8 @@ pub(crate) fn verify_selection(
 }
 
 fn verify_manifest(m: &Value) -> Result<(), String> {
-    let manifest_keys = [
+    let receipted = producer_receipt(m)?;
+    let mut manifest_keys = vec![
         "decoder",
         "files",
         "format",
@@ -264,7 +276,12 @@ fn verify_manifest(m: &Value) -> Result<(), String> {
         "summary",
         "profile",
     ]
-    .map(String::from);
+    .into_iter()
+    .map(String::from)
+    .collect::<Vec<_>>();
+    if receipted {
+        manifest_keys.push("producer_receipt".into());
+    }
     require(
         m["profile"].as_str() == Some(PROFILE),
         "invalid manifest profile",
@@ -314,9 +331,8 @@ fn verify_manifest(m: &Value) -> Result<(), String> {
     // This is the historical identity sealed into the pinned 0.5.5.5 facts
     // envelope: its keys are the paths of that commit (the exporters now live in
     // RePoE/native/) and must not follow a rename or edit of the current files.
-    // A new export names the current paths and hashes; accepting it means adding
-    // its identity next to this one, together with the `game_patch` above (see
-    // RELEASING.md, "A new game patch").
+    // New exports use the commit in their export receipt, checked by the release
+    // commands; this identity stays frozen for historical manifests.
     let expected_producer = serde_json::json!({
         "RePoE/native_actor_facts.py": "a0845e3866c5dd0fb21a8edb42f68fc9eec3affef19b426631c0066bd5e51f58",
         "RePoE/native_dat.py": "824f561af6e4b83243b459d726d6bad6821663061ac840d39c2854145707ff86",
@@ -333,7 +349,7 @@ fn verify_manifest(m: &Value) -> Result<(), String> {
         "uv.lock": "6ac815b9e4263081b51e823a3f297f35a1c55c7fa57956d3bdd5d4a506c1c66b"
     });
     require(
-        m["producer"] == expected_producer,
+        receipted || m["producer"] == expected_producer,
         "producer identity mismatch",
     )?;
     exact_keys(

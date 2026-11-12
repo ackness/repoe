@@ -24,6 +24,8 @@ The three completion-last files are `inheritance.json`, `source-lock.json`, and
 summary counts and `representation: {payload, format, tag_policy_id}`. Status is
 partial and `production_ready` is false. Destinations must be new and beneath
 this checkout's `.cache/`.
+The [export receipt](native_facts.md#export-receipt) is written beside the
+output directory; a dirty checkout is refused without `--rehearsal`.
 
 `inheritance.json.files[resource]` retains every physical line, ordered block,
 ordered field and directive: unknown/empty/nested blocks, duplicate field keys,

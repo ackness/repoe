@@ -12,6 +12,7 @@ from RePoE.native import schema_candidate
 from RePoE.native.tools import pinned_pypoe
 from tests.native.test_facts import dat_bytes
 from RePoE.client import limits
+from tests.client.test_export_receipt import check_exporter, checkout
 
 
 class SelectedTablesTests(unittest.TestCase):
@@ -27,6 +28,7 @@ class SelectedTablesTests(unittest.TestCase):
         temporary = tempfile.TemporaryDirectory(prefix="selected-tables-test-", dir=cache)
         self.addCleanup(temporary.cleanup)
         self.root = Path(temporary.name)
+        checkout(self)
         self.raw = self.root / "raw"
         (self.raw / "Data/Balance").mkdir(parents=True)
         self.lock = self.root / "lock.json"
@@ -75,7 +77,7 @@ class SelectedTablesTests(unittest.TestCase):
         self.lock.write_bytes(facts._json({"schema_version": 1, "sources": {"selected": self.source}}))
         self.expected = producer.envelope._sha(self.lock.read_bytes())
 
-    def create(self, out="candidate", language="English"):
+    def create(self, out="candidate", language="English", **options):
         return producer.create_candidate(
             source_lock=self.lock,
             source="selected",
@@ -83,7 +85,15 @@ class SelectedTablesTests(unittest.TestCase):
             expected_source_lock_sha256=self.expected,
             out=self.root / out,
             language=language,
+            **options,
         )
+
+    def test_export_writes_a_receipt_refuses_a_dirty_checkout_and_rehearses_the_same_bytes(self):
+        def export(name, **options):
+            self.create(name, **options)
+            return self.root / name
+
+        check_exporter(self, export, "RePoE.native.tables")
 
     def test_localized_source_preserves_exact_resource_identity_and_text(self):
         self.source["resources"] = {}

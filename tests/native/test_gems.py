@@ -230,6 +230,7 @@ class NativeGemTests(NativeGemFixture):
                     str(self.raw),
                     "--out",
                     str(out),
+                    "--rehearsal",
                 ],
                 cwd=schema_candidate.ROOT,
                 env={**os.environ, "PYTHONHASHSEED": seed},

@@ -265,6 +265,7 @@ class NativeItemsActorsTests(NativeGemFixture):
                     str(self.root / name),
                     "--profile",
                     facts.ITEMS_ACTORS_PROFILE,
+                    "--rehearsal",
                 ],
                 capture_output=True,
                 text=True,

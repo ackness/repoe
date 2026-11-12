@@ -34,7 +34,7 @@ import tomllib
 from urllib.parse import parse_qs, urlsplit
 import zipfile
 
-from RePoE.client import source_rebinding
+from RePoE.client import export_receipt, source_rebinding
 from RePoE.release import assets, crafting_catalog, gem_descriptions, historical_trees
 from RePoE.release.pins import archive_manifest, byte_pin, decode, encoded, pin, pinned, relative, require
 
@@ -55,6 +55,8 @@ RECEIPT = "repoe-release-receipt/v2"
 PACKAGE = "repoe-release-package/v1"
 PART_SCHEMA = "pobr-build-data-part/v1"
 FACTS_IDENTITIES = ("rebound", "original")
+# The pre-receipt ordinary input of release/0.5.5.5-2 and -3. Only these exact package bytes are exempt.
+HISTORICAL_INPUT_PACKAGES = {"a1290a172e280f08bd46722684e9ac7304634f906cfa400cfed34f9eebb84141"}
 # Adapter file options and the SHA-256 option the adapter requires next to them.
 # Directory options pin the directory's manifest.json.
 PAIRED = {
@@ -79,6 +81,7 @@ FACTS_KINDS = {"adapter", "gem-descriptions"}
 CODE = (
     "RePoE/release/build.py",
     "RePoE/release/assets.py",
+    "RePoE/client/export_receipt.py",
     "RePoE/client/source_rebinding.py",
     "RePoE/client/source_io.py",
     "RePoE/release/pins.py",
@@ -242,13 +245,8 @@ def load_config(config):
 # --- pinned inputs -------------------------------------------------------------------------------
 
 
-def git(repo, *args, check=True, online=False):
-    """Run Git; unless ``online``, a partial clone must not lazily fetch missing objects."""
-    env = os.environ if online else {**os.environ, "GIT_NO_LAZY_FETCH": "1"}
-    command = ["git", "--no-replace-objects", "-C", str(repo), *args]
-    result = subprocess.run(command, capture_output=True, check=False, env=env)
-    require(not check or result.returncode == 0, f"git {' '.join(args[:3])} failed: {result.stderr.decode().strip()}")
-    return result
+# One Git runner for the exporters' checkout identity and the release commands.
+git = export_receipt.git
 
 
 def tag_commit(repo, tag):
@@ -372,11 +370,20 @@ def prepare_facts(package, spec, cache):
             and manifest.get("production_ready") is False,
             "Expected a facts:candidate root",
         )
+        # A fresh root is a new export; without the field the adapter would check it as a historical package.
+        require(
+            manifest.get(export_receipt.FIELD) == export_receipt.SCHEMA,
+            f"Facts root {spec['root']} carries no {export_receipt.FIELD}: export it again",
+        )
         roots = {identity: (root, pin(manifest_raw)) for identity in FACTS_IDENTITIES}
     else:
         handoff_raw = package.read(spec["handoff"])
         handoff = decode(handoff_raw)
         archive = package.path(spec["archive"])
+        require(
+            package.members[spec["archive"]]["sha256"] in export_receipt.HISTORICAL_ARCHIVES,
+            "Only the frozen historical facts envelope is supported; use a receipted facts root",
+        )
         handoff_pin, archive_pin = pin(handoff_raw), handoff["archive"]
         root = cache / "facts" / handoff["archive"]["sha256"]
         if not (root / ".complete").is_file():
@@ -832,11 +839,10 @@ def pobr_contract(adapter, cargo_lock=CARGO_LOCK):
 def producer_identity(repo, adapter, config, config_pins):
     """The producer commit; dirty on any tracked change or any untracked file under the build's inputs."""
     head = git(repo, "rev-parse", "HEAD").stdout.decode().strip()
-    tracked = git(repo, "status", "--porcelain", "--untracked-files=no").stdout.decode().splitlines()
-    inputs = git(repo, "status", "--porcelain", "--untracked-files=all", "--", *PRODUCER_PATHS).stdout.decode()
-    dirty = sorted({line[3:] for line in tracked + inputs.splitlines() if line})
+    changed = export_receipt.changed_paths
+    dirty = sorted(changed(repo, untracked="no") | changed(repo, *PRODUCER_PATHS))
     return {
-        "repository": "ackness/repoe",
+        "repository": export_receipt.REPOSITORY,
         "commit": head,
         "dirty": bool(dirty),
         "dirty_paths": dirty,
@@ -845,6 +851,28 @@ def producer_identity(repo, adapter, config, config_pins):
         "adapter_binary": file_pin(adapter),
         "contract": pobr_contract(adapter),
     }
+
+
+def export_commits(packages):
+    """``{"<package>:<receipt member>": commit}`` of the receipted candidates in the opened packages.
+
+    Refuses a receipt that does not pin its candidate manifest, a rehearsal and a
+    dirty export. Whether the commit is reviewed code is ``release:inputs``'s
+    check: CI checks out shallowly and cannot test ancestry.
+    """
+    commits = {}
+    for key, package in packages.items():
+        try:
+            formats = () if package.spec.get("sha256") in HISTORICAL_INPUT_PACKAGES else export_receipt.FORMATS
+            receipts = export_receipt.package_receipts(package.members, package.read, formats)
+        except ValueError as error:
+            raise ValueError(f"{key}: {error}") from error
+        for member, receipt in receipts.items():
+            name = f"{key}:{member}"
+            reason = export_receipt.refusal(receipt)
+            require(reason is None, f"{name} {reason}; it cannot be built into a game package")
+            commits[name] = receipt["producer"]["commit"]
+    return commits
 
 
 def classify(members, reference, passthrough=()):
@@ -926,6 +954,7 @@ def build(
 
     log(f"opening {len(lock['packages'])} pinned packages")
     packages = {key: open_package(repo, key, spec, cache / "inputs", fetch) for key, spec in lock["packages"].items()}
+    exports = export_commits(packages)
     facts = None
     if "facts" in lock:
         log("verifying the facts input")
@@ -993,6 +1022,7 @@ def build(
         "inputs": {
             "packages": lock["packages"],
             "tags": {name: package.tag for name, package in packages.items() if package.tag},
+            "exports": exports,
             "facts": facts
             and {
                 "handoff": facts["handoff"],

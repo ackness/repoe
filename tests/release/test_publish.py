@@ -1,5 +1,6 @@
 """Offline tests for RePoE.release.publish: staging, SHA256SUMS, sequence numbers, preflight, release body."""
 
+import argparse
 import contextlib
 import hashlib
 import io
@@ -412,6 +413,27 @@ class MainTest(GitRepoCase):
         self.fixture.receipt["producer"].update(commit=self.head, dirty=True)
         self.fixture.write_build()
         self.assertEqual(self.main()[0], 1)
+
+    def test_a_rehearsal_or_dirty_receipt_is_never_published(self):
+        self.fixture.receipt["rehearsal"] = True
+        self.fixture.write_build()
+        # A dry run still stages it (a local mirror can serve a rehearsal).
+        self.assertEqual(self.main()[0], 0)
+        code, output, runner = self.main("--yes")
+        self.assertEqual(code, 1)
+        self.assertIn("release:publish: refusing to publish:\n  - receipt.json is a rehearsal", output)
+        self.assertEqual(runner.commands(), ["gh auth status"])
+        self.assertEqual(git(self.repo, "tag", "--list"), "")
+        # The guard reads the staged receipts itself, whatever problems its caller listed.
+        staged = publish.stage(self.fixture.build_dir, Path(self.temporary.name) / "direct")
+        staged["receipts"] = {"inputs.zip:facts.export-receipt.json": {"producer": {"dirty": True}}}
+        runner, stderr = Runner(self.repo), io.StringIO()
+        parser = argparse.ArgumentParser(prog="release:inputs")
+        with contextlib.redirect_stdout(io.StringIO()), contextlib.redirect_stderr(stderr):
+            with self.assertRaises(SystemExit):
+                publish.carry_out(parser, runner, staged, "t", self.head, [["git", "tag", "t"]], "tag", [], [], True)
+        self.assertIn("facts.export-receipt.json was produced from a dirty checkout", stderr.getvalue())
+        self.assertEqual(runner.calls, [])
 
     def test_a_failed_step_resumes_with_the_same_tag(self):
         runner = Runner(self.repo, {"create": (1, b"boom")})

@@ -22,6 +22,8 @@ tools. A freshly observed local digest is not authentication or source approval.
 Output must be absent and below this checkout's `.cache`; inputs are not modified.
 Every payload is prepared first, and the completion manifest is published last
 through the existing directory-relative candidate writer.
+The [export receipt](native_facts.md#export-receipt) is written beside the
+output directory; a dirty checkout is refused without `--rehearsal`.
 
 The schema-1 source lock's selected entry declares:
 

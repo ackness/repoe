@@ -36,6 +36,8 @@ No released membership, unit, quality multiplier or application policy follows
 from successful decoding alone.
 
 Repeat the same invocation with a fresh output for deterministic offline replay.
+The [export receipt](native_facts.md#export-receipt) is written beside the
+output directory; a dirty checkout is refused without `--rehearsal`.
 Existing candidates and all original native fact profiles remain unchanged.
 
 ## Localized physical tables

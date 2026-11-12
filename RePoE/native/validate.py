@@ -8,6 +8,7 @@ from pathlib import Path
 import struct
 import sys
 
+from RePoE.client import export_receipt
 from RePoE.native import facts
 from RePoE.native import schema_candidate
 from RePoE.native.tools import PIN, pinned_pypoe
@@ -96,6 +97,9 @@ def validate_candidate(*, source_lock, source, raw, candidate, manifest_sha256=N
         )
     for key in ("format", "status", "production_ready", "source_identity", "row_key", "scope", "summary", "schema"):
         _equal(manifest[key], expected_manifest[key], "manifest." + key)
+    # Not in the loop above: a candidate stripped of the field has no such key, and would pass as a historical one.
+    field = export_receipt.FIELD
+    _equal(manifest.get(field), expected_manifest[field], "manifest." + field)
     if profile != facts.BASE_PROFILE:
         _equal(manifest.get("profile"), profile, "manifest.profile")
         _equal(manifest["producer"], expected_manifest["producer"], "manifest.producer")

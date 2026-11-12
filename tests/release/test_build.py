@@ -18,8 +18,10 @@ import unittest
 from unittest import mock
 import zipfile
 
+from RePoE.client import export_receipt
 from RePoE.release.pins import encoded, pin
 from RePoE.release import build
+from tests.client.test_export_receipt import DIRTY, candidate, receipt_for
 
 TARGET = {"game": "poe2", "game_patch": "9.9", "realm": "international"}
 ORIGINAL = "a" * 64
@@ -376,6 +378,38 @@ class ReleaseBuildTest(unittest.TestCase):
         self.assertTrue(receipt["reference"]["members_identical"])
         self.assertFalse(outcome["package"]["identical_to_reference"])
 
+    def test_build_requires_receipts_for_every_export_format_and_checks_nested_receipts(self):
+        for format_ in sorted(export_receipt.FORMATS):
+            with self.subTest(format=format_):
+                stripped = encoded({"format": format_, "source_identity": TARGET})
+                config = self.fixture(extra_inputs={"candidate/manifest.json": stripped})
+                with self.assertRaisesRegex(ValueError, "inputs: candidate/manifest.json: no export receipt"):
+                    self.run_build(config)
+        manifest = candidate()
+        nested = zip_bytes(
+            {
+                "candidate/manifest.json": manifest,
+                "candidate.export-receipt.json": receipt_for(manifest, rehearsal=True),
+            }
+        )
+        config = self.fixture(extra_inputs={"envelope.zip": nested})
+        with self.assertRaisesRegex(ValueError, "inputs:envelope.zip!candidate.export-receipt.json is a rehearsal"):
+            self.run_build(config)
+        bare = zip_bytes({"manifest.json": manifest})
+        config = self.fixture(extra_inputs={"envelope.zip": bare})
+        with self.assertRaisesRegex(ValueError, "envelope.zip!manifest.json: candidate manifest must be inside"):
+            self.run_build(config)
+        # The historical extraction branch cannot unwrap an arbitrary unreceipted envelope under another name.
+        files = {"handoff.json": encoded({"archive": pin(bare)}), "envelope.bin": bare}
+        for name, raw in files.items():
+            build.write_new(self.root / "unreceipted" / name, raw)
+        package = build.Package("inputs", {}, b"", self.root / "unreceipted", {n: pin(r) for n, r in files.items()})
+        with (
+            mock.patch.object(build.source_rebinding, "verify", side_effect=AssertionError("unreviewed extraction")),
+            self.assertRaisesRegex(ValueError, "Only the frozen historical facts envelope"),
+        ):
+            build.prepare_facts(package, {"handoff": "handoff.json", "archive": "envelope.bin"}, self.root / "cache")
+
     def test_fresh_facts_root_builds_with_one_pinned_identity(self):
         from RePoE.release import inputs
 
@@ -386,6 +420,7 @@ class ReleaseBuildTest(unittest.TestCase):
                 "status": "partial-candidate",
                 "production_ready": False,
                 "source_identity": TARGET,
+                export_receipt.FIELD: export_receipt.SCHEMA,
                 "files": {name: pin(raw) for name, raw in payloads.items()},
             }
         )
@@ -394,17 +429,23 @@ class ReleaseBuildTest(unittest.TestCase):
         for name, raw in {**payloads, "manifest.json": manifest_raw}.items():
             build.write_new(source / "facts" / name, raw)
         build.write_new(source / "codec/a.json", self.codec)
-        staged = inputs.stage({"ordinary": source}, TARGET, self.root / "stage")
-        entry = inputs.lock_entries(staged, "inputs/9.9-1")["ordinary"]
         cache = self.root / "cache"
-        build.write_new(
-            cache / "inputs/downloads" / entry["sha256"], (staged["directory"] / "assets" / entry["asset"]).read_bytes()
-        )
         lock = json.loads((config / "inputs.lock.json").read_text())
-        lock["packages"]["inputs"] = entry
         identities = dict.fromkeys(build.FACTS_IDENTITIES, pin(manifest_raw)["sha256"])
         lock["facts"] = {"package": "inputs", "root": "facts", "identities": identities}
-        (config / "inputs.lock.json").write_text(json.dumps(lock))
+
+        def declare(stage, **identity):
+            """Package the root with an export receipt from ``identity`` and pin it in the declaration."""
+            (source / "facts.export-receipt.json").write_bytes(receipt_for(manifest_raw, **identity))
+            staged = inputs.stage({"ordinary": source}, TARGET, self.root / stage)
+            entry = inputs.lock_entries(staged, "inputs/9.9-1")["ordinary"]
+            asset = (staged["directory"] / "assets" / entry["asset"]).read_bytes()
+            build.write_new(cache / "inputs/downloads" / entry["sha256"], asset)
+            lock["packages"]["inputs"] = entry
+            (config / "inputs.lock.json").write_text(json.dumps(lock))
+            return entry
+
+        entry = declare("stage")
         (self.policies / "p.json").write_bytes(runtime({"target": {"facts_manifest_sha256": identities["original"]}}))
         domains = json.loads((config / "domains.json").read_text())
         for identity in build.FACTS_IDENTITIES:
@@ -423,6 +464,7 @@ class ReleaseBuildTest(unittest.TestCase):
                 self.assertEqual(receipt["inputs"]["facts"]["identities"], dict.fromkeys(identities, pin(manifest_raw)))
                 self.assertIsNone(receipt["inputs"]["facts"]["handoff"])
                 self.assertIsNone(receipt["inputs"]["facts"]["archive"])
+                self.assertEqual(receipt["inputs"]["exports"], {"inputs:facts.export-receipt.json": "c" * 40})
         package = build.open_package(self.repo, "inputs", entry, cache / "inputs", False)
         for change, message in (
             ({"identities": {**identities, "original": ORIGINAL}}, "Facts identities differ from lock"),
@@ -434,6 +476,20 @@ class ReleaseBuildTest(unittest.TestCase):
         (package.root / "facts/tables/Stats.json").write_bytes(b"changed")
         with self.assertRaisesRegex(ValueError, "facts member changed: tables/Stats.json"):
             build.prepare_facts(package, lock["facts"], cache)
+        # A fresh root without the field would reach the adapter as a historical package.
+        stripped = encoded({k: v for k, v in json.loads(manifest_raw).items() if k != export_receipt.FIELD})
+        build.write_new(self.root / "bare/facts/manifest.json", stripped)
+        bare = build.Package("inputs", {}, b"", self.root / "bare", {"facts/manifest.json": pin(stripped)})
+        with self.assertRaisesRegex(ValueError, "Facts root facts carries no producer_receipt"):
+            build.prepare_facts(bare, lock["facts"], cache)
+        # release:inputs stages a rehearsal export; it is never built into a game package.
+        declare("rehearsal-stage", rehearsal=True, dirty_paths=DIRTY)
+        with self.assertRaisesRegex(
+            ValueError, r"inputs:facts\.export-receipt\.json is a rehearsal; it cannot be built"
+        ):
+            build.build(
+                config, out=self.root / "out", adapter=self.adapter, cache=cache, repo=self.repo, policies=self.policies
+            )
 
     def test_new_patch_maps_frozen_members_and_accepts_only_the_source_snapshot_version(self):
         config = self.fixture()

@@ -5,6 +5,7 @@ from pathlib import Path
 import re
 import sys
 
+from RePoE.client import export_receipt
 from RePoE.native import descriptions as envelope
 
 
@@ -264,6 +265,7 @@ def _payloads(lock_bytes, selected, verified, source):
                 "schema/pypoe-sources.json",
             ]
         },
+        export_receipt.FIELD: export_receipt.SCHEMA,
         "summary": {
             "files": len(files),
             "roots": len(roots),
@@ -281,7 +283,7 @@ def _payloads(lock_bytes, selected, verified, source):
     return manifest, payloads
 
 
-def create_candidate(*, source_lock, source, raw, out, expected_source_lock_sha256):
+def create_candidate(*, source_lock, source, raw, out, expected_source_lock_sha256, rehearsal=False):
     sys.dont_write_bytecode = True
     output = Path(out).absolute()
     cache = ROOT.resolve(strict=True) / ".cache"
@@ -289,6 +291,7 @@ def create_candidate(*, source_lock, source, raw, out, expected_source_lock_sha2
         raise FileExistsError("Refusing to replace inheritance candidate")
     if output.resolve() == cache or not output.resolve().is_relative_to(cache):
         raise ValueError("Inheritance output must be beneath this checkout's .cache/")
+    seal = export_receipt.begin(output, "RePoE.native.item_inheritance", rehearsal=rehearsal)
     args = (source_lock, source, raw, expected_source_lock_sha256)
     lock_bytes, selected, verified, raw_root = _inputs(*args)
     if output.resolve().is_relative_to(raw_root):
@@ -300,6 +303,7 @@ def create_candidate(*, source_lock, source, raw, out, expected_source_lock_sha2
         if envelope._sha((ROOT / name).read_bytes()) != digest:
             raise ValueError("Inheritance producer changed during parsing")
     envelope._publish(output, raw_root, payloads)
+    seal(payloads["manifest.json"])
     return manifest
 
 
@@ -309,6 +313,7 @@ def main():
         parser.add_argument("--" + name, required=True, type=Path)
     parser.add_argument("--source", required=True)
     parser.add_argument("--expected-source-lock-sha256", required=True)
+    export_receipt.add_rehearsal_option(parser)
     args = parser.parse_args()
     try:
         manifest = create_candidate(**vars(args))

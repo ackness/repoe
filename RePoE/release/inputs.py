@@ -17,6 +17,11 @@ printed); ``--yes`` refuses a dirty tree, a HEAD not on origin/master, a stray
 local tag or a missing ``gh``, never gives a commit a second ``inputs/<patch>-*``
 number, and resumes an interrupted publish (push, create, or finish a complete
 draft). See RELEASING.md.
+
+A candidate written by a native exporter must carry ``producer_receipt`` and
+have its export receipt beside its directory (``RePoE.client.export_receipt``).
+A receipt that says rehearsal or dirty, or names a commit that is not on
+origin/master, is a listed problem and is never published.
 """
 
 import argparse
@@ -29,6 +34,7 @@ import stat
 import tempfile
 import zipfile
 
+from RePoE.client import export_receipt
 from RePoE.release.pins import archive_manifest, decode, encoded, pin, relative, require
 from RePoE.release import build, crafting_catalog, publish
 
@@ -47,13 +53,7 @@ CHINA_MEMBERS = CHINA_CAPTURE | {
     for directory, (_, payloads) in CHINA_CANDIDATES.items()
     for member in (*payloads, "source-lock.json", "manifest.json")
 }
-CANDIDATE_FORMATS = {
-    "repoe-native-facts/v4",
-    "repoe-item-inheritance/v1",
-    "repoe-native-player-context/v1",
-    crafting_catalog.FORMAT,
-    *(format_ for format_, _ in CHINA_CANDIDATES.values()),
-}
+CANDIDATE_FORMATS = export_receipt.FORMATS | {crafting_catalog.FORMAT}
 
 
 def asset_name(name, patch):
@@ -66,11 +66,13 @@ def raise_error(error):
 
 def validate_china_text(files):
     """Allow only the complete derived layout, with candidates pinned by their own manifests."""
-    for member in sorted(set(files) - CHINA_MEMBERS):
+    # Each candidate's export receipt sits beside its directory; package() checks what it says.
+    members = CHINA_MEMBERS | {export_receipt.receipt_name(directory) for directory in CHINA_CANDIDATES}
+    for member in sorted(set(files) - members):
         raise ValueError(
             f"china_text: unexpected file {member}; only allowlisted derived text and receipts may be published"
         )
-    for member in sorted(CHINA_MEMBERS - set(files)):
+    for member in sorted(members - set(files)):
         raise ValueError(f"china_text: missing derived file {member}")
 
     def document(member):
@@ -145,19 +147,20 @@ def validate_targets(archive, target, directory):
             actual = identity.get(key)
             require(actual == expected, f"{member}: source_identity.{key}: expected {expected!r}, actual {actual!r}")
 
-    for member in archive.namelist():
-        path = Path(directory).absolute() / member
-        if member.endswith("manifest.json"):
-            check(archive.read(member), str(path))
-        elif member.endswith(".zip"):
-            with zipfile.ZipFile(io.BytesIO(archive.read(member))) as nested:
-                for name in nested.namelist():
-                    if name.endswith("manifest.json"):
-                        check(nested.read(name), f"{path}!{name}")
+    def walk(archive, prefix):
+        for member in archive.namelist():
+            path = f"{prefix}{member}"
+            if member.endswith("manifest.json"):
+                check(archive.read(member), path)
+            elif member.lower().endswith(".zip"):
+                with zipfile.ZipFile(io.BytesIO(archive.read(member))) as nested:
+                    walk(nested, f"{path}!")
+
+    walk(archive, f"{Path(directory).absolute()}/")
 
 
 def package(name, directory, target, out):
-    """Write ``out/<asset>`` and return its lock fields (asset, pins, manifest pin, expanded bytes)."""
+    """Write ``out/<asset>``; return its lock fields (asset, pins, manifest pin, expanded bytes) and export receipts."""
     require(NAME.fullmatch(name), f"Invalid input package name: {name!r} (it becomes the lock key)")
     files = collect(directory, name)
     pins = {member: build.file_pin(path) for member, path in files.items()}
@@ -184,6 +187,10 @@ def package(name, directory, target, out):
     }
     with zipfile.ZipFile(path) as archive:
         validate_targets(archive, target, directory)
+        try:
+            receipts = export_receipt.package_receipts(archive.namelist(), archive.read, export_receipt.FORMATS)
+        except ValueError as error:
+            raise ValueError(f"{name}: {error}") from error
         # The files must not have changed while they were read.
         if name == "crafting":
             crafting_catalog.facts_document(archive, {"repository": publish.REPOSITORY, **spec}, target)
@@ -191,7 +198,7 @@ def package(name, directory, target, out):
             _, manifest = archive_manifest(archive, spec)
             for member, expected in manifest["files"].items():
                 require(pin(archive.read(member)) == expected, f"{name}: {member} changed while packaging")
-    return spec
+    return spec, receipts
 
 
 def stage(packages, target, out, tag=None):
@@ -216,11 +223,20 @@ def staging(packages, target, out, tag=None):
         assets = pending / "assets"
         assets.mkdir(parents=True)
         (pending / publish.MARKER).write_text("generated by RePoE.release.inputs\n")
-        specs = {name: package(name, directory, target, assets) for name, directory in sorted(packages.items())}
+        specs, receipts = {}, {}
+        for name, directory in sorted(packages.items()):
+            specs[name], found = package(name, directory, target, assets)
+            receipts.update({f"{name}:{member}": receipt for member, receipt in found.items()})
         pins = {spec["asset"]: {k: spec[k] for k in ("bytes", "sha256")} for spec in specs.values()}
         (assets / "SHA256SUMS").write_text(publish.sha256sums({name: value["sha256"] for name, value in pins.items()}))
         pins["SHA256SUMS"] = build.file_pin(assets / "SHA256SUMS")
-        staged = {"directory": out, "assets": dict(sorted(pins.items())), "packages": specs, "target": target}
+        staged = {
+            "directory": out,
+            "assets": dict(sorted(pins.items())),
+            "packages": specs,
+            "target": target,
+            "receipts": receipts,
+        }
         if tag is not None:
             (pending / "release-notes.md").write_text(release_body(staged, tag))
             (pending / "tag-message.txt").write_text(tag_message(staged, tag))
@@ -236,6 +252,23 @@ def staging(packages, target, out, tag=None):
             if previous.exists():
                 previous.rename(out)
             raise
+
+
+def receipt_problems(repo, receipts):
+    """Why the staged export receipts cannot be published: a rehearsal, a dirty checkout or unreviewed code."""
+    problems = publish.unpublishable(receipts)
+    commits = {}
+    for name, receipt in receipts.items():
+        commits.setdefault(receipt["producer"]["commit"], []).append(name)
+    for commit, names in sorted(commits.items()):
+        # Reviewed code is a commit of the published branch, which preflight has fetched.
+        if status := publish.off_branch(repo, commit):
+            reason = "is not on" if status == 1 else "cannot be checked against"
+            problems.append(
+                f"export commit {commit} {reason} {publish.REMOTE}/{publish.BRANCH} "
+                f"({len(names)} receipts, e.g. {names[0]})"
+            )
+    return problems
 
 
 def lock_entries(staged, tag, repository=publish.REPOSITORY):
@@ -312,6 +345,7 @@ def main(argv=None, runner=None):
         with staging(packages, target, args.stage / f"inputs-{args.game}-{args.realm}-{args.patch}", tag) as staged:
             directory = staged["directory"]
             steps, action = publish.release_steps(run, staged, tag, commit, decision["action"])
+        problems += receipt_problems(args.repo, staged["receipts"])
     except (ValueError, KeyError, TypeError, OSError, zipfile.BadZipFile) as error:
         parser.exit(1, f"release:inputs: {error}\n")
     print(f"inputs.lock.json packages: {build.display(directory / 'lock.json')}")

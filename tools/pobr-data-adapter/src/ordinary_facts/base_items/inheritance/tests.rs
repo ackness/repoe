@@ -282,6 +282,47 @@ fn inherited_tags_reach_existing_loader_per_id_and_preserve_raw_and_unknowns() {
 }
 
 #[test]
+fn inheritance_producer_receipt_accepts_a_new_producer_and_requires_the_supported_schema() {
+    let mut f = fixture();
+    let mut inherited = supplement(&mut f, payload("parent"));
+    let path = inherited.path.join("manifest.json");
+    let original: Value = crate::read_json(&path).unwrap();
+    for (field, expected) in [
+        (
+            None,
+            Some("unsupported item inheritance manifest/producer/representation"),
+        ),
+        (Some(json!("repoe-export-receipt/v1")), None),
+        (
+            Some(json!("repoe-export-receipt/v2")),
+            Some("unsupported producer_receipt"),
+        ),
+        (Some(Value::Null), Some("unsupported producer_receipt")),
+    ] {
+        let mut manifest = original.clone();
+        manifest["producer"] = json!({"RePoE/native/item_inheritance.py":"a".repeat(64)});
+        if let Some(value) = field {
+            manifest["producer_receipt"] = value;
+        }
+        inherited.sha256 = write(&path, &manifest);
+        let result = super::source::open(&inherited, &f.manifest);
+        if let Some(error) = expected {
+            assert_eq!(result.err().unwrap(), error);
+        } else {
+            assert_eq!(result.unwrap().document, payload("parent"));
+            let mut other_parent = f.manifest.clone();
+            other_parent["source_identity"]["game_patch"] = json!("9.9.9.9");
+            assert_eq!(
+                super::source::open(&inherited, &other_parent)
+                    .err()
+                    .unwrap(),
+                "item inheritance parent identity mismatch: game_patch"
+            );
+        }
+    }
+}
+
+#[test]
 fn parent_tag_and_table_member_changes_reach_the_same_ordinary_consumer() {
     let mut f = fixture();
     // The raw membership is the source, not a frozen pre-migration [] or vendor list.

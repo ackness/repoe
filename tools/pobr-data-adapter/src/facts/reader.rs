@@ -76,3 +76,7 @@ pub(crate) fn require_absent(path: &Path) -> Result<(), String> {
 pub(crate) fn strict_json(bytes: &[u8]) -> Result<serde_json::Value, String> {
     trust::strict_json(bytes)
 }
+
+pub(crate) fn producer_receipt(manifest: &serde_json::Value) -> Result<bool, String> {
+    trust::producer_receipt(manifest)
+}

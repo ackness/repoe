@@ -1,6 +1,8 @@
 """Synthetic physical fixtures; no game downloads or dependency on a sibling checkout."""
 
+import contextlib
 import copy
+import io
 import json
 import os
 from pathlib import Path
@@ -12,8 +14,10 @@ import unittest
 from unittest.mock import patch
 import warnings
 
+from RePoE.client import export_receipt
 from RePoE.native import facts
 from RePoE.native import schema_candidate
+from tests.client.test_export_receipt import DIRTY, check_exporter, checkout
 
 
 def dat_bytes(specification, name, rows):
@@ -76,6 +80,7 @@ class NativeFactsFixture(unittest.TestCase):
         temporary = tempfile.TemporaryDirectory(prefix="repoe-facts-test-")
         self.addCleanup(temporary.cleanup)
         self.root = Path(temporary.name)
+        checkout(self)
         self.raw = self.root / "raw"
         self.out = self.root / "out"
         self.lock = self.root / "sources.lock.json"
@@ -152,8 +157,8 @@ class NativeFactsFixture(unittest.TestCase):
     def write_lock(self):
         self.lock.write_bytes(facts._json({"schema_version": 1, "sources": {"fixture": self.source}}))
 
-    def create(self):
-        return facts.create_candidate(source_lock=self.lock, source="fixture", raw=self.raw, out=self.out)
+    def create(self, **options):
+        return facts.create_candidate(source_lock=self.lock, source="fixture", raw=self.raw, out=self.out, **options)
 
     def load(self, name):
         return json.loads((self.out / name).read_bytes())
@@ -340,6 +345,52 @@ class NativeFactsTests(NativeFactsFixture):
         with self.assertRaisesRegex(ValueError, "Truncated"):
             facts._decode_psg(psg_bytes()[:-1])
 
+    def test_export_writes_a_receipt_refuses_a_dirty_checkout_and_rehearses_the_same_bytes(self):
+        def export(name, **options):
+            self.out = self.root / name
+            self.create(**options)
+            return self.out
+
+        check_exporter(self, export, "RePoE.native.facts")
+
+    def test_rehearsal_changes_only_the_dirty_producer_file_hash(self):
+        clean = self.create()
+        name = "RePoE/native/facts.py"
+        path = schema_candidate.ROOT / name
+        changed_bytes = path.read_bytes() + b"\n# Uncommitted exporter edit.\n"
+        read_bytes = Path.read_bytes
+
+        def dirty_read(file):
+            return changed_bytes if file == path else read_bytes(file)
+
+        self.out = self.root / "rehearsal"
+        checkout(self, dirty_paths=(name,))
+        with patch.object(Path, "read_bytes", dirty_read):
+            rehearsed = self.create(rehearsal=True)
+        self.assertNotEqual(clean["producer"][name], rehearsed["producer"][name])
+        self.assertEqual(rehearsed["producer"][name], schema_candidate._sha(changed_bytes))
+        expected = copy.deepcopy(clean)
+        expected["producer"][name] = rehearsed["producer"][name]
+        self.assertEqual(rehearsed, expected)
+        receipt = export_receipt.verify(
+            self.out.with_name("rehearsal.export-receipt.json").read_bytes(),
+            (self.out / "manifest.json").read_bytes(),
+        )
+        self.assertEqual(receipt["producer"]["dirty_paths"], [name])
+        self.assertTrue(receipt["producer"]["dirty"])
+        self.assertTrue(receipt["rehearsal"])
+
+    def test_command_exits_1_without_output_on_a_dirty_checkout(self):
+        argv = ["facts", "--source-lock", str(self.lock), "--source", "fixture", "--raw", str(self.raw)]
+        checkout(self, dirty_paths=DIRTY)
+        stderr = io.StringIO()
+        with patch.object(sys, "argv", [*argv, "--out", str(self.out)]), contextlib.redirect_stderr(stderr):
+            with self.assertRaises(SystemExit) as exit:
+                facts.main()
+        self.assertEqual(exit.exception.code, 1)
+        self.assertIn("Native facts rejected: Refusing to export from a dirty checkout", stderr.getvalue())
+        self.assertEqual([path.name for path in self.root.iterdir() if path.name.startswith("out")], [])
+
     def test_independent_process_replay_and_no_machine_paths(self):
         outputs = []
         for i, seed in enumerate(("3", "71")):
@@ -358,6 +409,7 @@ class NativeFactsTests(NativeFactsFixture):
                     str(self.raw),
                     "--out",
                     str(output),
+                    "--rehearsal",  # the tree under test may be under edit; the manifest bytes are the same
                 ],
                 cwd=schema_candidate.ROOT,
                 env={**os.environ, "PYTHONHASHSEED": seed},
@@ -366,6 +418,7 @@ class NativeFactsTests(NativeFactsFixture):
                 timeout=60,
             )
             self.assertEqual(result.returncode, 0, result.stderr)
+            self.assertTrue(json.loads((self.root / f"replay-{i}.export-receipt.json").read_bytes())["rehearsal"])
             outputs.append({path.relative_to(output).as_posix(): path.read_bytes() for path in output.rglob("*.json")})
         self.assertEqual(outputs[0], outputs[1])
         self.assertNotIn(str(self.root).encode(), b"".join(outputs[0].values()))
