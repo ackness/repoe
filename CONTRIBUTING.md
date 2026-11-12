@@ -20,7 +20,7 @@ PoBR moves its data lock to it.
 - Set up with `mise trust && mise install --locked`,
   `mise bootstrap --only packages` and `mise run setup`.
 - Keep it to one problem. Put code in the package of its role (`RePoE/client/`,
-  `RePoE/native/`, `RePoE/release/`) and leave upstream paths in place.
+  `RePoE/native/`, `RePoE/release/`).
 - Do not edit pinned bytes (declarations under `release/`, `schema/`, policies,
   historical producer identities); the list and the reasons are in
   [AGENTS.md](AGENTS.md#never-move-or-rewrite).
