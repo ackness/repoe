@@ -11,7 +11,7 @@ use std::collections::{BTreeMap, BTreeSet};
 use pobr_data::catalog::{GemQualityStatDef, QualityStat};
 use serde::{Deserialize, Serialize};
 
-use crate::ordinary_facts::coverage::Coverage;
+use crate::ordinary_facts::coverage::{Action, Coverage, Issue};
 
 #[derive(Deserialize, Serialize)]
 #[serde(deny_unknown_fields)]
@@ -101,7 +101,7 @@ pub(crate) fn convert_rows(
     stats: &BTreeMap<usize, String>,
     rows: Vec<RawQuality>,
     compatibility: &Compatibility,
-    _coverage: &mut Coverage,
+    coverage: &mut Coverage,
 ) -> Result<Converted, String> {
     validate_compatibility(compatibility)?;
     let enabled: BTreeSet<_> = compatibility.effects.iter().cloned().collect();
@@ -117,9 +117,22 @@ pub(crate) fn convert_rows(
             return Err(format!("quality: duplicate effect {id}"));
         }
         if !enabled.contains(id) && !excluded.contains_key(id) {
-            return Err(format!(
-                "quality: effect {id} has no reviewed compatibility decision"
-            ));
+            coverage.decide(
+                Issue::new(
+                    "unreviewed-quality",
+                    id,
+                    Action::Quarantined,
+                    format!("quality: effect {id} has no reviewed compatibility decision"),
+                )
+                .observed(
+                    "quality_row",
+                    serde_json::json!({
+                        "Stats":row.stats, "StatsValuesPermille":row.values,
+                        "ApplyToStatSets":row.sets, "AltStats":row.alt_stats,
+                        "AltStatValuesPermille":row.alt_values, "AltApplyToStatSets":row.alt_sets
+                    }),
+                ),
+            )?;
         }
         let mut quality = Vec::new();
         for (keys, values, alt) in [
@@ -142,7 +155,9 @@ pub(crate) fn convert_rows(
                 });
             }
         }
-        if !row.sets.is_empty() || !row.alt_sets.is_empty() {
+        if (enabled.contains(id) || excluded.contains_key(id))
+            && (!row.sets.is_empty() || !row.alt_sets.is_empty())
+        {
             scopes.insert(
                 id.clone(),
                 Scope {
@@ -168,9 +183,12 @@ pub(crate) fn convert_rows(
     }
     for id in enabled.iter().chain(excluded.keys()) {
         if !seen.contains(id) {
-            return Err(format!(
-                "quality: reviewed effect {id} disappeared from the input"
-            ));
+            coverage.decide(Issue::new(
+                "reviewed-quality-gone",
+                id,
+                Action::Listed,
+                format!("quality: reviewed effect {id} disappeared from the input"),
+            ))?;
         }
     }
     Ok(Converted {

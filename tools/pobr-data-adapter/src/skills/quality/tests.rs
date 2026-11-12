@@ -122,3 +122,84 @@ fn rejects_duplicate_ids_effects_and_invalid_decisions() {
         );
     }
 }
+
+#[test]
+fn forward_lists_every_unreviewed_and_disappeared_effect_without_hiding_integrity_errors() {
+    let effects = index(effects(), "GrantedEffects").unwrap();
+    let stats = index(stats(), "Stats").unwrap();
+    let mut policy = compatibility();
+    policy["excluded_effects"] = json!({"GoneExcluded":"removed"});
+    policy["effects"] = json!(["TestSkill", "GoneEnabled"]);
+    let mut source = quality();
+    source[1]["ApplyToStatSets"] = json!([3]);
+    let mut coverage = Coverage::new(AdapterMode::Forward, "gem-quality");
+    let converted = convert_rows(
+        &effects,
+        &stats,
+        rows(source.clone()),
+        &rows(policy.clone()),
+        &mut coverage,
+    )
+    .unwrap();
+    assert_eq!(converted.effects.len(), 1);
+    assert_eq!(converted.effects[0].effect_id, "TestSkill");
+    assert!(!converted.scopes.contains_key("UnreviewedSkill"));
+    let mut receipt = json!({});
+    coverage.finish(&mut receipt).unwrap();
+    let issues = receipt["coverage"]["issues"].as_array().unwrap();
+    assert_eq!(issues.len(), 3);
+    assert_eq!(
+        issues
+            .iter()
+            .map(|issue| (
+                issue["kind"].as_str().unwrap(),
+                issue["entity"].as_str().unwrap()
+            ))
+            .collect::<Vec<_>>(),
+        [
+            ("reviewed-quality-gone", "GoneEnabled"),
+            ("reviewed-quality-gone", "GoneExcluded"),
+            ("unreviewed-quality", "UnreviewedSkill")
+        ]
+    );
+    for (field, value, expected) in [
+        (
+            "Stats",
+            json!([999]),
+            "quality UnreviewedSkill: dangling stat 999",
+        ),
+        (
+            "AltStats",
+            json!([999]),
+            "quality UnreviewedSkill: stat/value length mismatch (alt=true)",
+        ),
+    ] {
+        let mut bad = source.clone();
+        bad[1][field] = value;
+        let error = convert_rows(
+            &effects,
+            &stats,
+            rows(bad),
+            &rows(policy.clone()),
+            &mut Coverage::new(AdapterMode::Forward, "gem-quality"),
+        )
+        .err()
+        .unwrap();
+        assert_eq!(error, expected);
+    }
+    let mut duplicate = source;
+    let repeated = duplicate[1].clone();
+    duplicate.as_array_mut().unwrap().push(repeated);
+    assert!(
+        convert_rows(
+            &effects,
+            &stats,
+            rows(duplicate),
+            &rows(policy),
+            &mut Coverage::new(AdapterMode::Forward, "gem-quality")
+        )
+        .err()
+        .unwrap()
+        .contains("duplicate effect")
+    );
+}
