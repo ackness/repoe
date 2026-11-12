@@ -12,6 +12,7 @@ use pobr_data::catalog::stat_map::{SkillStatMapDef, StatMapEntry};
 use serde::Deserialize;
 use serde_json::{Value, json};
 
+use super::coverage::{Action, Coverage, Issue};
 use super::stat_set_codec::{self, read_pinned};
 use crate::facts::reader::{Tables, VerifiedFacts};
 use crate::raw_source::sha256_hex;
@@ -37,7 +38,7 @@ pub(super) fn convert(
     input: &VerifiedFacts,
     args: &super::CodecArgs,
     branch: &super::BranchCodecArgs,
-    _coverage: &mut super::coverage::Coverage,
+    coverage: &mut Coverage,
 ) -> Result<Converted, String> {
     let pinned_policy = read_pinned(&args.policy, &args.policy_sha256, "skill-stat-map policy")?;
     let policy: policy::Policy = serde_json::from_value(pinned_policy.document)
@@ -122,50 +123,167 @@ pub(super) fn convert(
             scoped_entries += records.len();
             let binding = match (index_keys.get(&key), effects.get(skill)) {
                 (Some((codec_row, label)), Some(&effect_row)) => {
-                    if unbound.contains_key(&key) {
-                        return Err(format!(
-                            "stale unbound scope exception: {skill}/{index} now matches"
-                        ));
+                    if unbound.remove(&key).is_some() {
+                        coverage.decide(
+                            Issue::new(
+                                "scope-unbound-stale",
+                                format!("{skill}/{index}"),
+                                Action::RetainedLegacy,
+                                format!(
+                                    "stale unbound scope exception: {skill}/{index} now matches"
+                                ),
+                            )
+                            .observed("skill", skill.as_str())
+                            .observed("set_index", set_index),
+                        )?;
                     }
                     let owner = stat_set_codec::read_owner(&tables, effect_row)?;
-                    if !owner.contains(&label.set_id) {
-                        return Err(format!(
-                            "scope {skill}/{index}: codec set {} is not target raw-owned",
-                            label.set_id
-                        ));
+                    let raw_owned = owner.contains(&label.set_id);
+                    if !raw_owned {
+                        coverage.decide(
+                            Issue::new(
+                                "scope-binding-incomplete",
+                                format!("{skill}/{index}"),
+                                Action::RetainedLegacy,
+                                format!(
+                                    "scope {skill}/{index}: codec set {} is not target raw-owned",
+                                    label.set_id
+                                ),
+                            )
+                            .observed("codec_record", codec.document["labels"][*codec_row].clone())
+                            .observed("target_owner", json!(owner)),
+                        )?;
                     }
-                    bound_count += 1;
-                    json!({"status":"raw-owned","codec_source_row":codec_row,"codec_record":codec.document["labels"][*codec_row],
+                    bound_count += usize::from(raw_owned);
+                    json!({"status":if raw_owned {"raw-owned"} else {"unresolved"},"codec_source_row":codec_row,"codec_record":codec.document["labels"][*codec_row],
                         "target_owner":owner,"target_effect_id":skill})
                 }
                 (None, None) => {
-                    let exception = unbound
-                        .remove(&key)
-                        .ok_or_else(|| format!("unlisted unbound scope: {skill}/{index}"))?;
-                    json!({"status":"policy-unbound","codec_present":false,"target_effect_present":false,
+                    let exception = unbound.remove(&key);
+                    if exception.is_none() {
+                        coverage.decide(
+                            Issue::new(
+                                "scope-unbound-unlisted",
+                                format!("{skill}/{index}"),
+                                Action::RetainedLegacy,
+                                format!("unlisted unbound scope: {skill}/{index}"),
+                            )
+                            .observed("skill", skill.as_str())
+                            .observed("set_index", set_index),
+                        )?;
+                    }
+                    json!({"status":if exception.is_some() {"policy-unbound"} else {"unresolved"},"codec_present":false,"target_effect_present":false,
                         "target_owner":null,"codec_record":null,"policy_exception":exception})
                 }
                 (codec_row, effect_row) => {
-                    return Err(format!(
-                        "scope {skill}/{index}: incomplete codec/target binding (codec_present={}, target_effect_present={})",
-                        codec_row.is_some(),
-                        effect_row.is_some()
-                    ));
+                    coverage.decide(
+                        Issue::new(
+                            if effect_row.is_none() {
+                                "scope-skill-removed"
+                            } else {
+                                "scope-binding-incomplete"
+                            },
+                            if effect_row.is_none() {
+                                skill.clone()
+                            } else {
+                                format!("{skill}/{index}")
+                            },
+                            Action::RetainedLegacy,
+                            format!(
+                                "scope {skill}/{index}: incomplete codec/target binding (codec_present={}, target_effect_present={})",
+                                codec_row.is_some(),
+                                effect_row.is_some()
+                            ),
+                        )
+                        .observed("skill", skill.as_str())
+                        .observed("set_index", set_index)
+                        .observed("codec_present", codec_row.is_some())
+                        .observed("target_effect_present", effect_row.is_some()),
+                    )?;
+                    // A retained scope does not establish target branch ownership.
+                    let owner = effect_row
+                        .map(|&row| stat_set_codec::read_owner(&tables, row))
+                        .transpose()?;
+                    json!({"status":"unresolved","codec_present":codec_row.is_some(),"target_effect_present":effect_row.is_some(),
+                        "target_owner":owner,"codec_record":codec_row.map(|(row,_)|&codec.document["labels"][*row])})
                 }
             };
             scopes.push(json!({"skill":skill,"set_index":set_index,"source_index_key":index,"binding":binding,"stats":records}));
         }
     }
-    if !unbound.is_empty() {
-        return Err("unused/stale unbound scope exception".into());
+    for ((skill, index), exception) in unbound {
+        let retained = map
+            .per_stat_set
+            .get(skill)
+            .is_some_and(|sets| sets.contains_key(&index.to_string()));
+        coverage.decide(
+            Issue::new(
+                "scope-unbound-stale",
+                format!("{skill}/{index}"),
+                if retained {
+                    Action::RetainedLegacy
+                } else {
+                    Action::Listed
+                },
+                "unused/stale unbound scope exception",
+            )
+            .observed("policy_exception", json!(exception)),
+        )?;
     }
     let expected_absent: BTreeSet<_> = policy.absent_target_stat_ids.iter().cloned().collect();
     if absent != expected_absent {
-        return Err(format!(
+        let message = format!(
             "absent stat exceptions mismatch: unlisted {:?}; stale {:?}",
             absent.difference(&expected_absent).collect::<Vec<_>>(),
             expected_absent.difference(&absent).collect::<Vec<_>>()
-        ));
+        );
+        // One identity per skill/stat, even when several export indices use it.
+        let occurrences: BTreeSet<_> = map
+            .global
+            .keys()
+            .map(|stat| ("", stat))
+            .chain(map.per_stat_set.iter().flat_map(|(skill, sets)| {
+                sets.values()
+                    .flat_map(move |entries| entries.keys().map(move |stat| (skill.as_str(), stat)))
+            }))
+            .collect();
+        for (skill, stat) in &occurrences {
+            if absent.contains(*stat) && !expected_absent.contains(*stat) {
+                coverage.decide(
+                    Issue::new(
+                        if skill.is_empty() {
+                            "stat-absent-unlisted"
+                        } else {
+                            "scope-stat-removed"
+                        },
+                        if skill.is_empty() {
+                            (*stat).clone()
+                        } else {
+                            format!("{skill}/{stat}")
+                        },
+                        Action::RetainedLegacy,
+                        &message,
+                    )
+                    .observed("stat_id", stat.as_str()),
+                )?;
+            }
+        }
+        for stat in expected_absent.difference(&absent) {
+            coverage.decide(
+                Issue::new(
+                    "stat-absent-stale",
+                    stat,
+                    if occurrences.iter().any(|(_, id)| *id == stat) {
+                        Action::RetainedLegacy
+                    } else {
+                        Action::Listed
+                    },
+                    &message,
+                )
+                .observed("stat_id", stat.as_str())
+                .observed("target_stat_present", stats.contains_key(stat)),
+            )?;
+        }
     }
     let unextractable: Vec<_> = global
         .iter()
