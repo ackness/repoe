@@ -4,6 +4,7 @@ use std::fs;
 use pobr_data::catalog::stat_map::SkillStatMapDef;
 use serde_json::{Value, json};
 
+use super::super::coverage::AdapterMode;
 use super::super::stat_set_codec::tests::table;
 use super::super::tests::Fixture;
 use super::super::{Args, BranchCodecArgs, CodecArgs, Domain, parse_args, reader, run};
@@ -243,6 +244,224 @@ fn scope<'a>(r: &'a Value, skill: &str, index: u32) -> &'a Value {
         .iter()
         .find(|r| r["skill"] == skill && r["set_index"] == index)
         .unwrap()
+}
+
+#[test]
+fn forward_reports_content_gaps_verbatim_and_strict_keeps_exact_messages() {
+    for (case, message, expected) in [
+        (
+            "removed-skill",
+            "scope AOwner/4: incomplete codec/target binding (codec_present=true, target_effect_present=false)",
+            vec![("scope-skill-removed", "AOwner", "retained-legacy")],
+        ),
+        (
+            "removed-stat",
+            "absent stat exceptions mismatch: unlisted [\"aPresent\"]; stale []",
+            vec![
+                ("scope-stat-removed", "AOwner/aPresent", "retained-legacy"),
+                ("scope-stat-removed", "ZOwner/aPresent", "retained-legacy"),
+            ],
+        ),
+        (
+            "incomplete",
+            "scope AOwner/4: incomplete codec/target binding (codec_present=false, target_effect_present=true)",
+            vec![("scope-binding-incomplete", "AOwner/4", "retained-legacy")],
+        ),
+        (
+            "unowned",
+            "scope AOwner/4: codec set Unowned is not target raw-owned",
+            vec![("scope-binding-incomplete", "AOwner/4", "retained-legacy")],
+        ),
+        (
+            "unbound-unlisted",
+            "unlisted unbound scope: GhostOwner/1",
+            vec![("scope-unbound-unlisted", "GhostOwner/1", "retained-legacy")],
+        ),
+        (
+            "stale-matching",
+            "stale unbound scope exception: GhostOwner/1 now matches",
+            vec![("scope-unbound-stale", "GhostOwner/1", "retained-legacy")],
+        ),
+        (
+            "stale-missing",
+            "unused/stale unbound scope exception",
+            vec![("scope-unbound-stale", "GhostOwner/1", "listed")],
+        ),
+        (
+            "stale-partial",
+            "scope GhostOwner/1: incomplete codec/target binding (codec_present=false, target_effect_present=true)",
+            vec![
+                (
+                    "scope-binding-incomplete",
+                    "GhostOwner/1",
+                    "retained-legacy",
+                ),
+                ("scope-unbound-stale", "GhostOwner/1", "retained-legacy"),
+            ],
+        ),
+        (
+            "absent-global",
+            "absent stat exceptions mismatch: unlisted [\"new_absent\"]; stale []",
+            vec![("stat-absent-unlisted", "new_absent", "retained-legacy")],
+        ),
+        (
+            "stale-stat-retained",
+            "absent stat exceptions mismatch: unlisted []; stale [\"missing\"]",
+            vec![("stat-absent-stale", "missing", "retained-legacy")],
+        ),
+        (
+            "stale-stat-missing",
+            "absent stat exceptions mismatch: unlisted []; stale [\"never_referenced\"]",
+            vec![("stat-absent-stale", "never_referenced", "listed")],
+        ),
+        (
+            "multiple",
+            "scope AOwner/4: incomplete codec/target binding (codec_present=true, target_effect_present=false)",
+            vec![
+                ("scope-skill-removed", "AOwner", "retained-legacy"),
+                ("scope-stat-removed", "AOwner/aPresent", "retained-legacy"),
+                ("scope-stat-removed", "ZOwner/aPresent", "retained-legacy"),
+                ("stat-absent-stale", "never_referenced", "listed"),
+                ("stat-absent-unlisted", "new_absent", "retained-legacy"),
+            ],
+        ),
+    ] {
+        let mut f = fixture();
+        let mut p = doc(&f, POLICY);
+        let mut m = doc(&f, MAP);
+        let mut c = doc(&f, CODEC);
+        match case {
+            "removed-skill" => f.values("GrantedEffects", 1)["Id"] = json!("NewAOwner"),
+            "removed-stat" => f.values("Stats", 1)["Id"] = json!("ChangedStat"),
+            "incomplete" => c["labels"][2]["set_index"] = json!(5),
+            "unowned" => c["labels"][2]["set_id"] = json!("Unowned"),
+            "unbound-unlisted" => p["unbound_scopes"] = json!([]),
+            "stale-matching" => {
+                f.values("GrantedEffects", 2)["Id"] = json!("GhostOwner");
+                f.values("GrantedEffects", 2)["StatSet"] = json!(1);
+                c["labels"][3] = json!({"skill":"GhostOwner","set_id":"Primary","set_index":1,"label":"now bound"});
+            }
+            "stale-missing" => {
+                m["per_stat_set"]
+                    .as_object_mut()
+                    .unwrap()
+                    .remove("GhostOwner");
+            }
+            "stale-partial" => {
+                f.values("GrantedEffects", 2)["Id"] = json!("GhostOwner");
+                f.values("GrantedEffects", 2)["StatSet"] = json!(1);
+            }
+            "absent-global" => m["global"]["new_absent"] = json!({"mods":[]}),
+            "stale-stat-retained" => {
+                f.values("Stats", 1)["Id"] = json!("missing");
+                p["absent_target_stat_ids"] = json!(["missing", "aPresent"]);
+            }
+            "stale-stat-missing" => {
+                p["absent_target_stat_ids"] = json!(["missing", "never_referenced"]);
+            }
+            "multiple" => {
+                f.values("GrantedEffects", 1)["Id"] = json!("NewAOwner");
+                f.values("Stats", 1)["Id"] = json!("ChangedStat");
+                m["global"]["new_absent"] = json!({"mods":[]});
+                m["per_stat_set"]["ZOwner"]["7"]["aPresent"] = json!({"mods":[]});
+                p["absent_target_stat_ids"] = json!(["missing", "never_referenced"]);
+            }
+            _ => unreachable!(),
+        }
+        write(&f, MAP, &m);
+        write(&f, CODEC, &c);
+        write(&f, POLICY, &p);
+        reseal(&mut f);
+        assert_eq!(run(args(&f)).unwrap_err(), message, "{case}");
+        assert!(!f.root.join("out").exists(), "{case}");
+        run(Args {
+            mode: AdapterMode::Forward,
+            ..args(&f)
+        })
+        .unwrap();
+        for (source, output) in [
+            (MAP, "overlay/skill_stat_map.json"),
+            (CODEC, "branch-codec.json"),
+            (POLICY, "codec-policy.json"),
+        ] {
+            assert_eq!(
+                fs::read(f.root.join(source)).unwrap(),
+                fs::read(f.root.join("out").join(output)).unwrap(),
+                "{case}: {source}",
+            );
+        }
+        let r = read(&f, "producer-receipt.json");
+        assert_eq!(r.as_object().unwrap().len(), 10);
+        assert_eq!(r["files"].as_object().unwrap().len(), 6);
+        let issues = r["conversion"]["coverage"]["issues"].as_array().unwrap();
+        let actual: Vec<_> = issues
+            .iter()
+            .map(|issue| {
+                assert_eq!(issue["domain"], "skill-stat-map");
+                assert!(issue["observed"].is_object(), "{case}");
+                (
+                    issue["kind"].as_str().unwrap(),
+                    issue["entity"].as_str().unwrap(),
+                    issue["action"].as_str().unwrap(),
+                )
+            })
+            .collect();
+        assert_eq!(actual, expected, "{case}");
+        assert_eq!(issues[0]["message"], message, "{case}");
+        if matches!(
+            case,
+            "removed-skill" | "incomplete" | "unowned" | "multiple"
+        ) {
+            assert_eq!(scope(&r, "AOwner", 4)["binding"]["status"], "unresolved");
+            assert_eq!(r["conversion"]["raw_owned_scopes"], 2);
+        }
+        if case == "multiple" {
+            assert_eq!(
+                r["conversion"]["coverage"]["counts"],
+                json!({"listed":1,"retained-legacy":4,"emitted-with-gap":0,"quarantined":0}),
+            );
+            assert!(
+                r["conversion"]["target_gem_effects_without_codec"]
+                    .as_array()
+                    .unwrap()
+                    .contains(&json!("NoCodecGem"))
+            );
+            assert!(
+                r["conversion"]["target_gem_effects_without_map_scope"]
+                    .as_array()
+                    .unwrap()
+                    .contains(&json!("NoCodecGem"))
+            );
+        }
+    }
+}
+
+#[test]
+fn forward_still_rejects_integrity_errors_after_a_content_gap() {
+    for case in ["pin", "duplicate", "column", "dangling"] {
+        let mut f = fixture();
+        // An incomplete scope must not hide a malformed target owner.
+        let mut c = doc(&f, CODEC);
+        c["labels"][2]["set_index"] = json!(5);
+        match case {
+            "duplicate" => c["labels"][1]["set_index"] = json!(7),
+            "column" => {
+                f.documents.get_mut("tables/GrantedEffects.json").unwrap()["columns"][1]["schema"]
+                    ["type"] = json!("i32");
+            }
+            "dangling" => f.values("GrantedEffects", 1)["StatSet"] = json!(999),
+            _ => {}
+        }
+        write(&f, CODEC, &c);
+        reseal(&mut f);
+        let mut a = args(&f);
+        a.mode = AdapterMode::Forward;
+        if case == "pin" {
+            a.codec.as_mut().unwrap().source_sha256 = "0".repeat(64);
+        }
+        assert!(run(a).is_err(), "{case}");
+        assert!(!f.root.join("out").exists(), "{case}");
+    }
 }
 
 #[test]
