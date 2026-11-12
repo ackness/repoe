@@ -1,4 +1,5 @@
 use super::*;
+use crate::ordinary_facts::coverage::AdapterMode;
 use serde_json::{Value, json};
 
 fn effects() -> Vec<IndexedId> {
@@ -33,7 +34,13 @@ fn rows<T: for<'de> Deserialize<'de>>(value: Value) -> T {
 fn convert(quality: Value, compatibility: Value) -> Result<Converted, String> {
     let effects = index(effects(), "GrantedEffects")?;
     let stats = index(stats(), "Stats")?;
-    convert_rows(&effects, &stats, rows(quality), &rows(compatibility))
+    convert_rows(
+        &effects,
+        &stats,
+        rows(quality),
+        &rows(compatibility),
+        &mut Coverage::new(AdapterMode::Strict, "gem-quality"),
+    )
 }
 
 #[test]

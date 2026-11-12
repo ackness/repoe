@@ -49,7 +49,11 @@ struct Target {
     exclusions: Vec<Value>,
 }
 
-pub(super) fn convert(input: &VerifiedFacts, args: &super::CodecArgs) -> Result<Converted, String> {
+pub(super) fn convert(
+    input: &VerifiedFacts,
+    args: &super::CodecArgs,
+    _coverage: &mut super::coverage::Coverage,
+) -> Result<Converted, String> {
     // Share the established pin-before-parse auxiliary reader, not a second envelope.
     let policy_input =
         super::stat_set_codec::read_pinned(&args.policy, &args.policy_sha256, "codec policy")?;

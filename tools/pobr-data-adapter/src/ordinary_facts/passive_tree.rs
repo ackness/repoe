@@ -50,9 +50,10 @@ pub(super) fn convert_with_refresh(
     args: &super::CodecArgs,
     refresh: Option<&RefreshArgs>,
     supplement: Option<&reader::selected::Input>,
+    coverage: &mut super::coverage::Coverage,
 ) -> Result<Converted, String> {
     if let Some(extra) = refresh {
-        refresh::convert(input, args, extra, supplement)
+        refresh::convert(input, args, extra, supplement, coverage)
     } else {
         if supplement.is_some() {
             return Err("supplement requires target tree refresh".into());

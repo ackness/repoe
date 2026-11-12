@@ -35,7 +35,11 @@ pub(super) struct Converted {
     pub policy_parent: PathBuf,
 }
 
-pub(super) fn convert(input: &VerifiedFacts, pinned: policy::Pinned) -> Result<Converted, String> {
+pub(super) fn convert(
+    input: &VerifiedFacts,
+    pinned: policy::Pinned,
+    coverage: &mut super::coverage::Coverage,
+) -> Result<Converted, String> {
     pinned.validate_target(input)?;
     let selected = pinned.tables();
     let tables = Tables::selected(input, selected)?;
@@ -76,7 +80,13 @@ pub(super) fn convert(input: &VerifiedFacts, pinned: policy::Pinned) -> Result<C
     }
     // Validates both channels, including excluded owners: no unresolved references,
     // duplicate owners or missing decisions can be hidden by policy filtering.
-    let converted = quality::convert_rows(&effects, &stats, rows, &pinned.policy.compatibility)?;
+    let converted = quality::convert_rows(
+        &effects,
+        &stats,
+        rows,
+        &pinned.policy.compatibility,
+        coverage,
+    )?;
     let publication = if selected == publication::TABLES {
         Some(publication::validate(
             input,

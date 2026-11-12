@@ -4,12 +4,13 @@ mod receipt;
 mod validation;
 
 #[cfg(all(test, any(target_os = "linux", target_os = "macos")))]
-mod tests;
+pub(super) mod tests;
 
 use std::collections::BTreeMap;
 
 use serde_json::Value;
 
+use super::coverage::Coverage;
 use crate::facts::reader::VerifiedFacts;
 use crate::skills;
 
@@ -36,7 +37,10 @@ pub(super) struct Converted {
     pub receipt: Value,
 }
 
-pub(super) fn convert(input: &VerifiedFacts) -> Result<Converted, String> {
+pub(super) fn convert(
+    input: &VerifiedFacts,
+    _coverage: &mut Coverage,
+) -> Result<Converted, String> {
     let source = validation::PhysicalSkills::checked(input)?;
     let mut bundle = skills::adapt_skills_from(&source)?;
     let sets = skills::adapt_stat_sets_from(&source)?;
