@@ -7,6 +7,8 @@ and publication commits keep their trees, authors, dates, messages and merge
 structure. Their parent IDs change; signatures bound to rewritten ancestry are
 removed rather than presented as valid signatures of the new commits.
 
+Merges from upstream are no longer maintained (owner decision, 2026-11-12).
+
 ## Why the old clone was large
 
 The upstream repository used to commit automated game-data exports, including

@@ -51,7 +51,7 @@ mise run setup
 mise run check
 ```
 
-`mise.lock` 固定 Python 和 uv 的版本，`uv.lock` 固定 Python 依赖，包括 PyPoE 的完整 Git revision。`setup` 用 `uv sync --locked` 创建 `.venv`。首次安装需要联网；如果没有可用 wheel，Linux 会用编译器以及 JPEG、zlib 软件包构建固定版本的 Pillow。
+`mise.lock` 固定 Python 和 uv 的版本，`uv.lock` 固定 Python 依赖，包括 PyPoE 的完整 Git revision。`setup` 用 `uv sync --locked` 创建 `.venv`。首次安装需要联网；Linux 上声明的软件包是 C 编译器，用来构建只发布源码包的依赖。
 
 `check` 校验依赖锁和 schema 校验和，运行 Ruff 和离线回归测试，并检查 CLI。它不下载客户端，也不发布数据。只想做更窄的检查时用 `mise run test` 或 `mise run lint`。
 

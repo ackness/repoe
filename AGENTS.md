@@ -28,8 +28,7 @@ defined once, in PoBR's
 
 ## Layout
 
-Upstream paths stay where upstream has them; the fork's code lives in three
-packages by role.
+The fork's code is grouped into three packages by role.
 
 | Path | Origin | Contents |
 | --- | --- | --- |
@@ -67,7 +66,6 @@ from the edit.
 | `RePoE/native/locale_probe.py` | Transfer receipts pin its SHA-256 (`decoder.source_sha256`) |
 | `RePoE/client/china-text-request.json` | The published `inputs/0.5.5.5-1` capture receipt records its SHA-256 (`31a997fa…`, 2095 bytes) and the package carries a copy; a request for another capture is a new file |
 | `RePoE/docs/history-rewrite-20261103.json` | The commit map of the one-time history rewrite ([history](RePoE/docs/history.md)) |
-| Upstream paths (`RePoE/parser/`, `RePoE/model/`, `RePoE/schema/`, `RePoE/poe/`, `RePoE/run_parser.py`, the upstream docs) | Keep merges from upstream possible |
 | `RePoE/model/` contents | Generated: `mise run models:generate -- [schema paths]`, never edited by hand |
 
 Tags are never moved or deleted: `handoff/*`, `game/*` and `inputs/*` here
@@ -94,7 +92,7 @@ Run everything from the repository root through mise.
 
 ```sh
 mise trust && mise install --locked
-mise bootstrap --only packages            # compiler, JPEG and zlib headers for Pillow
+mise bootstrap --only packages            # C compiler for source-only dependencies
 mise run setup                            # uv sync --locked into .venv
 mise run check                            # uv lock, schema:check, lint, test, CLI
 mise run test                             # offline regression suite only

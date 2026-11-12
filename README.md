@@ -51,7 +51,7 @@ mise run setup
 mise run check
 ```
 
-`mise.lock` pins Python and uv; `uv.lock` pins Python dependencies, including PyPoE's full Git revision. `setup` creates `.venv` with `uv sync --locked`. First-time setup needs network access; Linux compiler/JPEG/zlib packages support the pinned Pillow release when a wheel is unavailable.
+`mise.lock` pins Python and uv; `uv.lock` pins Python dependencies, including PyPoE's full Git revision. `setup` creates `.venv` with `uv sync --locked`. First-time setup needs network access; on Linux the declared package is a C compiler for dependencies published only as source.
 
 `check` validates the dependency lock and schema checksum, runs Ruff and the offline regression suite, and checks the CLI. It does not download a client or publish data. Use `mise run test` or `mise run lint` for a narrower check.
 
