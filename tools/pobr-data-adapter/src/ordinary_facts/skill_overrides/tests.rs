@@ -4,6 +4,7 @@ use std::fs;
 use pobr_data::catalog::skill_overrides::SkillOverridesDef;
 use serde_json::{Value, json};
 
+use super::super::coverage::{AdapterMode, Coverage};
 use super::super::stat_set_codec::tests::table;
 use super::super::tests::Fixture;
 use super::super::{Args, BranchCodecArgs, CodecArgs, Domain, parse_args, reader, run};
@@ -265,7 +266,11 @@ fn target_implicit_membership_changes_reach_original_loader_without_old_reinject
         )
         .unwrap();
         // Exercise the existing ordinary source converter, not a manually filled base DTO.
-        let base = super::super::skills::convert(&facts).unwrap();
+        let base = super::super::skills::convert(
+            &facts,
+            &mut Coverage::new(AdapterMode::Strict, "skills"),
+        )
+        .unwrap();
         run(args(&f)).unwrap();
         let overlay = read(&f, OVERLAY);
         assert_eq!(overlay["overrides"], json!([]));

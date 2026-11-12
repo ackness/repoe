@@ -5,6 +5,7 @@ mod base_items;
 mod boss_poise;
 mod catalysts;
 mod convert;
+pub(crate) mod coverage;
 mod gem_effects;
 mod item_grants;
 mod minion_links;
@@ -28,6 +29,7 @@ mod uniques;
 mod tests;
 
 use crate::schema_id;
+use coverage::{AdapterMode, Coverage};
 use std::collections::BTreeMap;
 use std::path::PathBuf;
 
@@ -42,6 +44,7 @@ pub(crate) struct Args {
     version: String,
     out: PathBuf,
     domain: Domain,
+    mode: AdapterMode,
     quality_policy: Option<quality::Args>,
     codec: Option<CodecArgs>,
     branch_codec: Option<BranchCodecArgs>,
@@ -207,6 +210,7 @@ pub(crate) fn parse_args(args: impl Iterator<Item = String>) -> Result<Args, Str
             "--catalog-policy-sha256",
             "--player-context",
             "--player-manifest-sha256",
+            "--mode",
         ]
         .contains(&flag.as_str())
         {
@@ -243,6 +247,11 @@ pub(crate) fn parse_args(args: impl Iterator<Item = String>) -> Result<Args, Str
         Some("unarmed-data") => Domain::Unarmed,
         Some("uniques") => Domain::Uniques,
         Some(value) => return Err(format!("unsupported ordinary domain: {value}")),
+    };
+    let mode = match values.remove("--mode").as_deref() {
+        None | Some("strict") => AdapterMode::Strict,
+        Some("forward") => AdapterMode::Forward,
+        Some(value) => return Err(format!("unsupported adapter mode: {value}")),
     };
     if domain != Domain::GemQuality
         && (values.contains_key("--quality-policy")
@@ -377,6 +386,7 @@ pub(crate) fn parse_args(args: impl Iterator<Item = String>) -> Result<Args, Str
         version: take("--version")?,
         out: take("--out")?.into(),
         domain,
+        mode,
         quality_policy: if domain == Domain::GemQuality {
             Some(quality::Args {
                 path: take("--quality-policy")?.into(),
@@ -477,8 +487,9 @@ pub(crate) fn run(args: Args) -> Result<String, String> {
     let mut legacy_socketables_bytes = None;
     let mut legacy_base_overrides_bytes = None;
     let mut legacy_constant_files = BTreeMap::new();
+    let mut coverage = Coverage::new(args.mode, args.domain.label());
     // Complete validation and serialization before reserving any output.
-    let (base, conversion, output_schema, scope) = match args.domain {
+    let (base, mut conversion, output_schema, scope) = match args.domain {
         Domain::Unarmed => {
             let converted = unarmed::convert(
                 &input,
@@ -754,7 +765,7 @@ pub(crate) fn run(args: Args) -> Result<String, String> {
             )
         }
         Domain::Skills => {
-            let converted = skills::convert(&input)?;
+            let converted = skills::convert(&input, &mut coverage)?;
             (
                 converted.base,
                 converted.receipt,
@@ -770,7 +781,7 @@ pub(crate) fn run(args: Args) -> Result<String, String> {
         }
         Domain::GemQuality => {
             let policy = quality_policy.ok_or("missing quality policy arguments")?;
-            let converted = quality::convert(&input, policy)?;
+            let converted = quality::convert(&input, policy, &mut coverage)?;
             output.protect(&converted.policy_parent)?;
             overlay = converted.overlay;
             policy_bytes = Some(converted.policy_bytes);
@@ -792,7 +803,7 @@ pub(crate) fn run(args: Args) -> Result<String, String> {
                 .codec
                 .as_ref()
                 .ok_or("missing codec source/policy arguments")?;
-            let converted = stat_set_codec::convert(&input, codec)?;
+            let converted = stat_set_codec::convert(&input, codec, &mut coverage)?;
             for parent in &converted.protected_parents {
                 output.protect(parent)?;
             }
@@ -816,7 +827,7 @@ pub(crate) fn run(args: Args) -> Result<String, String> {
                 .codec
                 .as_ref()
                 .ok_or("missing codec source/policy arguments")?;
-            let converted = gem_effects::convert(&input, codec)?;
+            let converted = gem_effects::convert(&input, codec, &mut coverage)?;
             for parent in &converted.protected_parents {
                 output.protect(parent)?;
             }
@@ -893,7 +904,7 @@ pub(crate) fn run(args: Args) -> Result<String, String> {
                 .branch_codec
                 .as_ref()
                 .ok_or("missing branch codec arguments")?;
-            let converted = skill_stat_map::convert(&input, codec, branch)?;
+            let converted = skill_stat_map::convert(&input, codec, branch, &mut coverage)?;
             for parent in &converted.protected_parents {
                 output.protect(parent)?;
             }
@@ -922,7 +933,7 @@ pub(crate) fn run(args: Args) -> Result<String, String> {
                 .branch_codec
                 .as_ref()
                 .ok_or("missing branch codec arguments")?;
-            let converted = skill_overrides::convert(&input, codec, branch)?;
+            let converted = skill_overrides::convert(&input, codec, branch, &mut coverage)?;
             for parent in &converted.protected_parents {
                 output.protect(parent)?;
             }
@@ -1014,6 +1025,7 @@ pub(crate) fn run(args: Args) -> Result<String, String> {
                     .ok_or("missing passive-tree source/policy arguments")?,
                 args.tree_refresh.as_deref(),
                 supplement.as_ref(),
+                &mut coverage,
             )?;
             for parent in &converted.protected_parents {
                 output.protect(parent)?;
@@ -1075,6 +1087,7 @@ pub(crate) fn run(args: Args) -> Result<String, String> {
             )
         }
     };
+    coverage.finish(&mut conversion)?;
     let marker = reader::json_bytes(&json!({
         "schema": "pobr-domain-candidate/v1",
         "domain": args.domain.marker(),
@@ -1490,6 +1503,10 @@ fn implementation_sources() -> &'static [(&'static str, &'static [u8])] {
         (
             "skills/stat_sets.rs",
             include_bytes!("skills/stat_sets.rs").as_slice(),
+        ),
+        (
+            "ordinary_facts/coverage.rs",
+            include_bytes!("ordinary_facts/coverage.rs").as_slice(),
         ),
         (
             "ordinary_facts/convert.rs",

@@ -37,6 +37,7 @@ pub(super) fn convert(
     input: &VerifiedFacts,
     args: &super::CodecArgs,
     branch: &super::BranchCodecArgs,
+    _coverage: &mut super::coverage::Coverage,
 ) -> Result<Converted, String> {
     let pinned_policy = read_pinned(&args.policy, &args.policy_sha256, "skill-stat-map policy")?;
     let policy: policy::Policy = serde_json::from_value(pinned_policy.document)

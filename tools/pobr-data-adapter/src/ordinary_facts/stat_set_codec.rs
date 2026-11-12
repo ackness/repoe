@@ -69,7 +69,11 @@ impl Owner {
     }
 }
 
-pub(super) fn convert(input: &VerifiedFacts, args: &super::CodecArgs) -> Result<Converted, String> {
+pub(super) fn convert(
+    input: &VerifiedFacts,
+    args: &super::CodecArgs,
+    _coverage: &mut super::coverage::Coverage,
+) -> Result<Converted, String> {
     let policy_input = read_pinned(&args.policy, &args.policy_sha256, "codec policy")?;
     let policy: policy::Policy =
         serde_json::from_value(policy_input.document).map_err(|e| format!("codec policy: {e}"))?;

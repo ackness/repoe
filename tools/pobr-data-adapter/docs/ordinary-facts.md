@@ -51,6 +51,10 @@ it preserves the Stats/Mods JSON, marker and receipt content except for the
 compiled implementation revision. All domains share the verification/output
 boundary, with their own table subsets. The remaining sections describe Stats/Mods.
 
+`--mode strict|forward` (default `strict`) selects whether a per-entity content
+gap fails the run or is recorded in the receipt's `conversion.coverage`; see
+[strict and forward mode](ordinary-coverage.md).
+
 Additional inputs depend on the selected domain:
 
 | Options | Domain requirements |

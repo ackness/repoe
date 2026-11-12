@@ -83,6 +83,7 @@ pub(super) fn convert(
     args: &super::super::CodecArgs,
     extra: &Args,
     supplement: Option<&reader::selected::Input>,
+    _coverage: &mut super::super::coverage::Coverage,
 ) -> Result<Converted, String> {
     let pinned = read_pinned(&args.policy, &args.policy_sha256, "target tree policy")?;
     let policy: Policy = serde_json::from_value(pinned.document).map_err(|e| e.to_string())?;

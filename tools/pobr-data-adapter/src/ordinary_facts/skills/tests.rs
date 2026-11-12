@@ -35,13 +35,13 @@ fn physical_fixture(bytes: &[u8]) -> Fixture {
     f
 }
 
-fn fixture() -> Fixture {
+pub(in crate::ordinary_facts) fn fixture() -> Fixture {
     physical_fixture(include_bytes!(
         "../../../tests/fixtures/ordinary-facts/skill-tables.json"
     ))
 }
 
-fn args(f: &Fixture) -> Args {
+pub(in crate::ordinary_facts) fn args(f: &Fixture) -> Args {
     Args {
         domain: Domain::Skills,
         ..f.args()

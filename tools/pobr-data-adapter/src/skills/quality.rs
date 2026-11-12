@@ -11,6 +11,8 @@ use std::collections::{BTreeMap, BTreeSet};
 use pobr_data::catalog::{GemQualityStatDef, QualityStat};
 use serde::{Deserialize, Serialize};
 
+use crate::ordinary_facts::coverage::Coverage;
+
 #[derive(Deserialize, Serialize)]
 #[serde(deny_unknown_fields)]
 pub(crate) struct Compatibility {
@@ -99,6 +101,7 @@ pub(crate) fn convert_rows(
     stats: &BTreeMap<usize, String>,
     rows: Vec<RawQuality>,
     compatibility: &Compatibility,
+    _coverage: &mut Coverage,
 ) -> Result<Converted, String> {
     validate_compatibility(compatibility)?;
     let enabled: BTreeSet<_> = compatibility.effects.iter().cloned().collect();

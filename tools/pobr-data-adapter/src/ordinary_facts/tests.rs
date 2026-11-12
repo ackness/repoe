@@ -189,6 +189,7 @@ impl Fixture {
             ),
             version: "0.5.5.5".into(),
             domain: super::Domain::StatsMods,
+            mode: super::AdapterMode::Strict,
             quality_policy: None,
             codec: None,
             branch_codec: None,

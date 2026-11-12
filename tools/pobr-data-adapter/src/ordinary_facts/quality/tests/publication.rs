@@ -1,4 +1,5 @@
 use super::*;
+use crate::ordinary_facts::coverage::{AdapterMode, Coverage};
 
 fn publication_fixture() -> Fixture {
     let mut f = fixture();
@@ -277,7 +278,14 @@ fn all_429_real_source_vectors_retain_rates_order_channels_and_native_scopes() {
             alt_sets: source.4.clone(),
         });
     }
-    let converted = quality::convert_rows(&effects, &stats, rows, &compatibility).unwrap();
+    let converted = quality::convert_rows(
+        &effects,
+        &stats,
+        rows,
+        &compatibility,
+        &mut Coverage::new(AdapterMode::Strict, "gem-quality"),
+    )
+    .unwrap();
     assert_eq!(sources.len(), 429);
     assert_eq!(converted.effects.len(), 424);
     let published: BTreeMap<_, _> = converted
