@@ -49,3 +49,32 @@ Both successful and failed builds print counts by job and issue kind,
 every issue with its observed values, and open tree issue and entity counts.
 Coverage issues alone do not fail `release:build`; publication applies its
 own acceptance rules. A strict receipt has no `coverage` key.
+
+## Drafting passive-tree policies
+
+Run `mise run release:policy-draft -- --receipt <build-directory>/receipt.json`
+to write `passive-tree.draft.json` and `summary.json` under
+`.cache/release/<build id>/policy-draft/`, where the build ID is the receipt's
+directory name. The command prints the same JSON summary, with issue counts
+by kind and entry counts by type. `drafted` counts issues handled by draft
+entries, including multiple issues merged into one entry. The input issue
+count equals `drafted` plus the `blocked` and `unhandled` counts.
+`--out <dir>` selects another destination;
+paths inside the repository must be under `.cache/`, and neither output file
+may already exist.
+
+The emitter reads only the build receipt's `coverage.jobs` issues for
+`passive-tree`. It copies observed hashes verbatim into `placement_rebase`,
+`ascendancy_frames`, `compatibility_bindings` and `context_columns` entries.
+Changed `excluded-definition` issues become `excluded` updates; `stale-exclusion`
+issues become `excluded_removals` keyed by node ID, identifying entries to remove
+during review. Other issue kinds remain verbatim in `unhandled`. Quarantined
+issues remain verbatim in `blocked`, with the note
+"needs a newer official reference or an exclusion".
+
+Every drafted entry has `review: "unreviewed"` and `reason: ""`. Reviewers must
+choose new ascendancy offsets (`dx` and `dy` are null), column neutral or
+constant values (also null), and verify candidate text and exclusion decisions.
+Nonempty candidate lines have `origin: "official-reference"`; missing or empty
+lines have `origin: "manual"`. These files are review material, not accepted
+policies. The emitter never opens facts, tree files or policies.

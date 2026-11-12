@@ -91,6 +91,10 @@ run = "cargo build --locked --release --quiet --manifest-path tools/pobr-data-ad
 description = "Package a patch's extracted inputs (--patch, --package NAME=DIR) as deterministic zips for the inputs/<patch>-<n> GitHub Release and print their inputs.lock.json entries; --yes tags, pushes and creates the Release"
 run = "python -B -m RePoE.release.inputs"
 
+[tasks."release:policy-draft"]
+description = "Draft unreviewed passive-tree policy entries from a forward build receipt's coverage; refuses existing outputs"
+run = "python -B -m RePoE.release.policy_draft"
+
 [tasks."policy:rebind"]
 description = "Create new policies and domains.json from an old declaration and a release:inputs stage; refuses existing outputs"
 run = "python -B -m RePoE.release.policy_rebinding"
