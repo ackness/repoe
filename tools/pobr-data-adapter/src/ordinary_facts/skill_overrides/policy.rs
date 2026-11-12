@@ -76,6 +76,19 @@ impl From<&SkillOverrideEntry> for Key {
     }
 }
 
+impl std::fmt::Display for Key {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "{}/{}", self.skill, self.stat)?;
+        if let Some(index) = self.stat_set {
+            write!(f, "/stat_set={index}")?;
+        }
+        if let Some(id) = &self.stat_id {
+            write!(f, "/stat_id={id}")?;
+        }
+        Ok(())
+    }
+}
+
 impl Key {
     pub fn validate(&self) -> Result<(), String> {
         identity(&self.skill, "override skill Id")?;
@@ -114,7 +127,8 @@ impl Key {
 #[derive(Deserialize, Serialize)]
 #[serde(deny_unknown_fields)]
 pub(super) struct NumericException {
-    pub source_row: usize,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub source_row: Option<usize>,
     pub key: Key,
     pub reason: String,
 }
@@ -122,7 +136,8 @@ pub(super) struct NumericException {
 #[derive(Deserialize, Serialize)]
 #[serde(deny_unknown_fields)]
 pub(super) struct Unbound {
-    pub source_row: usize,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub source_row: Option<usize>,
     pub key: Key,
     pub codec_present: bool,
     pub target_effect_present: bool,
@@ -182,10 +197,13 @@ impl Policy {
             exception.key.validate()?;
             if exception.key.stat != "base_multiplier"
                 || exception.reason.trim().is_empty()
-                || !rows.insert(exception.source_row)
+                || exception.source_row.is_some_and(|row| !rows.insert(row))
                 || !keys.insert(&exception.key)
             {
-                return Err("invalid/duplicate legacy numeric exception".into());
+                return Err(format!(
+                    "invalid/duplicate legacy numeric exception for {}",
+                    exception.key
+                ));
             }
         }
         rows.clear();
@@ -196,10 +214,13 @@ impl Policy {
                 || exception.codec_present
                 || exception.action
                     != "retain unchanged compatibility entry; no inferred target branch ownership"
-                || !rows.insert(exception.source_row)
+                || exception.source_row.is_some_and(|row| !rows.insert(row))
                 || !keys.insert(&exception.key)
             {
-                return Err("invalid/duplicate unbound retained exception".into());
+                return Err(format!(
+                    "invalid/duplicate unbound retained exception for {}",
+                    exception.key
+                ));
             }
         }
         Ok(())

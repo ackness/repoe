@@ -52,10 +52,10 @@ keys are checked before reserving output. Ordered reference lists may repeat.
 | Legacy per-level template | Replace its whole `per_level` list with target points, including new target levels. Old levels/values never fill a target hole or constrain the output. |
 | Legacy constant template | Emit a target-derived constant only if all positive target rows are equal. Otherwise replace `value` with actual `per_level` points. Missing/empty positive primary rows fail. |
 | GPL | Resolve `GrantedEffect` / `Level` and record pairing only. Do not filter set rows by GPL, fabricate runtime levels or add actor/level scaling. |
-| Virtual numeric entry | Preserve raw JSON only under an exact source-row/key exception and absent target effect. Newly missing, newly bound or unused exceptions fail. |
+| Virtual numeric entry | Preserve raw JSON only under an exact key exception and absent target effect. Newly missing, newly bound or unused exceptions fail. |
 | Prepared interpretation | Preserve the whole raw entry, including unknown fields, for the policy's supported `implicit_stat`, `explode_corpse`, `skill_attack_speed_more`, `dot_is_area` categories. Unknown new stat categories require adaptation. |
 | Retained branch | Actual `(skill, stat_set)` codec record → stable set ID → target owner's ordered primary/additional refs. Empty labels and duplicate ordered refs remain valid. No raw-order inference or producer primary fallback. |
-| Missing retained codec | Only an exact source-row/key/presence policy exception may preserve the entry without a target branch claim. New/stale/partial exceptions fail. |
+| Missing retained codec | Only an exact key/presence policy exception may preserve the entry without a target branch claim. New/stale/partial exceptions fail. |
 | Implicit stat ID | Resolve the unchanged ID in target Stats; absence is an explicit policy conflict, never a remap or silent deletion. |
 
 The current pinned source has 362 authored entries: 267 raw-owned numeric entries,
@@ -63,6 +63,12 @@ one virtual `EnemyExplode` multiplier and 94 prepared entries (84 implicit, eigh
 corpse explosions, one speed and one area flag). Ten prepared entries have exact
 unbound codec decisions. These are source observations, not Rust admission counts
 or skill allowlists. The policy is data, not a source of target numeric values.
+
+Both exception lists match the full override key: `skill`, `stat`, and the
+optional `stat_set` and `stat_id`. An exception's optional `source_row` is
+historical evidence only; inserting or deleting earlier legacy override rows
+does not change which exception matches. Duplicate keys and duplicate present
+`source_row` values within either list still fail.
 
 Parent preflight found Decimal equality for 6,672 old per-level points and 181
 source rows behind 98 constants. The existing f64 expression can serialize
@@ -103,6 +109,13 @@ row and ordered owner, or exact unbound exception; implicit stat physical rows
 are explicit. Unconsumed columns and row ranges remain locatable in F. The
 receipt includes actual source/policy/output hashes and compiled implementation
 revision, including all new helpers and the unchanged original DTO source.
+
+The receipt's `conversion.exception_row_moved` array is always present. In legacy
+source order, it lists each matched exception whose recorded `source_row` differs
+from its current row, with `list` (`legacy_numeric_exceptions` or
+`unbound_retained_entries`), `key`, `policy_source_row` and actual `source_row`.
+It is empty when no rows moved. An absent policy `source_row` is not a move and
+remains absent from the entry's embedded `policy_exception`.
 
 Validation and serialization finish before output reservation. The existing
 Output directory-handle protection covers all auxiliary parents, F, production
