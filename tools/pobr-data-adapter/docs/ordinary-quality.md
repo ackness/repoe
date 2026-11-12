@@ -94,3 +94,39 @@ and the 429 real source vectors, channel ordering and scopes. Fixture provenance
 is documented in `tests/fixtures/ordinary-facts/README.md`. Real publication replay
 also compares the complete generated overlay against the source and old immutable
 package, preserving all unrelated game and language bytes.
+
+## Forward mode
+
+`--mode forward` reports content decisions under `conversion.coverage`; see
+[ordinary coverage](ordinary-coverage.md) for its shape. Strict mode retains
+the existing errors and historical output bytes.
+
+| Site | Kind | Action |
+| --- | --- | --- |
+| Quality owner has no reviewed enabled/excluded decision | `unreviewed-quality` | `quarantined`: omit the effect and its runtime scopes |
+| Reviewed quality owner disappeared | `reviewed-quality-gone` | `listed`: report each missing enabled or excluded ID |
+| SkillGems link count differs from one | `gem-effects-count` | Isolate the gem; normal gems are `quarantined`, placeholders are `listed` |
+| Invalid own SkillGems scalar, experience reference value or link field | `gem-invalid-field` | Isolate the gem with the same actions |
+
+Quality issues use the effect ID. Gem isolation uses the base item ID, matching
+the gem-effects domain; a null-base development placeholder uses
+`null BaseItemType`. Issues include the observed quality values or gem fields
+needed to review the decision. Already accepted placeholders with zero links
+get a forward-only informational note.
+
+An isolated gem contributes no publication relationships. Reviewed quality
+vectors remain eligible independently of gem membership, as with other unlinked
+owners. If isolation removes the evidence needed to verify a DNT-only decision,
+that decision is omitted from publication evidence; the row's isolation issue
+records the gap. A surviving normal gem relationship still prevents a DNT-only
+exclusion. Missing reviewed owners are absent from publication evidence.
+
+All quality rows still validate both channels before omission, so an unreviewed
+owner cannot hide dangling stats, duplicate owners or mismatched vector lengths.
+Pins, table contracts, duplicate identities, dangling gem references, unresolved
+base identities, reviewed effects with empty quality vectors and contradictory
+publication decisions on surviving relationships remain fatal in both modes.
+Missing required primary effects remain fatal as GemEffects defects. Carried own
+scalar fields use the skills domain's nonnegative signed-i32 checks; malformed
+experience reference values are isolated, while valid keys to missing rows remain
+fatal. Both gem domains share these own-field checks.

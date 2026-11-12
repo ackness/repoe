@@ -3,7 +3,8 @@
 `--ordinary-domain gem-effects` derives every normal gem's relationship tuple
 from the pinned target physical facts. An explicitly pinned legacy codec supplies
 display order and existing primary-owner precedence. Every legacy relationship
-must match target facts exactly; this mode has no mismatch exceptions or remaps.
+must match target facts exactly in strict mode; there are no mismatch exceptions
+or remaps.
 
 ```sh
 mise run adapter -- \
@@ -128,3 +129,38 @@ producer execution are **UNRUN**. Parent validation uses the existing warm targe
 then a fixed binary for independent full field/owner comparison, dual replay and
 old-domain byte comparison. Complete target package, ordinary BD/Web behavior,
 prepared assets, later-exporter compatibility and adoption remain separate work.
+
+## Forward mode
+
+`--mode forward` records content decisions under `conversion.coverage`; see
+[ordinary coverage](ordinary-coverage.md) for the shared report shape. Strict
+mode keeps its existing errors and output bytes.
+
+| Site | Kind | Action |
+| --- | --- | --- |
+| Codec gem absent from normal target gems | `codec-gem-absent` | `quarantined`: omit that codec row |
+| Any relationship tuple field differs | `codec-tuple-mismatch` | `emitted-with-gap`: emit the complete target tuple with empty display order |
+| SkillGems link count differs from one | `gem-effects-count` | Isolate the gem; normal gems are `quarantined`, placeholders are `listed` |
+| Invalid own SkillGems scalar, experience reference value or link field | `gem-invalid-field` | Isolate the gem with the same actions |
+
+Tuple evidence contains `legacy` and `target` arrays in this order: variant ID,
+primary effect ID, ordered additional effect IDs, ordered additional stat-set IDs.
+Only a matching tuple can retain legacy display order. A legacy primary owner
+also has to remain a member of its target primary group. The existing
+`conversion.new_gems_without_legacy_codec` count counts target IDs absent from
+the codec, including when codec rows disappeared. The adjacent
+`conversion.new_gems_without_legacy_codec_ids` array lists those IDs in sorted
+order in both strict and forward modes. These IDs are baseline receipt evidence
+and do not create coverage issues.
+
+Gem isolation uses `BaseItemTypes.Id` as its entity and records the row's fields.
+A null-base development placeholder has no base ID and uses `null BaseItemType`.
+Already accepted placeholders with zero links get an informational note in
+forward mode. Invalid base identities that cannot resolve to a stable ID,
+dangling references, duplicate keys, metadata/pin failures, and invalid display
+orders on matching tuples remain fatal. A missing required primary effect also
+remains fatal: it is a GemEffects defect. Own scalar fields carried by the input
+use the skills domain's nonnegative signed-i32 checks; malformed experience
+reference values are isolated, while valid keys to missing rows remain fatal.
+Every valid reference is checked even
+when another field causes isolation. The legacy sidecar stays verbatim.
