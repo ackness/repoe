@@ -26,11 +26,13 @@ pub(crate) mod quality;
 mod stat_sets;
 
 use std::collections::BTreeMap;
+#[cfg(test)]
 use std::path::Path;
 
 use pobr_data::catalog::{GrantedEffectDef, SkillGemDef, SkillLevelDef};
 use serde::{Deserialize, de::DeserializeOwned};
 
+#[cfg(test)]
 use crate::read_json;
 
 pub(crate) use effects::adapt_cost_types_from;
@@ -42,6 +44,7 @@ pub(crate) trait SkillTables {
     fn read_table<T: DeserializeOwned>(&self, table: &str) -> Result<Vec<T>, String>;
 }
 
+#[cfg(test)]
 impl SkillTables for Path {
     fn read_table<T: DeserializeOwned>(&self, table: &str) -> Result<Vec<T>, String> {
         read_json(&self.join(format!("{table}.json")))

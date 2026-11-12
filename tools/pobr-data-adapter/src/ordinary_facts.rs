@@ -1212,7 +1212,17 @@ fn pretty_bytes(value: &impl serde::Serialize) -> Result<Vec<u8>, String> {
 fn implementation_sha256() -> String {
     let mut bytes = Vec::new();
     // Content revision records the compiled implementation, not whichever checkout invokes it.
-    for (name, source) in [
+    for (name, source) in implementation_sources() {
+        bytes.extend_from_slice(name.as_bytes());
+        bytes.push(0);
+        bytes.extend_from_slice(source);
+        bytes.push(0);
+    }
+    sha256_hex(&bytes)
+}
+
+fn implementation_sources() -> &'static [(&'static str, &'static [u8])] {
+    const SOURCES: &[(&str, &[u8])] = &[
         (
             "ordinary_facts/stat_descriptions.rs",
             include_bytes!("ordinary_facts/stat_descriptions.rs").as_slice(),
@@ -1507,6 +1517,7 @@ fn implementation_sha256() -> String {
             include_bytes!("facts/output.rs").as_slice(),
         ),
         ("main.rs", include_bytes!("main.rs").as_slice()),
+        ("schema_id.rs", include_bytes!("schema_id.rs").as_slice()),
         ("raw_source.rs", include_bytes!("raw_source.rs").as_slice()),
         ("Cargo.toml", include_bytes!("../Cargo.toml").as_slice()),
         ("Cargo.lock", include_bytes!("../Cargo.lock").as_slice()),
@@ -1514,11 +1525,6 @@ fn implementation_sha256() -> String {
             "pypoe-sources.json",
             include_bytes!("../tests/fixtures/native-facts/pypoe-sources.json").as_slice(),
         ),
-    ] {
-        bytes.extend_from_slice(name.as_bytes());
-        bytes.push(0);
-        bytes.extend_from_slice(source);
-        bytes.push(0);
-    }
-    sha256_hex(&bytes)
+    ];
+    SOURCES
 }
