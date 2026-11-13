@@ -6,8 +6,10 @@ import zipfile
 import unittest
 
 from RePoE.release import pins
+from RePoE.client import export_receipt
 from RePoE.native import crafting_facts
 from RePoE.release import crafting_catalog as crafting
+from tests.client.test_export_receipt import receipt_for
 
 TARGET = {"game": "poe2", "game_patch": "9.1", "realm": "international"}
 
@@ -74,7 +76,7 @@ def zip_bytes(members):
     return buffer.getvalue()
 
 
-def crafting_package(facts, target=TARGET, producers=crafting.HISTORICAL_PRODUCERS):
+def crafting_package(facts, target=TARGET, producers=crafting.HISTORICAL_PRODUCERS, *, receipted=False, **identity):
     members = {f"{name}.json": b'{"synthetic":true}' for name in crafting.TABLES}
     members.update({"crafting.json": pins.encoded(facts), "input-manifest.json": b'{"synthetic_source":true}'})
     producer = {name: "c" * 64 for name in sorted(producers)}
@@ -88,6 +90,8 @@ def crafting_package(facts, target=TARGET, producers=crafting.HISTORICAL_PRODUCE
         "input_package": {"manifest": input_pin},
         "files": {n: pins.pin(r) for n, r in members.items()},
     }
+    if receipted:
+        manifest[export_receipt.FIELD] = export_receipt.SCHEMA
     members["manifest.json"] = pins.encoded(manifest)
     spec = {
         "publication": "published",
@@ -98,6 +102,8 @@ def crafting_package(facts, target=TARGET, producers=crafting.HISTORICAL_PRODUCE
         "producer": producer,
         "expanded_bytes": sum(map(len, members.values())),
     }
+    if receipted:
+        spec["export_receipt"] = pins.decode(receipt_for(members["manifest.json"], **identity))
     return spec, zip_bytes(members)
 
 
@@ -203,9 +209,66 @@ class FactsDocumentTests(unittest.TestCase):
         for producers in crafting.PRODUCER_KEY_SETS:
             with self.subTest(producers=sorted(producers)):
                 facts = fixture()
-                spec, raw = crafting_package(facts, producers=producers)
+                spec, raw = crafting_package(
+                    facts, producers=producers, receipted=producers == crafting.CURRENT_PRODUCERS
+                )
                 with zipfile.ZipFile(io.BytesIO(raw)) as archive:
                     self.assertEqual(crafting.facts_document(archive, spec, TARGET), facts)
+
+    def test_current_export_requires_the_marker_and_its_matching_lock_receipt(self):
+        clean, _ = crafting_package(fixture(), producers=crafting.CURRENT_PRODUCERS, receipted=True)
+        # Both stripped, or just the marker stripped: the remaining historical path is closed to current keys.
+        for receipt in (None, clean["export_receipt"]):
+            spec, raw = crafting_package(fixture(), producers=crafting.CURRENT_PRODUCERS)
+            if receipt is not None:
+                spec["export_receipt"] = receipt
+            with (
+                zipfile.ZipFile(io.BytesIO(raw)) as archive,
+                self.assertRaisesRegex(ValueError, "lacks producer_receipt"),
+            ):
+                crafting.facts_document(archive, spec, TARGET)
+        for case, message in (
+            ("missing", "requires its export_receipt"),
+            ("manifest", "receipt pins another manifest"),
+            ("target", "receipt target differs"),
+            ("build-target", "Crafting target/format mismatch"),
+        ):
+            with self.subTest(case=case):
+                spec, raw = crafting_package(fixture(), producers=crafting.CURRENT_PRODUCERS, receipted=True)
+                target = TARGET
+                if case == "missing":
+                    del spec["export_receipt"]
+                elif case == "manifest":
+                    spec["export_receipt"]["manifest"]["sha256"] = "0" * 64
+                elif case == "target":
+                    spec["export_receipt"]["target"]["realm"] = "china"
+                else:
+                    target = {**TARGET, "realm": "china"}
+                with zipfile.ZipFile(io.BytesIO(raw)) as archive, self.assertRaisesRegex(ValueError, message):
+                    crafting.facts_document(archive, spec, target)
+
+    def test_invalid_marker_or_receipt_never_falls_back_to_historical_handling(self):
+        for field, values in ((export_receipt.FIELD, (None, "", {}, "wrong")), ("export_receipt", (None, {}))):
+            for value in values:
+                with self.subTest(field=field, value=value):
+                    spec, raw = crafting_package(fixture(), receipted=field == export_receipt.FIELD)
+                    message = "candidate manifest lacks producer_receipt"
+                    if field == export_receipt.FIELD:
+                        with zipfile.ZipFile(io.BytesIO(raw)) as archive:
+                            members = {name: archive.read(name) for name in archive.namelist()}
+                        manifest = pins.decode(members["manifest.json"])
+                        manifest[field] = value
+                        members["manifest.json"] = pins.encoded(manifest)
+                        spec.update(
+                            manifest=pins.pin(members["manifest.json"]), expanded_bytes=sum(map(len, members.values()))
+                        )
+                        raw = zip_bytes(members)
+                    else:
+                        spec[field] = value
+                        if value is None:
+                            message = "requires its export_receipt"
+                    with zipfile.ZipFile(io.BytesIO(raw)) as archive, self.assertRaisesRegex(ValueError, message):
+                        crafting.facts_document(archive, spec, TARGET)
 
     def test_mixed_or_unknown_producer_keys_reject(self):
         mixed = {"RePoE/native_crafting_facts.py", "RePoE/native/descriptions.py"}

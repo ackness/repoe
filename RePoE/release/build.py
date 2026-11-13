@@ -989,6 +989,13 @@ def export_commits(packages):
         try:
             formats = () if package.spec.get("sha256") in HISTORICAL_INPUT_PACKAGES else export_receipt.FORMATS
             receipts = export_receipt.package_receipts(package.members, package.read, formats)
+            if "manifest.json" in package.members:
+                manifest_raw = package.read("manifest.json")
+                manifest = decode(manifest_raw)
+                if isinstance(manifest, dict) and manifest.get("format") == crafting_catalog.FORMAT:
+                    found = crafting_catalog.receipt(manifest_raw, package.spec)
+                    if found is not None:
+                        receipts["export_receipt"] = found
         except ValueError as error:
             raise ValueError(f"{key}: {error}") from error
         for member, receipt in receipts.items():

@@ -13,7 +13,7 @@ import zipfile
 from RePoE.client import export_receipt
 from RePoE.release.pins import decode, encoded, pin
 from RePoE.release import assets, build, crafting_catalog, inputs, publish
-from tests.client.test_export_receipt import DIRTY, candidate, receipt_for
+from tests.client.test_export_receipt import DIRTY, candidate, receipt_for, sibling
 from tests.release.test_build import serve, zip_bytes
 from tests.release.test_crafting_catalog import crafting_package, fixture as crafting_fixture
 from tests.release.test_publish import GitRepoCase, Runner, git
@@ -106,22 +106,32 @@ class PackageTest(unittest.TestCase):
 
     def test_crafting_export_keeps_its_manifest_and_supplies_the_build_lock_fields(self):
         facts = crafting_fixture()
-        expected, raw = crafting_package(facts, target=TARGET, producers=crafting_catalog.CURRENT_PRODUCERS)
+        expected, raw = crafting_package(
+            facts, target=TARGET, producers=crafting_catalog.CURRENT_PRODUCERS, receipted=True
+        )
         with zipfile.ZipFile(io.BytesIO(raw)) as archive:
             files = {name: archive.read(name) for name in archive.namelist()}
         source = tree(self.root / "crafting", files)
+        beside = sibling(source)
+        beside.write_bytes(encoded(expected["export_receipt"]))
         staged = inputs.stage({"crafting": source}, TARGET, self.root / "crafting-stage", tag="inputs/9.9-1")
         entry = json.loads((staged["directory"] / "lock.json").read_text())["crafting"]
         assets.validate(entry)
-        for key in ("publication", "producer", "input_manifest", "manifest", "expanded_bytes"):
+        for key in ("publication", "producer", "input_manifest", "manifest", "expanded_bytes", "export_receipt"):
             self.assertEqual(entry[key], expected[key])
+        self.assertEqual(staged["receipts"], {"crafting:export_receipt": expected["export_receipt"]})
         archive_path = staged["directory"] / "assets" / entry["asset"]
         with zipfile.ZipFile(archive_path) as archive:
+            self.assertEqual(set(archive.namelist()), set(files))
             self.assertEqual(archive.read("manifest.json"), files["manifest.json"])
             self.assertEqual(crafting_catalog.facts_document(archive, entry, TARGET), facts)
         build.write_new(self.root / "cache/downloads" / entry["sha256"], archive_path.read_bytes())
         opened = build.open_package(None, "crafting", entry, self.root / "cache", False)
         self.assertEqual(decode(opened.read("crafting.json")), facts)
+        beside.unlink()
+        with self.assertRaises(FileNotFoundError):
+            inputs.stage({"crafting": source}, TARGET, self.root / "missing-crafting-receipt")
+        beside.write_bytes(encoded(expected["export_receipt"]))
         (source / "crafting.json").write_bytes(b"changed")
         with self.assertRaisesRegex(ValueError, "Member size mismatch|Byte pin mismatch"):
             inputs.stage({"crafting": source}, TARGET, self.root / "refused-crafting")
@@ -372,6 +382,90 @@ class MainTest(GitRepoCase):
         code, output, runner = self.run_main("--yes")
         self.assertEqual(code, 0, output)
         self.assertIn("gh release create", runner.commands())
+
+    def test_crafting_receipt_reaches_the_existing_publication_and_ancestry_gates(self):
+        _, raw = crafting_package(
+            crafting_fixture(), target=TARGET, producers=crafting_catalog.CURRENT_PRODUCERS, receipted=True
+        )
+        with zipfile.ZipFile(io.BytesIO(raw)) as archive:
+            source = tree(self.stage.parent / "crafting", {name: archive.read(name) for name in archive.namelist()})
+        beside = sibling(source)
+        manifest = (source / "manifest.json").read_bytes()
+        for changes, reason in (
+            ({"rehearsal": True, "dirty_paths": DIRTY}, "crafting:export_receipt is a rehearsal"),
+            ({"rehearsal": True}, "crafting:export_receipt is a rehearsal"),
+            ({"commit": "e" * 40}, "cannot be checked against origin/master"),
+            ({}, None),
+        ):
+            beside.write_bytes(receipt_for(manifest, **{"commit": self.head, **changes}))
+            for mode in ((), ("--yes",)) if reason else ((),):
+                with self.subTest(changes=changes, mode=mode):
+                    code, output, runner = self.run_main("--package", f"crafting={source}", *mode)
+                    self.assertEqual(code, 1 if reason else 0, output)
+                    if reason:
+                        self.assertIn(reason, output)
+                    self.assertEqual([c for c in runner.commands() if c != "gh auth status"], [])
+        self.assertEqual(git(self.repo, "tag", "--list"), "")
+
+    def test_matching_published_assets_still_require_publishable_crafting_receipts(self):
+        _, raw = crafting_package(
+            crafting_fixture(), target=TARGET, producers=crafting_catalog.CURRENT_PRODUCERS, receipted=True
+        )
+        with zipfile.ZipFile(io.BytesIO(raw)) as archive:
+            source = tree(self.stage.parent / "crafting", {name: archive.read(name) for name in archive.namelist()})
+        manifest = (source / "manifest.json").read_bytes()
+        clean_receipt = receipt_for(manifest, commit=self.head)
+        sibling(source).write_bytes(clean_receipt)
+        published = inputs.stage(
+            {"ordinary": self.source, "crafting": source}, TARGET, self.stage.parent / "published", tag="inputs/9.9-1"
+        )
+        git(self.repo, "tag", "-a", "-m", "published", "inputs/9.9-1")
+        git(self.repo, "push", "-q", "origin", "refs/tags/inputs/9.9-1")
+        git(self.repo, "checkout", "-q", "-b", "unreviewed-export")
+        off_branch = self.commit("unreviewed.txt")
+        git(self.repo, "checkout", "-q", "master")
+
+        def download(command):
+            directory = Path(command[command.index("--dir") + 1])
+            for name in published["assets"]:
+                (directory / name).write_bytes((published["directory"] / "assets" / name).read_bytes())
+            return 0, b""
+
+        for changes, reason in (
+            ({"rehearsal": True, "dirty_paths": DIRTY}, "crafting:export_receipt is a rehearsal"),
+            ({"rehearsal": True}, "crafting:export_receipt is a rehearsal"),
+            ({"commit": off_branch}, f"export commit {off_branch} is not on origin/master"),
+            ({}, None),
+        ):
+            changed_receipt = receipt_for(manifest, **{"commit": self.head, **changes})
+            if reason:
+                self.assertNotEqual(changed_receipt, clean_receipt)
+            sibling(source).write_bytes(changed_receipt)
+            for mode in ((), ("--yes",)):
+                with self.subTest(changes=changes, mode=mode):
+                    runner = Runner(self.repo, gh={"view": (0, b"", b'{"isDraft":false}'), "download": download})
+                    code, output, _ = self.run_main("--package", f"crafting={source}", *mode, runner=runner)
+                    self.assertEqual(code, 1 if reason else 0, output)
+                    if reason:
+                        self.assertIn("release:inputs: refusing to publish:", output)
+                        self.assertIn(reason, output)
+                        self.assertNotIn("already published:", output)
+                        self.assertNotIn("inputs.lock.json packages:", output)
+                        self.assertNotIn('"export_receipt"', output)
+                    else:
+                        self.assertIn("already published: inputs/9.9-1", output)
+                        self.assertIn("inputs.lock.json packages:", output)
+                    self.assertEqual(
+                        runner.commands(),
+                        (["gh auth status"] if mode else []) + ["gh release view", "gh release download"],
+                    )
+                    staged = self.stage / "inputs-poe2-international-9.9"
+                    lock = decode((staged / "lock.json").read_bytes())
+                    self.assertEqual(lock["crafting"]["export_receipt"], decode(changed_receipt))
+                    for name, expected in published["assets"].items():
+                        self.assertEqual(build.file_pin(staged / "assets" / name), expected)
+        self.assertEqual(git(self.repo, "rev-parse", "HEAD").strip(), self.head)
+        self.assertEqual(git(self.repo, "tag", "--list"), "inputs/9.9-1\n")
 
     def test_dry_run_stages_and_prints_the_lock_entries(self):
         code, output, runner = self.run_main()
