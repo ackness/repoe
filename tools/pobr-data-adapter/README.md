@@ -68,6 +68,16 @@ prepared `passive_tree.json`). Each mode documents its arguments and guards:
   `ordinary-*.md` file for each domain;
 - passive tree: [ordinary-passive-tree.md](docs/ordinary-passive-tree.md).
 
+For ordinary domains, `--mode strict|forward` selects content-gap handling;
+strict is the default. Forward mode emits a complete issue report and
+continues at the documented per-entity decisions. Integrity failures still
+fail in both modes. The [coverage specification](docs/ordinary-coverage.md)
+owns the actions and issue format. Release declarations select forward mode
+with top-level `"adapter_mode": "forward"` in `domains.json`; omit the field
+for strict commands and receipts. The [forward build workflow](../../RePoE/docs/release/forward-build.md)
+owns aggregation, reviewed policy drafting and D40 publication refusal for
+open tree issues or failed/skipped tree producers.
+
 The output guards refuse to write under this repository's tracked `release/`
 or the selected input directories. Some domain documents retain the earlier
 PoBR term "production `data/`" for that protected location. `CURRENT` is

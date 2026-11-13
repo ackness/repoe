@@ -93,8 +93,6 @@ pub(crate) struct Issue {
     observed: BTreeMap<String, Value>,
 }
 
-// Removed by item 5 P10 once the wave-1 callers are merged.
-#[cfg_attr(not(test), allow(dead_code))]
 impl Issue {
     /// `message` must be exactly the error string strict mode returns at this site.
     pub(crate) fn new(
@@ -156,7 +154,6 @@ impl Coverage {
 
     /// A content gap that fails today. Strict: `Err(issue.message)`, the unchanged
     /// error at the unchanged program point. Forward: records the issue, `Ok(())`.
-    #[cfg_attr(not(test), allow(dead_code))]
     pub(crate) fn decide(&mut self, issue: Issue) -> Result<(), String> {
         match self.mode {
             AdapterMode::Strict => Err(issue.message),
@@ -169,7 +166,6 @@ impl Coverage {
 
     /// A gap that does not fail today (for example a new entity that is only
     /// counted). Strict: ignored, so strict receipts stay unchanged. Forward: recorded.
-    #[cfg_attr(not(test), allow(dead_code))]
     pub(crate) fn note(&mut self, issue: Issue) {
         if self.mode == AdapterMode::Forward {
             self.record(issue);

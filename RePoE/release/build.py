@@ -76,10 +76,10 @@ DIRECTORY_OPTIONS = {"--supplement", "--player-context"}
 BUSINESS = ("base/", "overlay/", "generated/")
 PROVENANCE = ("generated", "passthrough", "frozen")
 CLASSES = tuple(f"{p}-{c}" for p in PROVENANCE[:2] for c in ("identical", "different", "new")) + ("frozen", "missing")
-KINDS = {"adapter", "special-derived", "historical-trees", "crafting-catalog", "gem-descriptions", "snapshot-manifest"}
+KINDS = export_receipt.RELEASE_JOB_KINDS
 # Job kinds that read the facts envelope (under the identity the job names in ``facts``).
 FACTS_KINDS = {"adapter", "gem-descriptions"}
-COVERAGE_ACTIONS = ("quarantined", "emitted-with-gap", "retained-legacy", "listed")
+COVERAGE_ACTIONS = export_receipt.COVERAGE_ACTIONS
 BUILD_ERRORS = (ValueError, KeyError, TypeError, OSError, zipfile.BadZipFile)
 CODE = (
     "RePoE/release/build.py",
@@ -795,13 +795,16 @@ def job_dependencies(value):
 def run_job(ctx, job, jobs, passthrough):
     """Publish a job's outputs to dependants only after its validation succeeds."""
     forward = ctx.adapter_mode == "forward"
+    metadata = {"kind": job["kind"]}
+    if forward and job["kind"] == "adapter":
+        metadata["domain"] = job["domain"]
     if forward:
         unavailable = {name for name, result in jobs.items() if result["status"] in ("failed", "skipped")}
         inputs = [job.get(key) for key in ("options", "tree", "policy", "trees", "gem_effects", "granted_effects")]
         dependencies = set(jobs) if job["kind"] == "snapshot-manifest" else job_dependencies(inputs)
         blocked = sorted(dependencies & unavailable)
         if blocked:
-            jobs[job["id"]] = {"kind": job["kind"], "status": "skipped", "dependencies": blocked}
+            jobs[job["id"]] = {**metadata, "status": "skipped", "dependencies": blocked}
             return
     try:
         if job["kind"] == "snapshot-manifest":
@@ -824,16 +827,16 @@ def run_job(ctx, job, jobs, passthrough):
     except BUILD_ERRORS as error:
         if not forward:
             raise
-        jobs[job["id"]] = {"kind": job["kind"], "status": "failed", "error": str(error)}
+        jobs[job["id"]] = {**metadata, "status": "failed", "error": str(error)}
         return
     if job["kind"] != "snapshot-manifest":
         ctx.outputs[job["id"]] = dict(outputs)
     ctx.members.update(members)
     passthrough.update(carried)
     jobs[job["id"]] = {
-        "kind": job["kind"],
-        **({"status": "succeeded"} if forward else {}),
         **evidence,
+        **metadata,
+        **({"status": "succeeded"} if forward else {}),
         "outputs": {m: pin(raw) for m, (raw, _) in members.items()},
         **({"passthrough": carried} if carried else {}),
     }
@@ -841,12 +844,7 @@ def run_job(ctx, job, jobs, passthrough):
 
 def open_tree_issues(jobs):
     """D40 counts each quarantined or incomplete passive-tree issue, including repeated entities."""
-    return (
-        issue
-        for job in jobs.values()
-        for issue in job["issues"]
-        if issue["domain"] == "passive-tree" and issue["action"] in ("quarantined", "emitted-with-gap")
-    )
+    return export_receipt.open_tree_issues(jobs)
 
 
 def build_coverage(ctx):
@@ -888,8 +886,9 @@ def coverage_report(receipt):
     lines.append(
         "coverage totals: " + ", ".join(f"{action}={coverage['totals'][action]}" for action in COVERAGE_ACTIONS)
     )
-    entities = {issue["entity"] for issue in open_tree_issues(coverage["jobs"])}
-    lines.append(f"open tree issues: {coverage['open_tree_issues']} ({len(entities)} entities)")
+    issues = list(open_tree_issues(coverage["jobs"]))
+    entities = {issue["entity"] for issue in issues}
+    lines.append(f"open tree issues: {len(issues)} ({len(entities)} issue entities)")
     return "\n".join(lines)
 
 

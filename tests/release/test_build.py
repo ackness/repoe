@@ -356,6 +356,9 @@ class ReleaseBuildTest(unittest.TestCase):
         strict_command = json.loads((out / "work/logs/a/command.json").read_text())["command"]
         strict_zip = (out / "game-build-part.zip").read_bytes()
         self.assertNotIn("coverage", strict)
+        self.assertNotIn("adapter_mode", strict)
+        self.assertNotIn("domain", strict["jobs"]["a"])
+        self.assertNotIn("status", strict["jobs"]["a"])
         self.assertNotIn("--mode", strict_command)
         domains["adapter_mode"] = "forward"
         path.write_text(json.dumps(domains))
@@ -373,6 +376,8 @@ class ReleaseBuildTest(unittest.TestCase):
             coverage["totals"], dict.fromkeys(("quarantined", "emitted-with-gap", "retained-legacy", "listed"), 0)
         )
         self.assertEqual(coverage["open_tree_issues"], 0)
+        self.assertEqual(receipt["jobs"]["a"]["domain"], "derive")
+        self.assertIsNone(export_receipt.forward_refusal(receipt))
         self.assertIn("coverage a: 0 issues", build.report(receipt, outcome))
         self.assertEqual(json.loads(receipt_raw(out))["coverage"], coverage)
 
@@ -416,7 +421,9 @@ class ReleaseBuildTest(unittest.TestCase):
         report = build.report(receipt, outcome)
         self.assertIn("missing-text: 2", report)
         self.assertIn("codec-gem-absent: 1", report)
-        self.assertIn("open tree issues: 3 (2 entities)", report)
+        self.assertIn("open tree issues: 3 (2 issue entities)", report)
+        coverage["open_tree_issues"] = 0
+        self.assertIn("open tree issues: 3 (2 issue entities)", build.report(receipt, outcome))
         for issue in [*tree_issues, gem_issue]:
             self.assertIn(issue["message"], report)
             self.assertIn(issue["entity"], report)
@@ -510,6 +517,7 @@ class ReleaseBuildTest(unittest.TestCase):
         receipt = json.loads(receipt_raw(out))
         for job in ("a", "second-failure"):
             self.assertEqual(receipt["jobs"][job]["status"], "failed")
+            self.assertEqual(receipt["jobs"][job]["domain"], "fail")
             self.assertIn("synthetic failure", receipt["jobs"][job]["error"])
             self.assertIn(f"job {job}: failed:", stderr.getvalue())
         for job in ("dependent", "transitive", "policy-dependent", "special", "gem-descriptions", "snapshot"):
@@ -517,6 +525,8 @@ class ReleaseBuildTest(unittest.TestCase):
             self.assertIn(f"job {job}: skipped:", stderr.getvalue())
             self.assertFalse((out / "work/logs" / job).exists())
         self.assertEqual(receipt["jobs"]["independent"]["status"], "succeeded")
+        self.assertEqual(receipt["jobs"]["dependent"]["domain"], "derive")
+        self.assertEqual(receipt["jobs"]["special"]["kind"], "special-derived")
         self.assertEqual(receipt["jobs"]["copied"]["status"], "succeeded")
         self.assertTrue((out / "work/logs/copied/command.json").is_file())
         self.assertEqual(receipt["members"]["data/9.9/overlay/copied.json"]["class"], "passthrough-new")
@@ -544,6 +554,19 @@ class ReleaseBuildTest(unittest.TestCase):
         self.assertEqual(receipt["jobs"]["dependent"]["status"], "skipped")
         self.assertEqual(receipt["coverage"]["jobs"]["a"]["issues"], [])
         self.assertEqual(receipt["members"]["data/9.9/overlay/a.json"]["class"], "missing")
+
+    def test_forward_renamed_tree_jobs_retain_declared_identity_on_failure_and_skip(self):
+        ctx = mock.Mock(adapter_mode="forward", work=self.root)
+        jobs = {}
+        tree = {"id": "new-tree-id", "kind": "adapter", "domain": "passive-tree"}
+        with mock.patch.dict(build.RUNNERS, {"adapter": mock.Mock(side_effect=ValueError("synthetic failure"))}):
+            build.run_job(ctx, tree, jobs, {})
+        skipped = {**tree, "id": "other-tree-id", "options": {"--codec-source": "job:new-tree-id:x"}}
+        build.run_job(ctx, skipped, jobs, {})
+        for name, status in (("new-tree-id", "failed"), ("other-tree-id", "skipped")):
+            self.assertEqual(jobs[name]["kind"], "adapter")
+            self.assertEqual(jobs[name]["domain"], "passive-tree")
+            self.assertEqual(jobs[name]["status"], status)
 
     def test_forward_snapshot_failure_is_reported_with_adapter_coverage_before_packaging(self):
         config = self.forward_config(self.fixture(snapshot_passthrough=False))

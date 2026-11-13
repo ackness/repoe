@@ -58,3 +58,8 @@ adds no top-level receipt key.
 Changing this shape is a coordinated change: the adapter
 (`src/ordinary_facts/coverage.rs`), the release build that aggregates the
 reports, and this page.
+
+The [forward release workflow](../../../RePoE/docs/release/forward-build.md)
+owns declaration mode selection, the complete report, policy drafts and D40.
+Coverage remains informational for conversion and local builds; publication
+refuses open passive-tree issues and failed/skipped tree producers.

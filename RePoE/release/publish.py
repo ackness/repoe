@@ -349,13 +349,15 @@ def release_steps(run, staged, tag, commit, action, repository=REPOSITORY):
     return None, "published"
 
 
-def unpublishable(receipts):
-    """Staged ``{name: receipt}`` that say rehearsal or dirty, as ``"<name> is a rehearsal"`` lines."""
-    return [f"{name} {reason}" for name, receipt in receipts.items() if (reason := export_receipt.refusal(receipt))]
+def unpublishable(receipts, *, forward_only=False):
+    """Central staged-receipt refusal; forward diagnostics also apply to local plans."""
+    refusal = export_receipt.forward_refusal if forward_only else export_receipt.refusal
+    return [f"{name} {reason}" for name, receipt in receipts.items() if (reason := refusal(receipt))]
 
 
 def carry_out(parser, run, staged, tag, commit, steps, action, problems, warnings, yes, repository=REPOSITORY):
     """Print the staged assets and the plan; with ``yes`` and no problems, run the steps."""
+    problems = [*problems, *unpublishable(staged["receipts"], forward_only=True)]
     directory = staged["directory"]
     print(f"staged: {build.display(directory)}")
     for name, value in staged["assets"].items():
@@ -471,6 +473,7 @@ def main(argv=None, runner=None):
             parser.exit(1, "release:publish: refusing to publish:\n" + bullets(problems + warnings))
         # The build and what it says about HEAD.
         staged = stage(built(args, config), STAGE / build.output_name(config, target))
+        forward_problems = unpublishable(staged["receipts"], forward_only=True)
         receipt, package = staged["receipt"], staged["package"]
         if receipt["producer"]["commit"] != commit or receipt["producer"]["dirty"]:
             problems.append("the package was not built from a clean HEAD")
@@ -491,10 +494,15 @@ def main(argv=None, runner=None):
         directory = staged["directory"]
         (directory / "release-notes.md").write_text(release_body(staged, tag, sequence or "<n>"))
         (directory / "tag-message.txt").write_text(tag_message(staged, tag))
-        steps, action = release_steps(run, staged, tag, commit, decision["action"])
+        if forward_problems:
+            steps, action = commands(staged, tag, commit), decision["action"]
+        else:
+            steps, action = release_steps(run, staged, tag, commit, decision["action"])
     except (ValueError, KeyError, TypeError, OSError, zipfile.BadZipFile) as error:
         parser.exit(1, f"release:publish: {error}\n")
     if steps is None:
+        if refused := unpublishable(staged["receipts"]):
+            parser.exit(1, f"{parser.prog}: refusing to publish:\n" + bullets(refused))
         print(f"already published: {tag} names HEAD and its Release assets equal the staged ones")
         return
     carry_out(parser, run, staged, tag, commit, steps, action, problems, warnings, args.yes)

@@ -54,6 +54,10 @@ DIRTY_PATHS = (
     "mise.lock",
 )
 COMMIT = re.compile(r"[0-9a-f]{40}")
+COVERAGE_ACTIONS = ("quarantined", "emitted-with-gap", "retained-legacy", "listed")
+RELEASE_JOB_KINDS = frozenset(
+    {"adapter", "special-derived", "historical-trees", "crafting-catalog", "gem-descriptions", "snapshot-manifest"}
+)
 
 
 def _require(condition, message):
@@ -185,6 +189,101 @@ def verify(receipt_raw, manifest_raw):
     return receipt
 
 
+def open_tree_issues(jobs):
+    """D40's open records, shared by build aggregation, reporting and publication."""
+    return (
+        issue
+        for job in jobs.values()
+        for issue in job["issues"]
+        if issue["domain"] == "passive-tree" and issue["action"] in ("quarantined", "emitted-with-gap")
+    )
+
+
+def forward_refusal(receipt):
+    """D40 refusal from forward evidence; historical strict and native receipts have none."""
+    if not isinstance(receipt, dict):
+        return "is not a receipt"
+    jobs = receipt.get("jobs")
+    forward = "coverage" in receipt or (
+        isinstance(jobs, dict)
+        and any(isinstance(job, dict) and ("status" in job or "domain" in job) for job in jobs.values())
+    )
+    if not forward:
+        return None
+    try:
+        coverage = receipt.get("coverage")
+        _require(
+            isinstance(coverage, dict) and coverage.get("format") == "pobr-build-coverage/v1",
+            "missing or invalid forward coverage",
+        )
+        _require(isinstance(jobs, dict) and jobs, "missing or invalid forward jobs")
+        covered = coverage.get("jobs")
+        _require(isinstance(covered, dict), "missing or invalid coverage jobs")
+        for name, job in jobs.items():
+            _require(
+                isinstance(job, dict) and isinstance(job.get("kind"), str) and job["kind"] in RELEASE_JOB_KINDS,
+                f"{name}: invalid job kind",
+            )
+            _require(job.get("status") in ("succeeded", "failed", "skipped"), f"{name}: missing or invalid status")
+            if job["kind"] == "adapter":
+                _require(
+                    isinstance(job.get("domain"), str) and job["domain"].strip(), f"{name}: missing adapter domain"
+                )
+                if job["status"] == "succeeded":
+                    _require(name in covered, f"{name}: missing adapter coverage")
+        for name, job in covered.items():
+            _require(name in jobs and jobs[name]["kind"] == "adapter", f"{name}: coverage has no adapter job")
+            _require(isinstance(job, dict) and isinstance(job.get("issues"), list), f"{name}: invalid issues")
+            for issue in job["issues"]:
+                _require(isinstance(issue, dict), f"{name}: invalid issue")
+                _require(
+                    all(
+                        isinstance(issue.get(key), str) and issue[key].strip()
+                        for key in ("domain", "kind", "entity", "message")
+                    )
+                    and issue.get("action") in COVERAGE_ACTIONS
+                    and ("observed" not in issue or isinstance(issue["observed"], dict)),
+                    f"{name}: invalid issue fields",
+                )
+                _require(issue["domain"] == jobs[name]["domain"], f"{name}: issue domain differs from job domain")
+            counts = job.get("counts")
+            _require(
+                isinstance(counts, dict)
+                and set(counts) == set(COVERAGE_ACTIONS)
+                and all(type(value) is int and value >= 0 for value in counts.values())
+                and all(
+                    counts[action] == sum(issue["action"] == action for issue in job["issues"]) for action in counts
+                ),
+                f"{name}: invalid issue counts",
+            )
+        totals = coverage.get("totals")
+        _require(
+            isinstance(totals, dict)
+            and set(totals) == set(COVERAGE_ACTIONS)
+            and all(type(value) is int and value >= 0 for value in totals.values())
+            and all(totals[action] == sum(job["counts"][action] for job in covered.values()) for action in totals),
+            "invalid coverage totals",
+        )
+        _require(
+            type(coverage.get("open_tree_issues")) is int and coverage["open_tree_issues"] >= 0,
+            "invalid open tree summary",
+        )
+    except ValueError as error:
+        return f"has invalid D40 evidence: {error}"
+    issues = list(open_tree_issues(covered))
+    if issues:
+        return f"has {len(issues)} open tree issues ({len({issue['entity'] for issue in issues})} issue entities); D40 blocks publication"
+    blocked = [
+        f"{name} ({job['kind']}, {job['status']})"
+        for name, job in jobs.items()
+        if (job["kind"] == "special-derived" or (job["kind"] == "adapter" and job["domain"] == "passive-tree"))
+        and job["status"] != "succeeded"
+    ]
+    if blocked:
+        return f"has failed or skipped tree producers: {', '.join(blocked)}; D40 blocks publication"
+    return None
+
+
 def refusal(receipt):
     """Why a receipt (an export's, or a release build's) must not be published, or None.
 
@@ -196,7 +295,7 @@ def refusal(receipt):
         return "is a rehearsal"
     if receipt["producer"].get("dirty") is not False:
         return "was produced from a dirty checkout"
-    return None
+    return forward_refusal(receipt)
 
 
 def package_receipts(names, read, formats=()):
