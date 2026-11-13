@@ -22,6 +22,15 @@ fn parse(extra: &[&str]) -> Result<Args, String> {
 }
 
 #[test]
+fn is_forward_reports_the_selected_mode_without_recording_an_issue() {
+    for mode in [AdapterMode::Strict, AdapterMode::Forward] {
+        let coverage = Coverage::new(mode, "passive-tree");
+        assert_eq!(coverage.is_forward(), mode == AdapterMode::Forward);
+        assert!(coverage.issues.is_empty());
+    }
+}
+
+#[test]
 fn mode_defaults_to_strict_and_rejects_unknown_or_repeated_values() {
     assert_eq!(parse(&[]).unwrap().mode, AdapterMode::Strict);
     assert_eq!(

@@ -5,6 +5,7 @@ use super::{
     Converted, ascendancy, nonstat, policy, prepared, render::Renderer, source::Facts, unlock,
 };
 use crate::facts::reader::{self, VerifiedFacts};
+use crate::ordinary_facts::coverage::{Action, Coverage, Issue};
 use crate::raw_source::sha256_hex;
 use pobr_data::catalog::{PassiveNodeDef, PassiveNodeKind, PassiveTreeMeta};
 use pobr_data::native_stat::{NativePassiveContext, NativePassiveStats};
@@ -83,7 +84,7 @@ pub(super) fn convert(
     args: &super::super::CodecArgs,
     extra: &Args,
     supplement: Option<&reader::selected::Input>,
-    _coverage: &mut super::super::coverage::Coverage,
+    coverage: &mut Coverage,
 ) -> Result<Converted, String> {
     let pinned = read_pinned(&args.policy, &args.policy_sha256, "target tree policy")?;
     let policy: Policy = serde_json::from_value(pinned.document).map_err(|e| e.to_string())?;
@@ -156,6 +157,7 @@ pub(super) fn convert(
                 s,
                 p,
                 &policy.base_policy.legacy_metadata.value,
+                coverage,
             )
         })
         .transpose()?;
@@ -170,6 +172,8 @@ pub(super) fn convert(
             .as_ref()
             .zip(supplement)
             .map(|(ascendancy, input)| Supplement { ascendancy, input }),
+        &args.source_sha256,
+        coverage,
     )?;
     Ok(Converted {
         base: BTreeMap::from([
@@ -257,6 +261,36 @@ fn raw_stats(
         .map(|s| (s.id, s.value))
         .collect())
 }
+fn observe_node(
+    issue: Issue,
+    input: &VerifiedFacts,
+    facts: &Facts<'_>,
+    policy: &Policy,
+    row: usize,
+) -> Result<Issue, String> {
+    let raw = facts.tables.row("PassiveSkills", row)?;
+    Ok(issue
+        .observed("definition_sha256", hash(raw)?)
+        .observed("context_sha256", hash(&policy_context(policy, raw)?)?)
+        .observed(
+            "render_context_sha256",
+            hash(&render_context(policy, raw)?)?,
+        )
+        .observed("stats_sha256", hash(&raw_stats(input, facts, row)?)?))
+}
+fn decide_node(
+    coverage: &mut Coverage,
+    issue: Issue,
+    input: &VerifiedFacts,
+    facts: &Facts<'_>,
+    policy: &Policy,
+    row: usize,
+) -> Result<(), String> {
+    let observed = observe_node(issue.clone(), input, facts, policy, row);
+    // Strict must return its original decision before any observation failure.
+    coverage.decide(observed.as_ref().unwrap_or(&issue).clone())?;
+    observed.map(|_| ())
+}
 fn exact_compatibility(
     policy: &Policy,
     id: &str,
@@ -331,6 +365,7 @@ fn text(
     }
 }
 
+#[allow(clippy::too_many_arguments)]
 pub(super) fn project(
     input: &VerifiedFacts,
     facts: &Facts<'_>,
@@ -339,6 +374,8 @@ pub(super) fn project(
     reference: &Value,
     renderer: &Renderer<'_>,
     supplement: Option<Supplement<'_>>,
+    source_sha256: &str,
+    coverage: &mut Coverage,
 ) -> Result<(Value, Value, Value), String> {
     let effects = Effects {
         ascendancy: supplement.as_ref().map(|s| s.ascendancy),
@@ -388,16 +425,98 @@ pub(super) fn project(
         .map(|(i, n)| (n.skill, (i, n)))
         .collect();
     let (graph, instances) = reader::tree(input)?;
+    let forward = coverage.is_forward();
+    if forward && policy.owns_unlocks() {
+        let owners = supplement
+            .as_ref()
+            .ok_or("source unlocks require target ascendancy identities")?
+            .input
+            .tables(&["Ascendancy"])?;
+        // Quarantine changes output availability, never physical FK validity.
+        for instance in &instances {
+            unlock::validate_physical(facts, &owners, instance.definition.row)?;
+        }
+    }
+    if forward
+        && instances
+            .iter()
+            .any(|instance| !old.contains_key(&(instance.graph_id as u32)))
+    {
+        super::source::column(
+            input,
+            "PassiveSkills",
+            "IsAnointmentOnly",
+            "bool",
+            false,
+            None,
+        )?;
+    }
     let mut excluded = BTreeSet::new();
     let mut excluded_records = Vec::new();
+    let mut gapped = BTreeSet::new();
+    let mut quarantined = BTreeSet::new();
     for instance in &instances {
         let raw = facts.tables.row("PassiveSkills", instance.definition.row)?;
+        if raw["Ascendancy"]
+            .as_u64()
+            .and_then(|row| usize::try_from(row).ok())
+            .is_some_and(|row| {
+                ascendancy.is_some_and(|source| source.quarantined.contains_key(&row))
+            })
+        {
+            quarantined.insert(instance.graph_id);
+            continue;
+        }
         if let Some(exclusion) = policy.excluded.get(&instance.definition.id) {
             if exclusion.definition_sha256 != hash(raw)? || exclusion.reason.trim().is_empty() {
-                return Err(format!(
-                    "{}: non-allocatable compatibility binding changed",
-                    instance.definition.id
-                ));
+                decide_node(
+                    coverage,
+                    Issue::new(
+                        "excluded-definition",
+                        &instance.definition.id,
+                        Action::EmittedWithGap,
+                        format!(
+                            "{}: non-allocatable compatibility binding changed",
+                            instance.definition.id
+                        ),
+                    )
+                    .observed(
+                        "policy_definition_sha256",
+                        exclusion.definition_sha256.clone(),
+                    ),
+                    input,
+                    facts,
+                    policy,
+                    instance.definition.row,
+                )?;
+                gapped.insert(instance.graph_id);
+                continue;
+            }
+            if let Some(entry) = raw["Ascendancy"]
+                .as_u64()
+                .and_then(|row| usize::try_from(row).ok())
+                .and_then(|row| ascendancy?.entries.get(&row))
+                && policy
+                    .ascendancy
+                    .as_ref()
+                    .is_some_and(|p| p.excluded.contains_key(&entry.id))
+            {
+                coverage.note(observe_node(
+                    Issue::new(
+                        "stale-exclusion",
+                        &instance.definition.id,
+                        Action::EmittedWithGap,
+                        format!(
+                            "{}: node exclusion belongs to emitted ascendancy {}",
+                            instance.definition.id, entry.id
+                        ),
+                    )
+                    .observed("ascendancy_id", entry.id.clone()),
+                    input,
+                    facts,
+                    policy,
+                    instance.definition.row,
+                )?);
             }
             excluded.insert(instance.graph_id);
             excluded_records.push(json!({"graph_id":instance.graph_id,"id":instance.definition.id,
@@ -409,8 +528,10 @@ pub(super) fn project(
     let mut native_count = 0;
     let mut rendered_count = 0;
     let mut multi_count = 0;
+    let mut moved_skills = BTreeSet::new();
+    let mut new_ascendancies = BTreeSet::new();
     for instance in &instances {
-        if excluded.contains(&instance.graph_id) {
+        if excluded.contains(&instance.graph_id) || quarantined.contains(&instance.graph_id) {
             continue;
         }
         let skill = u32::try_from(instance.graph_id).map_err(|e| e.to_string())?;
@@ -418,6 +539,7 @@ pub(super) fn project(
         let raw = facts.tables.row("PassiveSkills", row)?;
         let id = instance.definition.id.as_str();
         let previous = old.get(&skill).copied();
+        let mut has_open_issue = gapped.contains(&instance.graph_id);
         let expected_context = policy
             .compatibility_bindings
             .get(id)
@@ -436,24 +558,83 @@ pub(super) fn project(
                 "{id}: unsupported source context change or new conditional identity"
             ));
         }
+        let mut quarantine = |issue: Issue| {
+            has_open_issue = true;
+            decide_node(
+                coverage,
+                issue.observed("reference_sha256", policy.reference_sha256.clone()),
+                input,
+                facts,
+                policy,
+                row,
+            )
+        };
         if let Some((old_index, old)) = previous {
             let alias =
                 policy.base_policy.legacy_id_bindings.iter().find(|b| {
                     b.legacy_id == old.id && b.target_passive_id == id && b.skill == skill
                 });
             if old.id != id && alias.is_none() {
-                return Err(format!("{id}: prepared identity collision at {skill}"));
+                quarantine(Issue::new(
+                    "identity-collision",
+                    id,
+                    Action::Quarantined,
+                    format!("{id}: prepared identity collision at {skill}"),
+                ))?;
+                quarantined.insert(instance.graph_id);
+                continue;
             }
             if let Some(alias) = alias
                 && (alias.source_entry_sha256 != hash(&legacy[old_index])?
                     || old.name.as_deref() != Some(alias.expected_name.as_str()))
             {
-                return Err(format!("{id}: stale prepared identity alias"));
+                quarantine(Issue::new(
+                    "stale-alias",
+                    id,
+                    Action::Quarantined,
+                    format!("{id}: stale prepared identity alias"),
+                ))?;
+                quarantined.insert(instance.graph_id);
+                continue;
             }
         }
         let name = raw["Name"].as_str().ok_or("missing target Name")?;
         if name.is_empty() || name.starts_with("[DNT") {
-            return Err(format!("{id}: unclassified layout/unreleased definition"));
+            quarantine(Issue::new(
+                "unclassified-name",
+                id,
+                Action::Quarantined,
+                format!("{id}: unclassified layout/unreleased definition"),
+            ))?;
+            quarantined.insert(instance.graph_id);
+            continue;
+        }
+        let quarantined_owner = if policy.owns_unlocks() {
+            raw["VisibleForAscendancy"]
+                .as_u64()
+                .and_then(|row| usize::try_from(row).ok())
+                .and_then(|row| ascendancy?.quarantined.get(&row))
+        } else {
+            previous
+                .and_then(|(_, node)| node.unlock_constraint.as_ref())
+                .and_then(|unlock| unlock.ascendancy.as_ref())
+                .filter(|id| {
+                    ascendancy
+                        .is_some_and(|source| source.quarantined.values().any(|owner| owner == *id))
+                })
+        };
+        if let Some(owner) = quarantined_owner {
+            quarantine(
+                Issue::new(
+                    "dependant-quarantined",
+                    id,
+                    Action::Quarantined,
+                    format!("{id}: prerequisite ascendancy quarantined"),
+                )
+                .observed("quarantined_ascendancy", owner.clone()),
+            )?;
+            quarantined.insert(instance.graph_id);
+            continue;
         }
         let (lines, text_record) = text(
             input,
@@ -497,13 +678,53 @@ pub(super) fn project(
             .copied()
             .collect();
         object.insert("connections".into(), json!(connections));
-        let geometry = geometry(
+        let ascendancy_id = if let Some(source) = ascendancy {
+            raw["Ascendancy"]
+                .as_u64()
+                .and_then(|row| usize::try_from(row).ok())
+                .and_then(|row| source.entries.get(&row))
+                .map(|entry| entry.id.as_str())
+        } else {
+            previous.and_then(|(_, node)| node.ascendancy_id.as_deref())
+        };
+        let new_ascendancy = forward
+            && ascendancy_id.is_some_and(|id| {
+                !old_nodes
+                    .iter()
+                    .any(|node| node.ascendancy_id.as_deref() == Some(id))
+            });
+        let Some((geometry, rebased)) = geometry(
             reference,
             &graph,
             instance,
-            previous.map(|(_, n)| n),
+            Placement {
+                previous: previous.map(|(_, n)| n),
+                prepared: &old_nodes,
+                ascendancy_id,
+                forward,
+                new_ascendancy,
+                anointment_only: if forward && previous.is_none() {
+                    raw["IsAnointmentOnly"]
+                        .as_bool()
+                        .ok_or("IsAnointmentOnly: bool required")?
+                } else {
+                    false
+                },
+            },
             object,
-        )?;
+            &mut quarantine,
+        )?
+        else {
+            quarantined.insert(instance.graph_id);
+            continue;
+        };
+        if rebased {
+            moved_skills.insert(instance.graph_id);
+        }
+        has_open_issue |= rebased || new_ascendancy;
+        if new_ascendancy && let Some(id) = ascendancy_id {
+            new_ascendancies.insert(id);
+        }
         let variant_records = variants(
             input,
             facts,
@@ -518,7 +739,8 @@ pub(super) fn project(
         // (an unknown stat keeps the text path). Multi-stat nodes use the
         // same ordinary parser as every other rendered tree node.
         let stats = facts.stats(input, row)?;
-        if text_record["owner"] == "target-csd"
+        if !has_open_issue
+            && text_record["owner"] == "target-csd"
             && kind == PassiveNodeKind::Normal
             && facts.differences(raw)?.is_empty()
             && !facts.involved.contains_key(&row)
@@ -570,11 +792,161 @@ pub(super) fn project(
             "context_sha256":hash(&policy_context(policy, raw)?)?,"output_entry_sha256":hash(&entry)?}));
         output.push(entry);
     }
+    if !moved_skills.is_empty() {
+        coverage.decide(
+            Issue::new(
+                "placement-rebase",
+                "passive-tree",
+                Action::EmittedWithGap,
+                "prepared placement lacks exact reference group/orbit/slot binding",
+            )
+            .observed("reference_sha256", policy.reference_sha256.clone())
+            .observed("legacy_source_sha256", source_sha256)
+            .observed(
+                "moved_skills_sha256",
+                hash(&moved_skills.iter().copied().collect::<Vec<_>>())?,
+            )
+            .observed("moved_count", moved_skills.len()),
+        )?;
+    }
+    if !quarantined.is_empty() {
+        loop {
+            let mut changed = false;
+            for entry in &output {
+                let skill = entry["skill"].as_u64().ok_or("missing projected skill")?;
+                if quarantined.contains(&skill) {
+                    continue;
+                }
+                let prerequisites: BTreeSet<_> = entry["unlock_constraint"]["nodes"]
+                    .as_array()
+                    .into_iter()
+                    .flatten()
+                    .filter_map(Value::as_u64)
+                    .filter(|id| quarantined.contains(id))
+                    .collect();
+                if prerequisites.is_empty() {
+                    continue;
+                }
+                let record = records
+                    .iter()
+                    .find(|r| r["skill"] == skill)
+                    .ok_or("missing projected source record")?;
+                let row = record["target_row"]
+                    .as_u64()
+                    .and_then(|row| usize::try_from(row).ok())
+                    .ok_or("missing projected source row")?;
+                let id = entry["id"].as_str().ok_or("missing projected id")?;
+                decide_node(
+                    coverage,
+                    Issue::new(
+                        "dependant-quarantined",
+                        id,
+                        Action::Quarantined,
+                        format!("{id}: prerequisite node quarantined"),
+                    )
+                    .observed("quarantined_prerequisites", json!(prerequisites)),
+                    input,
+                    facts,
+                    policy,
+                    row,
+                )?;
+                quarantined.insert(skill);
+                changed = true;
+            }
+            if !changed {
+                break;
+            }
+        }
+        output.retain(|entry| {
+            !entry["skill"]
+                .as_u64()
+                .is_some_and(|id| quarantined.contains(&id))
+        });
+        records.retain(|record| {
+            !record["skill"]
+                .as_u64()
+                .is_some_and(|id| quarantined.contains(&id))
+        });
+        for (entry, record) in output.iter_mut().zip(&mut records) {
+            entry["connections"]
+                .as_array_mut()
+                .ok_or("missing projected connections")?
+                .retain(|id| !id.as_u64().is_some_and(|id| quarantined.contains(&id)));
+            record["output_entry_sha256"] = json!(hash(entry)?);
+        }
+        native_count = output
+            .iter()
+            .filter(|entry| !entry["native_stats"].is_null())
+            .count();
+        let rendered: Vec<_> = records
+            .iter()
+            .filter(|record| {
+                matches!(
+                    record["text"]["owner"].as_str(),
+                    Some("target-csd" | "target-csd-and-client-strings")
+                )
+            })
+            .collect();
+        rendered_count = rendered.len();
+        multi_count = rendered
+            .iter()
+            .filter(|record| {
+                record["text"]["complete_stats"]
+                    .as_array()
+                    .is_some_and(|stats| stats.len() > 1)
+            })
+            .count();
+    }
+    if forward && let Some(source) = ascendancy {
+        for entry in source.entries.values() {
+            if !new_ascendancies.contains(entry.id.as_str()) {
+                continue;
+            }
+            let member_skills: BTreeSet<_> = output
+                .iter()
+                .filter(|node| node["ascendancy_id"] == entry.id)
+                .filter_map(|node| node["skill"].as_u64())
+                .collect();
+            if member_skills.is_empty() {
+                continue;
+            }
+            let mut start_skill = None;
+            for instance in &instances {
+                let raw = facts.tables.row("PassiveSkills", instance.definition.row)?;
+                if raw["Ascendancy"] == entry.row && raw["IsAscendancyStartingNode"] == true {
+                    start_skill = Some(instance.graph_id);
+                    break;
+                }
+            }
+            let start_skill = start_skill.ok_or("new ascendancy lacks a target start node")?;
+            coverage.note(
+                Issue::new(
+                    "ascendancy-frame",
+                    &entry.id,
+                    Action::EmittedWithGap,
+                    format!("{}: no prepared ascendancy coordinate frame", entry.id),
+                )
+                .observed("start_skill", start_skill)
+                .observed(
+                    "reference_start_node_sha256",
+                    hash(&reference["nodes"][start_skill.to_string()])?,
+                )
+                .observed(
+                    "member_skills_sha256",
+                    hash(&member_skills.iter().copied().collect::<Vec<_>>())?,
+                ),
+            );
+        }
+    }
     output.sort_by_key(|n| n["skill"].as_u64());
     let typed: Vec<PassiveNodeDef> =
         serde_json::from_value(json!(output)).map_err(|e| e.to_string())?;
-    let (mut metadata, classes) =
-        prepared::metadata(&policy.base_policy.legacy_metadata.value, &meta, facts)?;
+    let (mut metadata, classes) = prepared::metadata(
+        &policy.base_policy.legacy_metadata.value,
+        &meta,
+        facts,
+        coverage,
+    )?;
     if let Some(source) = ascendancy {
         source.metadata(&mut metadata)?;
     }
@@ -593,6 +965,35 @@ pub(super) fn project(
         .filter(|n| !skills.contains(&n.skill))
         .map(|n| n.skill)
         .collect();
+    let target_skills: BTreeSet<_> = instances.iter().map(|node| node.graph_id).collect();
+    let reference_skills: BTreeSet<_> = reference["nodes"]
+        .as_object()
+        .into_iter()
+        .flat_map(|nodes| nodes.keys())
+        .filter(|key| !key.is_empty() && key.bytes().all(|byte| byte.is_ascii_digit()))
+        .filter_map(|key| key.parse::<u64>().ok())
+        .collect();
+    let target_absent: Vec<_> = target_skills
+        .difference(&reference_skills)
+        .copied()
+        .collect();
+    let reference_absent: Vec<_> = reference_skills
+        .difference(&target_skills)
+        .copied()
+        .collect();
+    if !target_absent.is_empty() || !reference_absent.is_empty() {
+        coverage.note(
+            Issue::new(
+                "reference-membership",
+                "passive-tree",
+                Action::Listed,
+                "target/reference passive-tree membership differs",
+            )
+            .observed("target_absent_from_reference", json!(target_absent))
+            .observed("reference_absent_from_target", json!(reference_absent))
+            .observed("reference_sha256", policy.reference_sha256.clone()),
+        );
+    }
     Ok((
         json!(output),
         metadata,
@@ -624,57 +1025,155 @@ fn classify(raw: &Value) -> Result<PassiveNodeKind, String> {
     Ok(PassiveNodeKind::Normal)
 }
 
+struct Placement<'a> {
+    previous: Option<&'a PassiveNodeDef>,
+    prepared: &'a [PassiveNodeDef],
+    ascendancy_id: Option<&'a str>,
+    forward: bool,
+    new_ascendancy: bool,
+    anointment_only: bool,
+}
+
 fn geometry(
     reference: &Value,
     graph: &reader::Graph,
     instance: &reader::InstanceInput,
-    previous: Option<&PassiveNodeDef>,
+    placement: Placement<'_>,
     out: &mut serde_json::Map<String, Value>,
-) -> Result<Value, String> {
+    quarantine: &mut impl FnMut(Issue) -> Result<(), String>,
+) -> Result<Option<(Value, bool)>, String> {
+    let previous = placement.previous;
     let group = &graph.groups[instance.group];
     if !group.x_raw.is_finite() || !group.y_raw.is_finite() {
         return Err("non-finite group centre".into());
     }
     let node = &reference["nodes"][instance.graph_id.to_string()];
+    if placement.anointment_only && node.is_null() {
+        return Ok(Some((
+            json!({"owner":"target IsAnointmentOnly coordinate absence"}),
+            false,
+        )));
+    }
     if node.is_null() {
-        return Err(format!(
-            "node {}: missing physical orbit-offset compatibility; refusing incomplete radius geometry",
-            instance.graph_id
-        ));
+        quarantine(Issue::new(
+            "reference-missing",
+            &instance.definition.id,
+            Action::Quarantined,
+            format!(
+                "node {}: missing physical orbit-offset compatibility; refusing incomplete radius geometry",
+                instance.graph_id
+            ),
+        ).observed("reference_node", node.clone()))?;
+        return Ok(None);
     }
     if node["skill"] != instance.graph_id
         || node["orbit"] != instance.radius
         || node["orbitIndex"] != instance.position
     {
-        return Err(format!(
-            "node {}: changed orbit/slot needs explicit geometry compatibility",
-            instance.graph_id
-        ));
+        quarantine(
+            Issue::new(
+                "reference-slot-changed",
+                &instance.definition.id,
+                Action::Quarantined,
+                format!(
+                    "node {}: changed orbit/slot needs explicit geometry compatibility",
+                    instance.graph_id
+                ),
+            )
+            .observed("reference_node_sha256", hash(node)?)
+            .observed("target_orbit", instance.radius)
+            .observed("target_orbit_index", instance.position)
+            .observed("reference_node", node.clone()),
+        )?;
+        return Ok(None);
     }
     let group_key = node["group"]
         .as_u64()
         .ok_or("missing reference group")?
         .to_string();
-    if let Some(old) = previous
-        && (old.group.map(u64::from) != node["group"].as_u64()
-            || old.orbit.map(u64::from) != node["orbit"].as_u64()
-            || old.orbit_index.map(u64::from) != node["orbitIndex"].as_u64())
-    {
-        return Err("prepared placement lacks exact reference group/orbit/slot binding".into());
+    if placement.anointment_only {
+        if node["isBlighted"] != true {
+            quarantine(
+                Issue::new(
+                    "anointment-geometry",
+                    &instance.definition.id,
+                    Action::EmittedWithGap,
+                    format!(
+                        "node {}: target anointment-only node lacks reference isBlighted",
+                        instance.graph_id
+                    ),
+                )
+                .observed("reference_node_sha256", hash(node)?)
+                .observed("is_anointment_only", true),
+            )?;
+        }
+        return Ok(Some((
+            json!({"owner":"target IsAnointmentOnly coordinate absence","reference_group":group_key,
+                "source_group":instance.group,"radius":instance.radius,"position":instance.position}),
+            false,
+        )));
     }
+    let rebased = previous.is_some_and(|old| {
+        old.group.map(u64::from) != node["group"].as_u64()
+            || old.orbit.map(u64::from) != node["orbit"].as_u64()
+            || old.orbit_index.map(u64::from) != node["orbitIndex"].as_u64()
+    });
+    if rebased && !placement.forward {
+        quarantine(Issue::new(
+            "placement-rebase",
+            "passive-tree",
+            Action::EmittedWithGap,
+            "prepared placement lacks exact reference group/orbit/slot binding",
+        ))?;
+    }
+    let use_reference = previous.is_none() || rebased || placement.new_ascendancy;
+    let start = placement
+        .ascendancy_id
+        .filter(|_| placement.forward && use_reference)
+        .and_then(|id| {
+            placement.prepared.iter().find(|node| {
+                node.kind == PassiveNodeKind::AscendancyStart
+                    && node.ascendancy_id.as_deref() == Some(id)
+            })
+        });
     let original_group = &reference["groups"][&group_key];
     for (key, centre) in [("x", group.x_raw), ("y", group.y_raw)] {
-        // Prepared physical placement and even absence carry runtime semantics
-        // (notably jewel radius and anoint-only nodes). They are not certified by
-        // a raw graph group. Translate that placement, do not replace its radius
-        // offset or manufacture coordinates for previously coordinate-less nodes.
-        let original = if let Some(old) = previous {
+        // Coordinate absence remains meaningful even when placement is rebased.
+        let prepared_coordinate = if let Some(old) = previous {
             let Some(value) = (if key == "x" { old.x } else { old.y }) else {
                 continue;
             };
-            value
+            Some(value)
         } else {
-            node[key].as_f64().ok_or("invalid reference coordinate")?
+            None
+        };
+        let original = if use_reference {
+            let offset = if let Some(start) = start {
+                let prepared = (if key == "x" { start.x } else { start.y })
+                    .ok_or("invalid prepared ascendancy start coordinate")?;
+                let reference = reference["nodes"][start.skill.to_string()][key]
+                    .as_f64()
+                    .ok_or("invalid reference ascendancy start coordinate")?;
+                prepared - reference
+            } else {
+                0.0
+            };
+            if placement.forward && previous.is_none() && node[key].is_null() {
+                quarantine(
+                    Issue::new(
+                        "reference-missing",
+                        &instance.definition.id,
+                        Action::Quarantined,
+                        "invalid reference coordinate",
+                    )
+                    .observed("reference_node_sha256", hash(node)?)
+                    .observed("reference_node", node.clone()),
+                )?;
+                return Ok(None);
+            }
+            node[key].as_f64().ok_or("invalid reference coordinate")? + offset
+        } else {
+            prepared_coordinate.ok_or("invalid prepared coordinate")?
         };
         if !original.is_finite() {
             return Err("non-finite compatibility coordinate".into());
@@ -686,7 +1185,7 @@ fn geometry(
         // Preserve published six-significant-digit group coordinates, and translate
         // only the verified group centre. This does not interpret raw radius units.
         let rounded = round_group(centre)?;
-        if previous.is_some() && rounded == original_centre {
+        if !use_reference && rounded == original_centre {
             continue;
         }
         let value = original + (rounded - original_centre);
@@ -695,10 +1194,11 @@ fn geometry(
         }
         out.insert(key.into(), json!(value));
     }
-    Ok(
-        json!({"owner":if previous.is_some(){"target group translation + prepared physical placement/coordinate absence"}else{"target group translation + explicit reference physical offset"},"reference_group":group_key,
+    Ok(Some((
+        json!({"owner":if !use_reference{"target group translation + prepared physical placement/coordinate absence"}else{"target group translation + explicit reference physical offset"},"reference_group":group_key,
         "source_group":instance.group,"radius":instance.radius,"position":instance.position}),
-    )
+        rebased,
+    )))
 }
 fn round_group(value: f64) -> Result<f64, String> {
     if value == 0.0 {

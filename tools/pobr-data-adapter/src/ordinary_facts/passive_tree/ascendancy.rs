@@ -1,6 +1,7 @@
 //! Source-owned ascendancy membership and replacement relationships.
 use super::{refresh, source::Facts};
 use crate::facts::reader::{self, VerifiedFacts, selected};
+use crate::ordinary_facts::coverage::{Action, Coverage, Issue};
 use crate::raw_source::sha256_hex;
 use serde::Deserialize;
 use serde_json::{Value, json};
@@ -26,6 +27,7 @@ pub(super) struct Link {
 }
 pub(super) struct Source {
     pub entries: BTreeMap<usize, Entry>,
+    pub quarantined: BTreeMap<usize, String>,
     pub links: BTreeMap<String, Vec<Link>>,
     pub previous_selectors: BTreeSet<String>,
     pub receipt: Value,
@@ -51,6 +53,7 @@ impl Source {
         extra: &selected::Input,
         policy: &Policy,
         old_meta: &Value,
+        coverage: &mut Coverage,
     ) -> Result<Self, String> {
         super::source::column(
             input,
@@ -101,6 +104,7 @@ impl Source {
             }
         }
         let mut entries = BTreeMap::new();
+        let mut quarantined = BTreeMap::new();
         let mut excluded = BTreeSet::new();
         let mut names = BTreeSet::new();
         let mut records = Vec::new();
@@ -117,13 +121,44 @@ impl Source {
                 }
             }
             let is_excluded = if let Some(binding) = policy.excluded.get(id) {
+                let definition_sha256 = sha256_hex(&reader::json_bytes(raw)?);
                 if binding.reason.trim().is_empty()
-                    || binding.definition_sha256 != sha256_hex(&reader::json_bytes(raw)?)
+                    || binding.definition_sha256 != definition_sha256
                 {
-                    return Err("changed ascendancy eligibility exclusion".into());
+                    let still_placeholder = raw["Disabled"] != false
+                        || raw["Name"]
+                            .as_str()
+                            .is_none_or(|name| name.is_empty() || name.starts_with("[DNT"));
+                    coverage.decide(
+                        Issue::new(
+                            "ascendancy-exclusion-changed",
+                            id,
+                            if still_placeholder {
+                                Action::Quarantined
+                            } else {
+                                Action::EmittedWithGap
+                            },
+                            "changed ascendancy eligibility exclusion",
+                        )
+                        .observed("definition_sha256", definition_sha256)
+                        .observed(
+                            "policy_definition_sha256",
+                            binding.definition_sha256.clone(),
+                        ),
+                    )?;
+                    raw["Name"].as_str().ok_or("invalid ascendancy name")?;
+                    raw["Disabled"]
+                        .as_bool()
+                        .ok_or("invalid ascendancy Disabled")?;
+                    excluded.insert(id.to_owned());
+                    if still_placeholder {
+                        quarantined.insert(row, id.to_owned());
+                    }
+                    still_placeholder
+                } else {
+                    excluded.insert(id.to_owned());
+                    true
                 }
-                excluded.insert(id.to_owned());
-                true
             } else {
                 false
             };
@@ -149,7 +184,22 @@ impl Source {
             );
         }
         if excluded.len() != policy.excluded.len() {
-            return Err("unused ascendancy exclusion".into());
+            for (id, binding) in &policy.excluded {
+                if !excluded.contains(id) {
+                    coverage.decide(
+                        Issue::new(
+                            "unused-ascendancy-exclusion",
+                            id,
+                            Action::Listed,
+                            "unused ascendancy exclusion",
+                        )
+                        .observed(
+                            "policy_definition_sha256",
+                            binding.definition_sha256.clone(),
+                        ),
+                    )?;
+                }
+            }
         }
         let mut previous = BTreeMap::new();
         for class in old_meta["classes"].as_array().ok_or("missing classes")? {
@@ -163,9 +213,15 @@ impl Source {
         for row in 0..tables.len("AscendancyPassiveSkillOverrides") {
             let raw = tables.row("AscendancyPassiveSkillOverrides", row)?;
             let owner = index(&raw["AscendancyToOverrideFor"])?;
-            let asc = entries
-                .get(&owner)
-                .ok_or("override targets unavailable ascendancy")?;
+            let asc = if quarantined.contains_key(&owner) {
+                None
+            } else {
+                Some(
+                    entries
+                        .get(&owner)
+                        .ok_or("override targets unavailable ascendancy")?,
+                )
+            };
             let base = index(&raw["SkillToOverride"])?;
             let target = index(&raw["Override"])?;
             let base_raw = facts.tables.row("PassiveSkills", base)?;
@@ -174,6 +230,9 @@ impl Source {
             if !keys.insert((base, owner)) {
                 return Err("duplicate ascendancy replacement owner".into());
             }
+            let Some(asc) = asc else {
+                continue;
+            };
             links.entry(id.into()).or_default().push(Link {
                 row,
                 target,
@@ -184,6 +243,7 @@ impl Source {
         }
         Ok(Self {
             entries,
+            quarantined,
             links,
             previous_selectors: previous.into_values().collect(),
             receipt: json!({

@@ -140,6 +140,11 @@ pub(crate) struct Coverage {
 }
 
 impl Coverage {
+    /// Whether this run records content gaps and continues.
+    pub(crate) fn is_forward(&self) -> bool {
+        self.mode == AdapterMode::Forward
+    }
+
     /// `domain` is the `--ordinary-domain` value, stamped on every issue.
     pub(crate) fn new(mode: AdapterMode, domain: &'static str) -> Self {
         Self {

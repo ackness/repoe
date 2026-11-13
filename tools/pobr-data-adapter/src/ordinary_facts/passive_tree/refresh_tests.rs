@@ -1,5 +1,6 @@
 use super::{refresh, render::Renderer, source::Facts};
 use crate::facts::reader::{self, VerifiedFacts};
+use crate::ordinary_facts::coverage::{AdapterMode, Coverage};
 use crate::ordinary_facts::{stat_set_codec::tests::table, tests::Fixture};
 use crate::raw_source::sha256_hex;
 use serde_json::{Value, json};
@@ -137,12 +138,37 @@ fn project(
     old: &Value,
     reference: &Value,
 ) -> Result<(Value, Value, Value), String> {
+    project_with_coverage(
+        f,
+        policy,
+        old,
+        reference,
+        &mut Coverage::new(AdapterMode::Strict, "passive-tree"),
+    )
+}
+fn project_with_coverage(
+    f: &mut Fixture,
+    policy: &Value,
+    old: &Value,
+    reference: &Value,
+    coverage: &mut Coverage,
+) -> Result<(Value, Value, Value), String> {
     let input = input(f);
     let policy: refresh::Policy = serde_json::from_value(policy.clone()).unwrap();
     let facts = Facts::read(&input, &policy.base_policy)?;
     let descriptions = descriptions();
     let renderer = Renderer::new(&descriptions)?;
-    refresh::project(&input, &facts, &policy, old, reference, &renderer, None)
+    refresh::project(
+        &input,
+        &facts,
+        &policy,
+        old,
+        reference,
+        &renderer,
+        None,
+        &hash(old),
+        coverage,
+    )
 }
 fn edit_node(f: &mut Fixture, id: u64, edit: impl Fn(&mut Value)) {
     for n in f.documents.get_mut("graph.json").unwrap()["groups"][0]["nodes"]
@@ -161,6 +187,582 @@ fn edit_node(f: &mut Fixture, id: u64, edit: impl Fn(&mut Value)) {
             edit(n);
         }
     }
+}
+
+fn forward_project(
+    f: &mut Fixture,
+    policy: &Value,
+    old: &Value,
+    reference: &Value,
+) -> (Value, Value, Value) {
+    let mut coverage = Coverage::new(AdapterMode::Forward, "passive-tree");
+    let (tree, meta, mut receipt) =
+        project_with_coverage(f, policy, old, reference, &mut coverage).unwrap();
+    coverage.finish(&mut receipt).unwrap();
+    (tree, meta, receipt)
+}
+
+fn anointment_column(f: &mut Fixture, p: &mut Value, flagged: &[usize]) {
+    let stats = f.documents["tables/Stats.json"]["rows"].clone();
+    let passive = f.documents.get_mut("tables/PassiveSkills.json").unwrap();
+    let n = passive["columns"].as_array().unwrap().len();
+    passive["columns"].as_array_mut().unwrap().push(json!({
+        "source_column":n,"physical_fields":["IsAnointmentOnly"],
+        "schema":{"name":"IsAnointmentOnly","type":"bool","array":false,
+            "interval":false,"references":null}
+    }));
+    passive["physical_fields"]
+        .as_array_mut()
+        .unwrap()
+        .push(json!("IsAnointmentOnly"));
+    for (row, raw) in passive["rows"]
+        .as_array_mut()
+        .unwrap()
+        .iter_mut()
+        .enumerate()
+    {
+        raw["values"]["IsAnointmentOnly"] = json!(flagged.contains(&row));
+        let values = &raw["values"];
+        let id = values["Id"].as_str().unwrap();
+        if p["compatibility_bindings"].get(id).is_some() || flagged.contains(&row) {
+            let binding = &mut p["compatibility_bindings"][id];
+            binding["context_sha256"] = json!(hash(&refresh::context(values).unwrap()));
+            let raw_stats: Vec<_> = values["Stats"]
+                .as_array()
+                .unwrap()
+                .iter()
+                .enumerate()
+                .map(|(i, stat)| {
+                    json!([
+                        stats[stat.as_u64().unwrap() as usize]["values"]["Id"],
+                        values[format!("Stat{}Value", i + 1)]
+                    ])
+                })
+                .collect();
+            binding["stats_sha256"] = json!(hash(&raw_stats));
+        }
+    }
+    p["base_policy"]["qualification"]["context_sha256"] = json!(hash(
+        &super::source::context(f.values("PassiveSkills", 0)).unwrap()
+    ));
+}
+
+fn instantiate(f: &mut Fixture, row: usize) {
+    let raw = f.values("PassiveSkills", row).clone();
+    let instance = json!({
+        "definition":{"row":row,"id":raw["Id"]},"graph_id":raw["PassiveSkillGraphId"],
+        "group":0,"radius":0,"position":0,"connections":[],"splines":[]
+    });
+    let mut node = instance.clone();
+    node.as_object_mut().unwrap().remove("definition");
+    node.as_object_mut().unwrap().remove("group");
+    f.documents.get_mut("graph.json").unwrap()["groups"][0]["nodes"]
+        .as_array_mut()
+        .unwrap()
+        .push(node);
+    f.documents.get_mut("passives.json").unwrap()["default_graph_instances"]
+        .as_array_mut()
+        .unwrap()
+        .push(instance);
+}
+
+#[test]
+fn two_new_nodes_without_reference_coordinates_are_both_quarantined() {
+    let (mut f, mut p, old, mut r) = fixture();
+    anointment_column(&mut f, &mut p, &[]);
+    for row in [11, 12] {
+        instantiate(&mut f, row);
+    }
+    r["nodes"]["1203"] = json!({"skill":1203,"group":1,"orbit":0,"orbitIndex":0});
+    assert_eq!(
+        project(&mut f, &p, &old, &r).unwrap_err(),
+        "invalid reference coordinate"
+    );
+    let (tree, _, receipt) = forward_project(&mut f, &p, &old, &r);
+    assert_eq!(tree.as_array().unwrap().len(), 3);
+    let issues: Vec<_> = receipt["coverage"]["issues"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .filter(|issue| issue["kind"] == "reference-missing")
+        .collect();
+    assert_eq!(issues.len(), 2);
+    assert_eq!(issues[0]["entity"], "Outside");
+    assert_eq!(issues[1]["entity"], "Trailing ");
+    assert!(issues.iter().all(|issue| issue["action"] == "quarantined"));
+}
+
+#[test]
+fn new_anointment_nodes_keep_coordinate_absence_and_report_only_reference_disagreement() {
+    for reference_state in ["absent", "blighted", "unflagged"] {
+        let (mut f, mut p, old, mut r) = fixture();
+        anointment_column(&mut f, &mut p, &[12]);
+        instantiate(&mut f, 12);
+        if reference_state != "absent" {
+            r["nodes"]["1304"] = json!({
+                "skill":1304,"group":1,"orbit":0,"orbitIndex":0,"x":90.0,"y":80.0
+            });
+            if reference_state == "blighted" {
+                r["nodes"]["1304"]["isBlighted"] = json!(true);
+            }
+            // Strict keeps the old coordinate behavior even for a target anointment.
+            assert_eq!(project(&mut f, &p, &old, &r).unwrap().0[3]["x"], 90.0);
+        } else {
+            assert_eq!(
+                project(&mut f, &p, &old, &r).unwrap_err(),
+                "node 1304: missing physical orbit-offset compatibility; refusing incomplete radius geometry"
+            );
+        }
+        let (tree, _, receipt) = forward_project(&mut f, &p, &old, &r);
+        assert_eq!(tree[3]["id"], "Trailing ");
+        assert!(tree[3].get("x").is_none());
+        assert!(tree[3].get("y").is_none());
+        let issues: Vec<_> = receipt["coverage"]["issues"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .filter(|issue| issue["action"] != "listed")
+            .collect();
+        if reference_state == "unflagged" {
+            assert_eq!(issues.len(), 1);
+            assert_eq!(issues[0]["kind"], "anointment-geometry");
+            assert_eq!(issues[0]["entity"], "Trailing ");
+            assert_eq!(issues[0]["action"], "emitted-with-gap");
+            assert_eq!(
+                issues[0]["observed"]["definition_sha256"],
+                hash(f.values("PassiveSkills", 12))
+            );
+            assert_eq!(
+                issues[0]["observed"]["reference_node_sha256"],
+                hash(&r["nodes"]["1304"])
+            );
+        } else {
+            assert!(issues.is_empty());
+        }
+    }
+}
+
+#[test]
+fn anointment_column_contract_is_checked_only_for_new_forward_nodes() {
+    let (mut f, mut p, old, mut r) = fixture();
+    anointment_column(&mut f, &mut p, &[]);
+    instantiate(&mut f, 12);
+    r["nodes"]["1304"] = json!({
+        "skill":1304,"group":1,"orbit":0,"orbitIndex":0,"x":10.0,"y":20.0
+    });
+    let columns = f.documents.get_mut("tables/PassiveSkills.json").unwrap()["columns"]
+        .as_array_mut()
+        .unwrap();
+    let column = columns
+        .iter_mut()
+        .find(|c| c["physical_fields"] == json!(["IsAnointmentOnly"]))
+        .unwrap();
+    column["schema"]["type"] = json!("i32");
+    project(&mut f, &p, &old, &r).unwrap();
+    let mut coverage = Coverage::new(AdapterMode::Forward, "passive-tree");
+    let error = project_with_coverage(&mut f, &p, &old, &r, &mut coverage).unwrap_err();
+    assert!(error.contains("IsAnointmentOnly"), "{error}");
+}
+
+#[test]
+fn placement_rebase_is_aggregated_and_preserves_coordinate_absence() {
+    let (mut f, p, mut old, r) = fixture();
+    old[0]["group"] = json!(2);
+    old[0]["x"] = json!(999.0);
+    old[1]["orbit_index"] = json!(1);
+    old[1].as_object_mut().unwrap().remove("x");
+    old[1].as_object_mut().unwrap().remove("y");
+    f.documents.get_mut("graph.json").unwrap()["groups"][0]["x"] = json!(110.0);
+    assert_eq!(
+        project(&mut f, &p, &old, &r).unwrap_err(),
+        "prepared placement lacks exact reference group/orbit/slot binding"
+    );
+    let (tree, _, receipt) = forward_project(&mut f, &p, &old, &r);
+    assert_eq!(tree[0]["x"], 110.0);
+    assert_eq!(tree[0]["y"], 20.0);
+    assert!(tree[0].get("native_stats").is_none());
+    assert!(tree[1].get("x").is_none());
+    assert!(tree[1].get("y").is_none());
+    let issues = receipt["coverage"]["issues"].as_array().unwrap();
+    assert_eq!(issues.len(), 1);
+    assert_eq!(issues[0]["kind"], "placement-rebase");
+    assert_eq!(issues[0]["entity"], "passive-tree");
+    assert_eq!(issues[0]["action"], "emitted-with-gap");
+    assert_eq!(
+        issues[0]["observed"],
+        json!({
+            "reference_sha256":p["reference_sha256"],
+            "legacy_source_sha256":hash(&old),
+            "moved_skills_sha256":hash(&vec![101_u64, 202]),
+            "moved_count":2
+        })
+    );
+}
+
+#[test]
+fn new_target_class_is_appended_with_target_attributes_and_no_ascendancies() {
+    let (mut f, p, old, r) = fixture();
+    let raw = json!({
+        "Id":"DruidId","Name":"Druid","BaseStrength":45,"BaseDexterity":-4,"BaseIntelligence":30
+    });
+    let table = f.documents.get_mut("tables/Characters.json").unwrap();
+    table["rows"]
+        .as_array_mut()
+        .unwrap()
+        .push(json!({"_row":2,"values":raw}));
+    table["validation"]["rows"] = json!(3);
+    assert_eq!(
+        project(&mut f, &p, &old, &r).unwrap_err(),
+        "prepared metadata does not completely cover exact target class names"
+    );
+    let (_, meta, receipt) = forward_project(&mut f, &p, &old, &r);
+    assert_eq!(meta["classes"][0]["name"], "Witch");
+    assert_eq!(meta["classes"][1]["name"], "Warrior");
+    assert_eq!(
+        meta["classes"][2],
+        json!({"name":"Druid","base_str":45,"base_dex":-4,"base_int":30})
+    );
+    assert_eq!(
+        receipt["class_records"][2]["policy_class_position"],
+        Value::Null
+    );
+    assert_eq!(receipt["class_records"][2]["source_row"], 2);
+    let issues = receipt["coverage"]["issues"].as_array().unwrap();
+    assert_eq!(issues.len(), 1);
+    assert_eq!(issues[0]["kind"], "new-class");
+    assert_eq!(issues[0]["entity"], "Druid");
+    assert_eq!(issues[0]["action"], "emitted-with-gap");
+    assert_eq!(
+        issues[0]["observed"],
+        json!({"definition_sha256":hash(&raw),"character":raw})
+    );
+}
+
+#[test]
+fn metadata_class_absent_from_the_target_remains_fatal_in_both_modes() {
+    let (mut f, mut p, old, r) = fixture();
+    p["base_policy"]["legacy_metadata"]["value"]["classes"]
+        .as_array_mut()
+        .unwrap()
+        .push(json!({"name":"Removed","base_str":0,"base_dex":0,"base_int":0}));
+    for mode in [AdapterMode::Strict, AdapterMode::Forward] {
+        let mut coverage = Coverage::new(mode, "passive-tree");
+        assert_eq!(
+            project_with_coverage(&mut f, &p, &old, &r, &mut coverage).unwrap_err(),
+            "prepared metadata does not completely cover exact target class names"
+        );
+    }
+}
+
+#[test]
+fn changed_exclusion_emits_target_without_a_native_packet() {
+    let (mut f, mut p, old, r) = fixture();
+    p["excluded"]["maximum_resistances1"] = json!({
+        "definition_sha256":hash(f.values("PassiveSkills", 0)),
+        "reason":"previous placeholder"
+    });
+    f.values("PassiveSkills", 0)["Name"] = json!("Now allocatable");
+    assert_eq!(
+        project(&mut f, &p, &old, &r).unwrap_err(),
+        "maximum_resistances1: non-allocatable compatibility binding changed"
+    );
+    let (tree, _, receipt) = forward_project(&mut f, &p, &old, &r);
+    assert_eq!(tree[0]["name"], "Now allocatable");
+    assert_eq!(tree[0]["stats"], json!(["-7% to Fire Resistance"]));
+    assert!(tree[0].get("native_stats").is_none());
+    assert_eq!(receipt["excluded"], json!([]));
+    assert_eq!(receipt["coverage"]["counts"]["emitted-with-gap"], 1);
+    let issue = &receipt["coverage"]["issues"][0];
+    assert_eq!(issue["kind"], "excluded-definition");
+    assert_eq!(issue["entity"], "maximum_resistances1");
+    assert_eq!(
+        issue["observed"]["definition_sha256"],
+        hash(f.values("PassiveSkills", 0))
+    );
+    assert_eq!(
+        issue["observed"]["policy_definition_sha256"],
+        p["excluded"]["maximum_resistances1"]["definition_sha256"]
+    );
+    for field in ["context_sha256", "render_context_sha256", "stats_sha256"] {
+        assert_eq!(issue["observed"][field].as_str().unwrap().len(), 64);
+    }
+    p["excluded"] = json!({});
+    let (closed, _, _) = forward_project(&mut f, &p, &old, &r);
+    assert!(closed[0].get("native_stats").is_some());
+}
+
+#[test]
+fn membership_quarantines_preserve_each_original_strict_message() {
+    for (kind, message) in [
+        (
+            "identity-collision",
+            "Multi: prepared identity collision at 303",
+        ),
+        ("stale-alias", "Multi: stale prepared identity alias"),
+        (
+            "unclassified-name",
+            "Multi: unclassified layout/unreleased definition",
+        ),
+        (
+            "empty-name",
+            "Multi: unclassified layout/unreleased definition",
+        ),
+        (
+            "reference-missing",
+            "node 303: missing physical orbit-offset compatibility; refusing incomplete radius geometry",
+        ),
+        (
+            "reference-slot-changed",
+            "node 303: changed orbit/slot needs explicit geometry compatibility",
+        ),
+    ] {
+        let (mut f, mut p, mut old, mut r) = fixture();
+        match kind {
+            "identity-collision" => old[2]["id"] = json!("previous-Multi"),
+            "stale-alias" => {
+                old[2]["id"] = json!("303");
+                p["base_policy"]["legacy_id_bindings"] = json!([{
+                    "legacy_id":"303","skill":303,"target_passive_id":"Multi",
+                    "expected_name":"Multi","source_entry_sha256":hash(&old[2]),"role":"fixture alias"
+                }]);
+                old[2]["stats"] = json!(["changed prepared entry"]);
+            }
+            "unclassified-name" => {
+                f.values("PassiveSkills", 2)["Name"] = json!("[DNT] Placeholder")
+            }
+            "empty-name" => f.values("PassiveSkills", 2)["Name"] = json!(""),
+            "reference-missing" => {
+                r["nodes"].as_object_mut().unwrap().remove("303");
+            }
+            _ => r["nodes"]["303"]["orbitIndex"] = json!(1),
+        }
+        assert_eq!(project(&mut f, &p, &old, &r).unwrap_err(), message);
+        let (tree, _, receipt) = forward_project(&mut f, &p, &old, &r);
+        assert_eq!(tree.as_array().unwrap().len(), 2);
+        assert_eq!(tree[0]["connections"], json!([]));
+        let expected_kind = if kind == "empty-name" {
+            "unclassified-name"
+        } else {
+            kind
+        };
+        let issue = receipt["coverage"]["issues"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .find(|issue| issue["kind"] == expected_kind)
+            .unwrap();
+        assert_eq!(issue["entity"], "Multi");
+        assert_eq!(issue["action"], "quarantined");
+        assert_eq!(issue["message"], message);
+        assert_eq!(
+            issue["observed"]["definition_sha256"],
+            hash(f.values("PassiveSkills", 2))
+        );
+        assert_eq!(
+            receipt["source_records"][0]["output_entry_sha256"],
+            hash(&tree[0])
+        );
+    }
+}
+
+#[test]
+fn strict_reports_the_first_site_before_later_node_defects_or_cascade() {
+    for (kind, message) in [
+        (
+            "excluded-definition",
+            "maximum_resistances1: non-allocatable compatibility binding changed",
+        ),
+        (
+            "identity-collision",
+            "maximum_resistances1: prepared identity collision at 101",
+        ),
+        (
+            "stale-alias",
+            "maximum_resistances1: stale prepared identity alias",
+        ),
+        (
+            "unclassified-name",
+            "maximum_resistances1: unclassified layout/unreleased definition",
+        ),
+        (
+            "reference-missing",
+            "node 101: missing physical orbit-offset compatibility; refusing incomplete radius geometry",
+        ),
+        (
+            "reference-slot-changed",
+            "node 101: changed orbit/slot needs explicit geometry compatibility",
+        ),
+        (
+            "placement-rebase",
+            "prepared placement lacks exact reference group/orbit/slot binding",
+        ),
+    ] {
+        let (mut f, mut p, mut old, mut r) = fixture();
+        match kind {
+            "excluded-definition" => {
+                p["excluded"]["maximum_resistances1"] = json!({
+                    "definition_sha256":"0".repeat(64),"reason":"old placeholder"
+                });
+            }
+            "identity-collision" => old[0]["id"] = json!("previous-resistance"),
+            "stale-alias" => {
+                old[0]["id"] = json!("previous-resistance");
+                p["base_policy"]["legacy_id_bindings"] = json!([{
+                    "legacy_id":"previous-resistance","skill":101,
+                    "target_passive_id":"maximum_resistances1","expected_name":"old",
+                    "source_entry_sha256":hash(&old[0]),"role":"fixture alias"
+                }]);
+                old[0]["stats"] = json!(["changed prepared entry"]);
+            }
+            "unclassified-name" => {
+                f.values("PassiveSkills", 0)["Name"] = json!("[DNT] Placeholder")
+            }
+            "reference-missing" => {
+                r["nodes"].as_object_mut().unwrap().remove("101");
+            }
+            "reference-slot-changed" => r["nodes"]["101"]["orbitIndex"] = json!(1),
+            _ => old[0]["group"] = json!(2),
+        }
+        // A later geometry defect must not supersede the first decision, including
+        // a rebase whose forward issue is deferred until after projection.
+        r["nodes"].as_object_mut().unwrap().remove("303");
+        old[1]["unlock_constraint"] = json!({"nodes":[101]});
+        assert_eq!(project(&mut f, &p, &old, &r).unwrap_err(), message);
+        let (tree, _, receipt) = forward_project(&mut f, &p, &old, &r);
+        assert_eq!(
+            receipt["coverage"]["issues"]
+                .as_array()
+                .unwrap()
+                .iter()
+                .filter(|issue| issue["kind"] == "reference-missing")
+                .count(),
+            if kind == "reference-missing" { 2 } else { 1 },
+            "{kind}"
+        );
+        if !["excluded-definition", "placement-rebase"].contains(&kind) {
+            assert_eq!(tree, json!([]), "{kind}");
+            assert!(
+                receipt["coverage"]["issues"]
+                    .as_array()
+                    .unwrap()
+                    .iter()
+                    .any(|issue| issue["kind"] == "dependant-quarantined"),
+                "{kind}"
+            );
+        }
+    }
+}
+
+#[test]
+fn strict_decision_precedes_invalid_observation_and_forward_keeps_integrity_fatal() {
+    let (mut f, mut p, mut old, r) = fixture();
+    old[2]["id"] = json!("previous-Multi");
+    f.values("PassiveSkills", 2)["Stat1Value"] = json!("invalid integer");
+    assert_eq!(
+        project(&mut f, &p, &old, &r).unwrap_err(),
+        "Multi: prepared identity collision at 303"
+    );
+    let mut coverage = Coverage::new(AdapterMode::Forward, "passive-tree");
+    assert!(
+        project_with_coverage(&mut f, &p, &old, &r, &mut coverage)
+            .unwrap_err()
+            .contains("Stat1Value")
+    );
+    p["excluded"]["Multi"] = json!({
+        "definition_sha256":"0".repeat(64), "reason":"old placeholder"
+    });
+    assert_eq!(
+        project(&mut f, &p, &old, &r).unwrap_err(),
+        "Multi: non-allocatable compatibility binding changed"
+    );
+}
+
+#[test]
+fn reference_membership_lists_numeric_differences_and_ignores_non_nodes() {
+    let (mut f, p, old, mut r) = fixture();
+    for key in ["root", "placeholder", "+404"] {
+        r["nodes"][key] = json!({"skill":404});
+    }
+    let (_, _, receipt) = forward_project(&mut f, &p, &old, &r);
+    assert_eq!(receipt["coverage"]["issues"], json!([]));
+    r["nodes"]["404"] = json!({"skill":404});
+    r["nodes"].as_object_mut().unwrap().remove("303");
+    let (_, _, receipt) = forward_project(&mut f, &p, &old, &r);
+    let issue = receipt["coverage"]["issues"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .find(|issue| issue["kind"] == "reference-membership")
+        .unwrap();
+    assert_eq!(issue["entity"], "passive-tree");
+    assert_eq!(issue["action"], "listed");
+    assert_eq!(
+        issue["observed"]["target_absent_from_reference"],
+        json!([303])
+    );
+    assert_eq!(
+        issue["observed"]["reference_absent_from_target"],
+        json!([404])
+    );
+}
+
+#[test]
+fn forward_run_records_multiple_kinds_in_conversion_coverage() {
+    let (mut f, mut p, old, r) = fixture();
+    p["excluded"]["maximum_resistances1"] = json!({
+        "definition_sha256":hash(f.values("PassiveSkills", 0)), "reason":"old placeholder"
+    });
+    f.values("PassiveSkills", 0)["Name"] = json!("Now real");
+    f.values("PassiveSkills", 2)["Name"] = json!("[DNT] Not released");
+    f.seal();
+    fs::create_dir(f.root.join("refresh-inputs")).unwrap();
+    let write = |path: &str, value: &Value| {
+        let bytes = reader::json_bytes(value).unwrap();
+        fs::write(f.root.join(path), &bytes).unwrap();
+        sha256_hex(&bytes)
+    };
+    let source_sha256 = write("legacy/source.json", &old);
+    p["base_policy"]["source"]["sha256"] = json!(source_sha256);
+    p["base_policy"]["target"]["facts_manifest_sha256"] = json!(f.args().expected_manifest_sha256);
+    p["reference_sha256"] = json!(write("refresh-inputs/reference.json", &r));
+    p["descriptions_sha256"] = json!(write("refresh-inputs/descriptions.json", &descriptions()));
+    let manifest = json!({
+        "format":"repoe-native-descriptions/v1",
+        "source_identity":f.manifest["source_identity"],
+        "files":{"descriptions.json":{
+            "sha256":p["descriptions_sha256"],
+            "bytes":fs::read(f.root.join("refresh-inputs/descriptions.json")).unwrap().len()
+        }}
+    });
+    p["descriptions_manifest_sha256"] = json!(write("refresh-inputs/manifest.json", &manifest));
+    write("policy/policy.json", &p);
+    let mut args = super::tests::args(&f);
+    args.mode = AdapterMode::Forward;
+    args.tree_refresh = Some(Box::new(refresh::Args {
+        reference: f.root.join("refresh-inputs/reference.json"),
+        descriptions: f.root.join("refresh-inputs/descriptions.json"),
+    }));
+    crate::ordinary_facts::run(args).unwrap();
+    let receipt: Value =
+        serde_json::from_slice(&fs::read(f.root.join("out/producer-receipt.json")).unwrap())
+            .unwrap();
+    let coverage = &receipt["conversion"]["coverage"];
+    let kinds: Vec<_> = coverage["issues"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .map(|issue| issue["kind"].as_str().unwrap())
+        .collect();
+    assert_eq!(kinds, ["excluded-definition", "unclassified-name"]);
+    assert_eq!(coverage["counts"]["emitted-with-gap"], 1);
+    assert_eq!(coverage["counts"]["quarantined"], 1);
+    assert_eq!(receipt["files"].as_object().unwrap().len(), 7);
+    let tree: Value =
+        serde_json::from_slice(&fs::read(f.root.join("out/base/passive_tree.json")).unwrap())
+            .unwrap();
+    assert_eq!(tree.as_array().unwrap().len(), 2);
+    assert!(tree[0].get("native_stats").is_none());
+    assert_eq!(tree[0]["connections"], json!([]));
 }
 
 #[test]

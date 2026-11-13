@@ -1,5 +1,6 @@
 use super::super::{refresh_tests, render::Renderer};
 use super::*;
+use crate::ordinary_facts::coverage::{AdapterMode, Coverage};
 use crate::ordinary_facts::{stat_set_codec::tests::table, tests::Fixture};
 
 fn fixture() -> (Fixture, Value, Value, Value, selected::Input) {
@@ -79,6 +80,23 @@ fn project(
     r: &Value,
     extra: &selected::Input,
 ) -> Result<(Value, Value, Value), String> {
+    project_with_coverage(
+        f,
+        p,
+        old,
+        r,
+        extra,
+        &mut Coverage::new(AdapterMode::Strict, "passive-tree"),
+    )
+}
+fn project_with_coverage(
+    f: &mut Fixture,
+    p: &Value,
+    old: &Value,
+    r: &Value,
+    extra: &selected::Input,
+    coverage: &mut Coverage,
+) -> Result<(Value, Value, Value), String> {
     let input = refresh_tests::input(f);
     let policy: refresh::Policy = serde_json::from_value(p.clone()).unwrap();
     let facts = Facts::read(&input, &policy.base_policy)?;
@@ -88,6 +106,7 @@ fn project(
         extra,
         policy.ascendancy.as_ref().unwrap(),
         &policy.base_policy.legacy_metadata.value,
+        coverage,
     )?;
     let descriptions = refresh_tests::descriptions();
     let renderer = Renderer::new(&descriptions)?;
@@ -102,6 +121,8 @@ fn project(
             ascendancy: &source,
             input: extra,
         }),
+        &sha256_hex(&reader::json_bytes(old)?),
+        coverage,
     )
 }
 
@@ -145,6 +166,578 @@ fn doc_rows(f: &Fixture) -> &[Value] {
     f.documents["tables/PassiveSkills.json"]["rows"]
         .as_array()
         .unwrap()
+}
+
+#[test]
+fn moved_ascendancy_member_uses_the_prepared_start_offset() {
+    let (mut f, mut p, mut old, mut r, extra) = fixture();
+    old[2]["ascendancy_id"] = json!("Witch3");
+    old[2]["kind"] = json!("ascendancy_start");
+    old[2]["x"] = json!(100.0);
+    old[2]["y"] = json!(200.0);
+    f.values("PassiveSkills", 2)["IsAscendancyStartingNode"] = json!(true);
+    f.values("PassiveSkills", 0)["Ascendancy"] = json!(0);
+    p["base_policy"]["qualification"]["context_sha256"] = json!(sha256_hex(
+        &reader::json_bytes(&super::super::source::context(f.values("PassiveSkills", 0)).unwrap())
+            .unwrap()
+    ));
+    old[0]["ascendancy_id"] = json!("Witch3");
+    old[0]["group"] = json!(2);
+    old[0]["x"] = json!(999.0);
+    r["nodes"]["101"]["x"] = json!(15.0);
+    r["nodes"]["101"]["y"] = json!(25.0);
+    f.documents.get_mut("graph.json").unwrap()["groups"][0]["x"] = json!(110.0);
+    assert_eq!(
+        project(&mut f, &p, &old, &r, &extra).unwrap_err(),
+        "prepared placement lacks exact reference group/orbit/slot binding"
+    );
+    let mut coverage = Coverage::new(AdapterMode::Forward, "passive-tree");
+    let (tree, _, mut receipt) =
+        project_with_coverage(&mut f, &p, &old, &r, &extra, &mut coverage).unwrap();
+    coverage.finish(&mut receipt).unwrap();
+    assert_eq!(
+        (tree[0]["x"].clone(), tree[0]["y"].clone()),
+        (json!(205.0), json!(205.0))
+    );
+    assert_eq!(
+        (tree[2]["x"].clone(), tree[2]["y"].clone()),
+        (json!(200.0), json!(200.0))
+    );
+    assert_eq!(receipt["coverage"]["issues"].as_array().unwrap().len(), 1);
+    assert_eq!(receipt["coverage"]["issues"][0]["kind"], "placement-rebase");
+}
+
+#[test]
+fn new_ascendancy_uses_reference_geometry_with_one_frame_issue() {
+    let (mut f, mut p, mut old, r, extra) = fixture();
+    f.values("PassiveSkills", 0)["Ascendancy"] = json!(0);
+    f.values("PassiveSkills", 2)["IsAscendancyStartingNode"] = json!(true);
+    p["base_policy"]["qualification"]["context_sha256"] = json!(sha256_hex(
+        &reader::json_bytes(&super::super::source::context(f.values("PassiveSkills", 0)).unwrap())
+            .unwrap()
+    ));
+    old[0]["x"] = json!(999.0);
+    assert_eq!(
+        project(&mut f, &p, &old, &r, &extra).unwrap().0[0]["x"],
+        999.0
+    );
+    let mut coverage = Coverage::new(AdapterMode::Forward, "passive-tree");
+    let (tree, _, mut receipt) =
+        project_with_coverage(&mut f, &p, &old, &r, &extra, &mut coverage).unwrap();
+    coverage.finish(&mut receipt).unwrap();
+    for index in [0, 2] {
+        assert_eq!(tree[index]["x"], 10.0);
+        assert_eq!(tree[index]["y"], 20.0);
+        assert!(tree[index].get("native_stats").is_none());
+    }
+    assert_eq!(receipt["native_packets"], 0);
+    let issues = receipt["coverage"]["issues"].as_array().unwrap();
+    assert_eq!(issues.len(), 1);
+    assert_eq!(issues[0]["kind"], "ascendancy-frame");
+    assert_eq!(issues[0]["entity"], "Witch3");
+    assert_eq!(issues[0]["action"], "emitted-with-gap");
+    assert_eq!(
+        issues[0]["observed"],
+        json!({
+            "start_skill":303,
+            "reference_start_node_sha256":sha256_hex(&reader::json_bytes(&r["nodes"]["303"]).unwrap()),
+            "member_skills_sha256":sha256_hex(&reader::json_bytes(&vec![101_u64,303]).unwrap())
+        })
+    );
+}
+
+#[test]
+fn changed_ascendancy_exclusion_emits_and_exposes_its_stale_node_exclusion() {
+    let (mut f, mut p, mut old, r, extra) = fixture();
+    let mut placeholder = extra.documents["tables/Ascendancy.json"]["rows"][0]["values"].clone();
+    placeholder["Name"] = json!("[DNT] Previous placeholder");
+    p["ascendancy"]["excluded"]["Witch3"] = json!({
+        "definition_sha256":sha256_hex(&reader::json_bytes(&placeholder).unwrap()),
+        "reason":"previous placeholder"
+    });
+    p["excluded"]["Multi"] = json!({
+        "definition_sha256":sha256_hex(&reader::json_bytes(f.values("PassiveSkills",2)).unwrap()),
+        "reason":"placeholder member"
+    });
+    f.values("PassiveSkills", 0)["Ascendancy"] = json!(0);
+    old[0]["ascendancy_id"] = json!("Witch3");
+    p["base_policy"]["qualification"]["context_sha256"] = json!(sha256_hex(
+        &reader::json_bytes(&super::super::source::context(f.values("PassiveSkills", 0)).unwrap())
+            .unwrap()
+    ));
+    assert_eq!(
+        project(&mut f, &p, &old, &r, &extra).unwrap_err(),
+        "changed ascendancy eligibility exclusion"
+    );
+    let mut coverage = Coverage::new(AdapterMode::Forward, "passive-tree");
+    let (tree, meta, mut receipt) =
+        project_with_coverage(&mut f, &p, &old, &r, &extra, &mut coverage).unwrap();
+    coverage.finish(&mut receipt).unwrap();
+    assert_eq!(tree[0]["ascendancy_id"], "Witch3");
+    assert_eq!(meta["classes"][0]["ascendancies"][0]["id"], "Witch3");
+    assert_eq!(tree.as_array().unwrap().len(), 2);
+    let issues = receipt["coverage"]["issues"].as_array().unwrap();
+    assert_eq!(issues.len(), 2);
+    assert_eq!(issues[0]["kind"], "ascendancy-exclusion-changed");
+    assert_eq!(issues[0]["entity"], "Witch3");
+    assert_eq!(issues[0]["action"], "emitted-with-gap");
+    assert_eq!(
+        issues[0]["observed"]["definition_sha256"],
+        sha256_hex(
+            &reader::json_bytes(&extra.documents["tables/Ascendancy.json"]["rows"][0]["values"])
+                .unwrap()
+        )
+    );
+    assert_eq!(issues[1]["kind"], "stale-exclusion");
+    assert_eq!(issues[1]["entity"], "Multi");
+    assert_eq!(issues[1]["action"], "emitted-with-gap");
+}
+
+#[test]
+fn changed_placeholder_ascendancy_quarantines_members_and_unlock_dependants() {
+    for state in ["dnt", "disabled", "empty"] {
+        let (mut f, mut p, mut old, r, mut extra) = unlock_fixture();
+        p["ascendancy"]["excluded"]["Witch3"] = json!({
+            "definition_sha256":sha256_hex(&reader::json_bytes(value(&mut extra,"Ascendancy",0)).unwrap()),
+            "reason":"previous eligibility decision"
+        });
+        match state {
+            "dnt" => {
+                value(&mut extra, "Ascendancy", 0)["Name"] = json!("[DNT] Changed placeholder")
+            }
+            "disabled" => value(&mut extra, "Ascendancy", 0)["Disabled"] = json!(true),
+            _ => value(&mut extra, "Ascendancy", 0)["Name"] = json!(""),
+        }
+        old[2]["ascendancy_id"] = json!("Witch3");
+        f.values("PassiveSkills", 0)["VisibleForAscendancy"] = json!(0);
+        f.values("PassiveSkills", 1)["UnlockedBy"] = json!([0]);
+        p["base_policy"]["qualification"]["context_sha256"] = json!(sha256_hex(
+            &reader::json_bytes(
+                &super::super::source::context(f.values("PassiveSkills", 0)).unwrap()
+            )
+            .unwrap()
+        ));
+        assert_eq!(
+            project(&mut f, &p, &old, &r, &extra).unwrap_err(),
+            "changed ascendancy eligibility exclusion"
+        );
+        let mut coverage = Coverage::new(AdapterMode::Forward, "passive-tree");
+        let (tree, meta, mut receipt) =
+            project_with_coverage(&mut f, &p, &old, &r, &extra, &mut coverage).unwrap();
+        coverage.finish(&mut receipt).unwrap();
+        assert_eq!(tree, json!([]), "{state}");
+        assert!(meta["classes"][0].get("ascendancies").is_none());
+        let issues = receipt["coverage"]["issues"].as_array().unwrap();
+        assert_eq!(issues.len(), 3);
+        assert_eq!(issues[0]["kind"], "ascendancy-exclusion-changed");
+        assert_eq!(issues[0]["entity"], "Witch3");
+        assert_eq!(issues[0]["action"], "quarantined");
+        assert!(
+            issues[1..]
+                .iter()
+                .all(|issue| issue["kind"] == "dependant-quarantined")
+        );
+        assert_eq!(receipt["coverage"]["counts"]["quarantined"], 3);
+        // Quarantine does not excuse a dangling override endpoint.
+        value(&mut extra, "AscendancyPassiveSkillOverrides", 0)["Override"] = json!(999);
+        let mut coverage = Coverage::new(AdapterMode::Forward, "passive-tree");
+        assert!(project_with_coverage(&mut f, &p, &old, &r, &extra, &mut coverage).is_err());
+    }
+}
+
+#[test]
+fn unused_ascendancy_exclusions_are_listed_with_the_original_strict_message() {
+    let (mut f, mut p, mut old, r, extra) = fixture();
+    old[2]["ascendancy_id"] = json!("Witch3");
+    for id in ["AbsentA", "AbsentB"] {
+        p["ascendancy"]["excluded"][id] = json!({
+            "definition_sha256":"0".repeat(64),"reason":"absent placeholder"
+        });
+    }
+    assert_eq!(
+        project(&mut f, &p, &old, &r, &extra).unwrap_err(),
+        "unused ascendancy exclusion"
+    );
+    let mut coverage = Coverage::new(AdapterMode::Forward, "passive-tree");
+    let (_, _, mut receipt) =
+        project_with_coverage(&mut f, &p, &old, &r, &extra, &mut coverage).unwrap();
+    coverage.finish(&mut receipt).unwrap();
+    let issues = receipt["coverage"]["issues"].as_array().unwrap();
+    assert_eq!(issues.len(), 2);
+    for (issue, id) in issues.iter().zip(["AbsentA", "AbsentB"]) {
+        assert_eq!(issue["kind"], "unused-ascendancy-exclusion");
+        assert_eq!(issue["entity"], id);
+        assert_eq!(issue["action"], "listed");
+        assert_eq!(issue["message"], "unused ascendancy exclusion");
+        assert_eq!(
+            issue["observed"]["policy_definition_sha256"],
+            "0".repeat(64)
+        );
+    }
+}
+
+#[test]
+fn changed_placeholder_ascendancy_also_quarantines_legacy_unlock_owners() {
+    let (mut f, mut p, mut old, r, mut extra) = fixture();
+    p["ascendancy"]["excluded"]["Witch3"] = json!({
+        "definition_sha256":sha256_hex(&reader::json_bytes(value(&mut extra,"Ascendancy",0)).unwrap()),
+        "reason":"previous eligibility decision"
+    });
+    value(&mut extra, "Ascendancy", 0)["Disabled"] = json!(true);
+    old[0]["unlock_constraint"] = json!({"ascendancy":"Witch3"});
+    old[2]["ascendancy_id"] = json!("Witch3");
+    assert_eq!(
+        project(&mut f, &p, &old, &r, &extra).unwrap_err(),
+        "changed ascendancy eligibility exclusion"
+    );
+    let mut coverage = Coverage::new(AdapterMode::Forward, "passive-tree");
+    let (tree, _, mut receipt) =
+        project_with_coverage(&mut f, &p, &old, &r, &extra, &mut coverage).unwrap();
+    coverage.finish(&mut receipt).unwrap();
+    assert_eq!(tree.as_array().unwrap().len(), 1);
+    assert_eq!(tree[0]["skill"], 202);
+    let issues = receipt["coverage"]["issues"].as_array().unwrap();
+    assert_eq!(issues.len(), 2);
+    assert_eq!(issues[1]["kind"], "dependant-quarantined");
+    assert_eq!(issues[1]["entity"], "maximum_resistances1");
+    assert_eq!(issues[1]["observed"]["quarantined_ascendancy"], "Witch3");
+}
+
+#[test]
+fn quarantine_cascades_through_target_unlocks_to_a_fixed_point() {
+    for chain in [false, true] {
+        let (mut f, mut p, old, mut r, extra) = unlock_fixture();
+        let missing = if chain { "303" } else { "202" };
+        if chain {
+            // Instance order makes the first dependant wait until the second pass.
+            f.values("PassiveSkills", 0)["UnlockedBy"] = json!([1]);
+            f.values("PassiveSkills", 1)["UnlockedBy"] = json!([2]);
+        } else {
+            f.values("PassiveSkills", 2)["UnlockedBy"] = json!([1, 1]);
+        }
+        p["base_policy"]["qualification"]["context_sha256"] = json!(sha256_hex(
+            &reader::json_bytes(
+                &super::super::source::context(f.values("PassiveSkills", 0)).unwrap()
+            )
+            .unwrap()
+        ));
+        r["nodes"].as_object_mut().unwrap().remove(missing);
+        assert_eq!(
+            project(&mut f, &p, &old, &r, &extra).unwrap_err(),
+            format!(
+                "node {missing}: missing physical orbit-offset compatibility; refusing incomplete radius geometry"
+            )
+        );
+        let mut coverage = Coverage::new(AdapterMode::Forward, "passive-tree");
+        let (tree, _, mut receipt) =
+            project_with_coverage(&mut f, &p, &old, &r, &extra, &mut coverage).unwrap();
+        coverage.finish(&mut receipt).unwrap();
+        let issues = receipt["coverage"]["issues"].as_array().unwrap();
+        let dependants: Vec<_> = issues
+            .iter()
+            .filter(|issue| issue["kind"] == "dependant-quarantined")
+            .collect();
+        assert_eq!(dependants.len(), if chain { 2 } else { 1 });
+        assert_eq!(
+            receipt["coverage"]["counts"]["quarantined"],
+            if chain { 3 } else { 2 }
+        );
+        for issue in &dependants {
+            assert_eq!(issue["action"], "quarantined");
+            assert_eq!(
+                issue["observed"]["quarantined_prerequisites"]
+                    .as_array()
+                    .unwrap()
+                    .len(),
+                1
+            );
+            assert_eq!(
+                issue["observed"]["definition_sha256"]
+                    .as_str()
+                    .unwrap()
+                    .len(),
+                64
+            );
+        }
+        if chain {
+            assert_eq!(tree, json!([]));
+            assert_eq!(receipt["native_packets"], 0);
+        } else {
+            assert_eq!(tree.as_array().unwrap().len(), 1);
+            assert_eq!(tree[0]["skill"], 101);
+            assert_eq!(tree[0]["connections"], json!([]));
+            assert_eq!(receipt["source_records"].as_array().unwrap().len(), 1);
+            assert_eq!(receipt["target_multistat_nodes"], 0);
+            assert_eq!(dependants[0]["entity"], "Multi");
+            assert_eq!(
+                dependants[0]["observed"]["quarantined_prerequisites"],
+                json!([202])
+            );
+        }
+    }
+}
+
+#[test]
+fn strict_ascendancy_decisions_precede_later_relationship_defects() {
+    for changed in [true, false] {
+        let (mut f, mut p, old, r, mut extra) = fixture();
+        let id = if changed { "Witch3" } else { "Absent" };
+        p["ascendancy"]["excluded"][id] = json!({
+            "definition_sha256":"0".repeat(64),"reason":"previous eligibility decision"
+        });
+        value(&mut extra, "AscendancyPassiveSkillOverrides", 0)["Override"] = json!(999);
+        assert_eq!(
+            project(&mut f, &p, &old, &r, &extra).unwrap_err(),
+            if changed {
+                "changed ascendancy eligibility exclusion"
+            } else {
+                "unused ascendancy exclusion"
+            }
+        );
+    }
+}
+
+#[test]
+fn quarantining_a_node_keeps_its_dangling_physical_unlock_fatal() {
+    let (mut f, p, old, mut r, extra) = unlock_fixture();
+    f.values("PassiveSkills", 2)["UnlockedBy"] = json!([999]);
+    r["nodes"].as_object_mut().unwrap().remove("303");
+    assert_eq!(
+        project(&mut f, &p, &old, &r, &extra).unwrap_err(),
+        "node 303: missing physical orbit-offset compatibility; refusing incomplete radius geometry"
+    );
+    let mut coverage = Coverage::new(AdapterMode::Forward, "passive-tree");
+    assert_eq!(
+        project_with_coverage(&mut f, &p, &old, &r, &extra, &mut coverage).unwrap_err(),
+        "unresolved physical row PassiveSkills/999"
+    );
+}
+
+#[test]
+fn forward_early_quarantines_validate_physical_unlock_shapes_and_targets() {
+    for path in [
+        "geometry",
+        "identity",
+        "alias",
+        "name",
+        "owner",
+        "member",
+        "excluded",
+        "changed-exclusion",
+    ] {
+        for (field, invalid, expected) in [
+            ("UnlockedBy", json!(false), "UnlockedBy must be an array"),
+            (
+                "UnlockedBy",
+                json!(["bad"]),
+                "invalid unlock physical reference",
+            ),
+            (
+                "UnlockedBy",
+                json!([999]),
+                "unresolved physical row PassiveSkills/999",
+            ),
+            (
+                "VisibleForAscendancy",
+                json!("bad"),
+                "invalid unlock physical reference",
+            ),
+            (
+                "VisibleForAscendancy",
+                json!(999),
+                "unresolved physical row Ascendancy/999",
+            ),
+        ] {
+            let (mut f, mut p, mut old, mut r, mut extra) = unlock_fixture();
+            let strict = match path {
+                "geometry" => {
+                    r["nodes"].as_object_mut().unwrap().remove("303");
+                    Some(
+                        "node 303: missing physical orbit-offset compatibility; refusing incomplete radius geometry",
+                    )
+                }
+                "identity" => {
+                    old[2]["id"] = json!("previous-Multi");
+                    Some("Multi: prepared identity collision at 303")
+                }
+                "alias" => {
+                    old[2]["id"] = json!("303");
+                    p["base_policy"]["legacy_id_bindings"] = json!([{
+                        "legacy_id":"303","skill":303,"target_passive_id":"Multi",
+                        "expected_name":"Multi",
+                        "source_entry_sha256":sha256_hex(&reader::json_bytes(&old[2]).unwrap()),
+                        "role":"fixture alias"
+                    }]);
+                    old[2]["stats"] = json!(["changed prepared entry"]);
+                    Some("Multi: stale prepared identity alias")
+                }
+                "name" => {
+                    f.values("PassiveSkills", 2)["Name"] = json!("[DNT] Placeholder");
+                    Some("Multi: unclassified layout/unreleased definition")
+                }
+                "owner" | "member" => {
+                    p["ascendancy"]["excluded"]["Witch3"] = json!({
+                        "definition_sha256":sha256_hex(
+                            &reader::json_bytes(value(&mut extra,"Ascendancy",0)).unwrap()),
+                        "reason":"previous eligibility decision"
+                    });
+                    value(&mut extra, "Ascendancy", 0)["Disabled"] = json!(true);
+                    if path == "owner" {
+                        f.values("PassiveSkills", 2)["Ascendancy"] = Value::Null;
+                        f.values("PassiveSkills", 2)["VisibleForAscendancy"] = json!(0);
+                    }
+                    Some("changed ascendancy eligibility exclusion")
+                }
+                "changed-exclusion" => {
+                    p["excluded"]["Multi"] = json!({
+                        "definition_sha256":"0".repeat(64),"reason":"previous placeholder"
+                    });
+                    Some("Multi: non-allocatable compatibility binding changed")
+                }
+                _ => None,
+            };
+            f.values("PassiveSkills", 2)[field] = invalid;
+            if path == "excluded" {
+                p["excluded"]["Multi"] = json!({
+                    "definition_sha256":sha256_hex(
+                        &reader::json_bytes(f.values("PassiveSkills",2)).unwrap()),
+                    "reason":"exact excluded definition"
+                });
+            }
+            if let Some(message) = strict {
+                assert_eq!(
+                    project(&mut f, &p, &old, &r, &extra).unwrap_err(),
+                    message,
+                    "{path}/{field}"
+                );
+            } else {
+                project(&mut f, &p, &old, &r, &extra).unwrap();
+            }
+            let mut coverage = Coverage::new(AdapterMode::Forward, "passive-tree");
+            assert_eq!(
+                project_with_coverage(&mut f, &p, &old, &r, &extra, &mut coverage).unwrap_err(),
+                expected,
+                "{path}/{field}"
+            );
+        }
+    }
+}
+
+#[test]
+fn physical_unlocks_to_quarantined_nodes_and_owners_still_cascade() {
+    for owner_quarantined in [false, true] {
+        let (mut f, mut p, old, mut r, mut extra) = unlock_fixture();
+        f.values("PassiveSkills", 0)["UnlockedBy"] = json!([2, 2]);
+        if owner_quarantined {
+            p["ascendancy"]["excluded"]["Witch3"] = json!({
+                "definition_sha256":sha256_hex(
+                    &reader::json_bytes(value(&mut extra,"Ascendancy",0)).unwrap()),
+                "reason":"previous eligibility decision"
+            });
+            value(&mut extra, "Ascendancy", 0)["Disabled"] = json!(true);
+            f.values("PassiveSkills", 0)["VisibleForAscendancy"] = json!(0);
+        } else {
+            r["nodes"]["303"]["orbitIndex"] = json!(1);
+        }
+        p["base_policy"]["qualification"]["context_sha256"] = json!(sha256_hex(
+            &reader::json_bytes(
+                &super::super::source::context(f.values("PassiveSkills", 0)).unwrap()
+            )
+            .unwrap()
+        ));
+        let mut coverage = Coverage::new(AdapterMode::Forward, "passive-tree");
+        let (tree, _, mut receipt) =
+            project_with_coverage(&mut f, &p, &old, &r, &extra, &mut coverage).unwrap();
+        coverage.finish(&mut receipt).unwrap();
+        assert_eq!(tree.as_array().unwrap().len(), 1);
+        assert_eq!(tree[0]["skill"], 202);
+        assert_eq!(tree[0]["connections"], json!([]));
+        let issues = receipt["coverage"]["issues"].as_array().unwrap();
+        assert_eq!(issues.len(), 2);
+        let dependant = issues
+            .iter()
+            .find(|issue| issue["kind"] == "dependant-quarantined")
+            .unwrap();
+        assert_eq!(dependant["entity"], "maximum_resistances1");
+        assert_eq!(dependant["action"], "quarantined");
+        if owner_quarantined {
+            assert_eq!(dependant["observed"]["quarantined_ascendancy"], "Witch3");
+        } else {
+            assert_eq!(
+                dependant["observed"]["quarantined_prerequisites"],
+                json!([303])
+            );
+        }
+    }
+}
+
+#[test]
+fn stale_node_exclusion_requires_a_policy_excluded_and_now_emitted_ascendancy() {
+    for policy_excluded in [false, true] {
+        for emitted in [false, true] {
+            let (mut f, mut p, old, r, extra) = fixture();
+            p["excluded"]["Multi"] = json!({
+                "definition_sha256":sha256_hex(&reader::json_bytes(f.values("PassiveSkills", 2)).unwrap()),
+                "reason":"placeholder member"
+            });
+            let input = refresh_tests::input(&mut f);
+            let initial_policy: refresh::Policy = serde_json::from_value(p.clone()).unwrap();
+            let facts = Facts::read(&input, &initial_policy.base_policy).unwrap();
+            let mut source = Source::read(
+                &input,
+                &facts,
+                &extra,
+                initial_policy.ascendancy.as_ref().unwrap(),
+                &initial_policy.base_policy.legacy_metadata.value,
+                &mut Coverage::new(AdapterMode::Strict, "passive-tree"),
+            )
+            .unwrap();
+            // Part 1 synthesizes the emitted set; part 2 re-evaluates ascendancies.
+            if !emitted {
+                source.entries.clear();
+            }
+            if policy_excluded {
+                p["ascendancy"]["excluded"]["Witch3"] = json!({
+                    "definition_sha256":"0".repeat(64), "reason":"previous placeholder"
+                });
+            }
+            let policy: refresh::Policy = serde_json::from_value(p).unwrap();
+            let descriptions = refresh_tests::descriptions();
+            let renderer = Renderer::new(&descriptions).unwrap();
+            for mode in [AdapterMode::Strict, AdapterMode::Forward] {
+                let mut coverage = Coverage::new(mode, "passive-tree");
+                let (tree, _, mut receipt) = refresh::project(
+                    &input,
+                    &facts,
+                    &policy,
+                    &old,
+                    &r,
+                    &renderer,
+                    Some(refresh::Supplement {
+                        ascendancy: &source,
+                        input: &extra,
+                    }),
+                    &sha256_hex(&reader::json_bytes(&old).unwrap()),
+                    &mut coverage,
+                )
+                .unwrap();
+                assert_eq!(tree.as_array().unwrap().len(), 2);
+                coverage.finish(&mut receipt).unwrap();
+                if mode == AdapterMode::Strict {
+                    assert!(receipt.get("coverage").is_none());
+                } else if policy_excluded && emitted {
+                    let issue = &receipt["coverage"]["issues"][0];
+                    assert_eq!(receipt["coverage"]["issues"].as_array().unwrap().len(), 1);
+                    assert_eq!(issue["kind"], "stale-exclusion");
+                    assert_eq!(issue["action"], "emitted-with-gap");
+                    assert_eq!(issue["entity"], "Multi");
+                    assert_eq!(issue["observed"]["ascendancy_id"], "Witch3");
+                } else {
+                    assert_eq!(receipt["coverage"]["issues"], json!([]));
+                }
+            }
+        }
+    }
 }
 
 fn text_fixture() -> (Fixture, Value, Value, Value, selected::Input) {
