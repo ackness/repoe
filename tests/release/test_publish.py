@@ -10,6 +10,7 @@ from pathlib import Path
 import subprocess
 import shutil
 import tempfile
+from types import SimpleNamespace
 import unittest
 from unittest import mock
 import zipfile
@@ -20,6 +21,32 @@ from RePoE.release import build, publish
 TARGET = {"game": "poe2", "game_patch": "9.9", "realm": "international"}
 COMMIT = "c" * 40
 CONTRACT = {"repository": "ackness/pobr", "version": 1, "tag": "contract/1.0", "commit": "d" * 40}
+
+
+def forward_receipt(issues=(), domain="passive-tree"):
+    """A forward tree/derived receipt, using the build's coverage aggregator."""
+    counts = {action: sum(issue["action"] == action for issue in issues) for action in build.COVERAGE_ACTIONS}
+    return {
+        "producer": {"dirty": False},
+        "jobs": {
+            "renamed-tree": {"kind": "adapter", "domain": domain, "status": "succeeded"},
+            "renamed-derived": {"kind": "special-derived", "status": "succeeded"},
+        },
+        "coverage": build.build_coverage(
+            SimpleNamespace(coverage={"renamed-tree": {"counts": counts, "issues": list(issues)}})
+        ),
+    }
+
+
+def tree_issue(action="quarantined", **fields):
+    return {
+        "domain": "passive-tree",
+        "kind": "missing-text",
+        "entity": "NodeA",
+        "action": action,
+        "message": "gap",
+        **fields,
+    }
 
 
 def git(repo, *args):
@@ -289,6 +316,7 @@ class MainTest(GitRepoCase):
         self.fixture.receipt["producer"]["commit"] = self.head
         self.fixture.write_build()
         root = Path(self.temporary.name)
+        self.real_built = publish.built
         for target, value in (
             ("built", lambda args, config: self.fixture.build_dir),
             ("load_target", lambda config: TARGET),
@@ -425,7 +453,7 @@ class MainTest(GitRepoCase):
         self.assertEqual(runner.commands(), ["gh auth status"])
         self.assertEqual(git(self.repo, "tag", "--list"), "")
         # The guard reads the staged receipts itself, whatever problems its caller listed.
-        staged = publish.stage(self.fixture.build_dir, Path(self.temporary.name) / "direct")
+        staged = self.direct_stage()
         staged["receipts"] = {"inputs.zip:facts.export-receipt.json": {"producer": {"dirty": True}}}
         runner, stderr = Runner(self.repo), io.StringIO()
         parser = argparse.ArgumentParser(prog="release:inputs")
@@ -433,6 +461,147 @@ class MainTest(GitRepoCase):
             with self.assertRaises(SystemExit):
                 publish.carry_out(parser, runner, staged, "t", self.head, [["git", "tag", "t"]], "tag", [], [], True)
         self.assertIn("facts.export-receipt.json was produced from a dirty checkout", stderr.getvalue())
+        self.assertEqual(runner.calls, [])
+
+    def direct_stage(self):
+        return publish.stage(self.fixture.build_dir, Path(self.temporary.name) / "direct")
+
+    def forward_build(self, issues=()):
+        forward = forward_receipt(issues)
+        self.fixture.receipt.update({key: value for key, value in forward.items() if key != "producer"})
+        self.fixture.receipt["coverage"]["open_tree_issues"] = 0
+        self.fixture.write_build()
+
+    def assert_no_publication(self, runner):
+        self.assertFalse(any(command[0] == "git" for command in runner.calls), runner.calls)
+        self.assertFalse(
+            any(
+                command[:2] == ["gh", "release"] and command[2] in ("create", "edit", "upload")
+                for command in runner.calls
+            ),
+            runner.calls,
+        )
+
+    def test_d40_is_in_the_dry_run_plan_and_options_or_matching_expect_cannot_override_it(self):
+        self.forward_build([tree_issue()])
+        package_path = self.fixture.build_dir / "package.json"
+        package = json.loads(package_path.read_text())
+        package["package"].update(identical_to_reference=False)
+        package["package"].update(
+            expect=pin((self.fixture.build_dir / "game-build-part.zip").read_bytes()), matches_expect=True
+        )
+        package_path.write_bytes(encoded(package))
+        for options in ((), ("--reuse",), ("--allow-different",), ("--reuse", "--allow-different", "--yes")):
+            with self.subTest(options=options):
+                code, output, runner = self.main(*options)
+                self.assertEqual(code, 1, output)
+                self.assertIn("staged:", output)
+                self.assertIn("commands:", output)
+                self.assertIn("1 open tree issues (1 issue entities); D40 blocks publication", output)
+                self.assertNotIn("already published", output)
+                self.assert_no_publication(runner)
+
+    def test_d40_cannot_be_overridden_by_direct_carry_out_with_no_caller_problems(self):
+        self.forward_build([tree_issue()])
+        staged = self.direct_stage()
+        for yes in (False, True):
+            runner = Runner(self.repo)
+            output = io.StringIO()
+            with contextlib.redirect_stdout(output), contextlib.redirect_stderr(output), self.assertRaises(SystemExit):
+                publish.carry_out(
+                    argparse.ArgumentParser(prog="release:publish"),
+                    runner,
+                    staged,
+                    "t",
+                    self.head,
+                    [["git", "tag", "t"]],
+                    "new",
+                    [],
+                    [],
+                    yes,
+                )
+            self.assertIn("D40 blocks publication", output.getvalue())
+            self.assert_no_publication(runner)
+
+    def test_d40_refuses_the_real_reuse_path_with_matching_producer(self):
+        self.forward_build([tree_issue()])
+        with (
+            mock.patch.object(
+                publish, "built", side_effect=lambda args, config: self.real_built(args, config, self.fixture.root)
+            ),
+            mock.patch.object(build, "load_config", return_value=(Path("c"), {"target": TARGET}, {}, {}, {})),
+            mock.patch.object(build, "output_name", return_value="build"),
+            mock.patch.object(build, "producer_identity", return_value=self.fixture.receipt["producer"]),
+        ):
+            code, output, runner = self.main("--reuse", "--allow-different", "--yes")
+        self.assertEqual(code, 1, output)
+        self.assertIn("reusing", output)
+        self.assertIn("D40 blocks publication", output)
+        self.assert_no_publication(runner)
+
+    def test_d40_is_checked_again_immediately_before_mutation(self):
+        staged = self.direct_stage()
+        runner = Runner(self.repo)
+        with (
+            mock.patch.object(
+                publish, "unpublishable", side_effect=[[], ["receipt.json D40 blocks publication"]]
+            ) as check,
+            contextlib.redirect_stdout(io.StringIO()),
+            contextlib.redirect_stderr(io.StringIO()),
+            self.assertRaises(SystemExit),
+        ):
+            publish.carry_out(
+                argparse.ArgumentParser(prog="release:publish"),
+                runner,
+                staged,
+                "t",
+                self.head,
+                [["git", "tag", "t"]],
+                "new",
+                [],
+                [],
+                True,
+            )
+        self.assertEqual(check.call_count, 2)
+        self.assert_no_publication(runner)
+
+    def test_d40_refuses_resume_push_remote_tag_draft_and_already_published_paths(self):
+        self.forward_build([tree_issue()])
+        for action, result in (
+            ("resume-push", "missing"),
+            ("remote-tag", "missing"),
+            ("remote-tag", "draft"),
+            ("remote-tag", "published"),
+        ):
+            with self.subTest(action=action, result=result):
+                steps = None if result == "published" else [["gh", "release", "edit", "t", "--draft=false"]]
+                runner = Runner(self.repo)
+                with (
+                    mock.patch.object(publish, "plan", return_value={"action": action, "sequence": 1, "problems": []}),
+                    mock.patch.object(publish, "release_steps", return_value=(steps, result)) as release_steps,
+                ):
+                    code, output, runner = self.main("--yes", "--reuse", "--allow-different", runner=runner)
+                self.assertEqual(code, 1, output)
+                self.assertIn("D40 blocks publication", output)
+                self.assertNotIn("already published:", output)
+                release_steps.assert_not_called()
+                self.assert_no_publication(runner)
+
+    def test_already_published_still_checks_the_staged_native_receipt_safeguards(self):
+        self.fixture.receipt["rehearsal"] = True
+        self.fixture.write_build()
+        with mock.patch.object(publish, "release_steps", return_value=(None, "published")):
+            code, output, runner = self.main("--yes")
+        self.assertEqual(code, 1, output)
+        self.assertIn("receipt.json is a rehearsal", output)
+        self.assertNotIn("already published:", output)
+        self.assert_no_publication(runner)
+
+    def test_valid_zero_issue_forward_build_can_be_staged_and_planned(self):
+        self.forward_build()
+        code, output, runner = self.main()
+        self.assertEqual(code, 0, output)
+        self.assertIn("dry run: nothing was tagged", output)
         self.assertEqual(runner.calls, [])
 
     def test_a_failed_step_resumes_with_the_same_tag(self):

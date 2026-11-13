@@ -1,12 +1,13 @@
 """Export receipts: checkout identity, the dirty-tree refusal, receipt checks and the package pairing rule."""
 
 from pathlib import Path
+import copy
 import unittest
 from unittest import mock
 
 from RePoE.client import export_receipt
 from RePoE.client.source_io import decode, encoded
-from tests.release.test_publish import GitRepoCase
+from tests.release.test_publish import GitRepoCase, forward_receipt, tree_issue
 
 TARGET = {"game": "poe2", "game_patch": "9.9", "realm": "international"}
 DIRTY = ("RePoE/native/x.py",)
@@ -199,6 +200,84 @@ class ReceiptTest(unittest.TestCase):
             receipts({**members, "old.export-receipt.json": beside}, formats={"repoe-native-facts/v4"})
         rehearsed = {"a/manifest.json": manifest, "a.export-receipt.json": receipt_for(manifest, rehearsal=True)}
         self.assertTrue(receipts(rehearsed)["a.export-receipt.json"]["rehearsal"])
+
+    def test_d40_uses_issue_records_and_counts_entities_separately(self):
+        self.assertIsNone(export_receipt.refusal(forward_receipt()))
+        for action in export_receipt.COVERAGE_ACTIONS:
+            for domain in ("passive-tree", "gem-effects"):
+                with self.subTest(action=action, domain=domain):
+                    receipt = forward_receipt([tree_issue(action, domain=domain)], domain=domain)
+                    receipt["coverage"]["open_tree_issues"] = 0
+                    reason = export_receipt.refusal(receipt)
+                    if domain == "passive-tree" and action in ("quarantined", "emitted-with-gap"):
+                        self.assertIn("1 open tree issues (1 issue entities)", reason)
+                    else:
+                        self.assertIsNone(reason)
+        receipt = forward_receipt([tree_issue(), tree_issue("emitted-with-gap", kind="changed-text")])
+        self.assertIn("2 open tree issues (1 issue entities)", export_receipt.refusal(receipt))
+        # Table/ascendancy identities are issue entities, not individual node counts.
+        receipt["coverage"]["jobs"]["renamed-tree"]["issues"][0]["entity"] = "PassiveSkills"
+        self.assertIn("2 open tree issues (2 issue entities)", export_receipt.refusal(receipt))
+
+    def test_d40_tree_producers_are_identified_by_structured_metadata(self):
+        for name in ("renamed-tree", "renamed-derived"):
+            for status in ("failed", "skipped"):
+                with self.subTest(name=name, status=status):
+                    receipt = forward_receipt()
+                    receipt["jobs"][name]["status"] = status
+                    reason = export_receipt.refusal(receipt)
+                    self.assertIn(f"{name} (", reason)
+                    self.assertIn(status, reason)
+                    self.assertIn("D40 blocks publication", reason)
+        receipt = forward_receipt()
+        receipt["jobs"].update(
+            {
+                "passive-tree": {"kind": "gem-descriptions", "status": "failed"},
+                "special-derived": {"kind": "adapter", "domain": "gem-effects", "status": "skipped"},
+            }
+        )
+        self.assertIsNone(export_receipt.refusal(receipt))
+
+    def test_d40_malformed_or_missing_forward_evidence_is_a_clear_refusal(self):
+        changes = (
+            lambda r: r.pop("coverage"),
+            lambda r: r.pop("jobs"),
+            lambda r: r.update(coverage=None),
+            lambda r: r.update(jobs=[]),
+            lambda r: r.update(jobs={}),
+            lambda r: r["jobs"].update({"bad": None}),
+            lambda r: r["jobs"]["renamed-tree"].pop("status"),
+            lambda r: r["jobs"]["renamed-tree"].update(status=[]),
+            lambda r: r["jobs"]["renamed-tree"].pop("domain"),
+            lambda r: r["jobs"]["renamed-derived"].pop("kind"),
+            lambda r: r["jobs"]["renamed-derived"].update(kind=""),
+            lambda r: r["jobs"]["renamed-derived"].update(kind="specialderived"),
+            lambda r: r["jobs"]["renamed-derived"].update(kind=[]),
+            lambda r: r["coverage"].pop("jobs"),
+            lambda r: r["coverage"].update(jobs=[]),
+            lambda r: r["coverage"].update(format="other"),
+            lambda r: r["coverage"].update(open_tree_issues=False),
+            lambda r: r["coverage"].update(totals={}),
+            lambda r: r["coverage"]["jobs"].pop("renamed-tree"),
+            lambda r: r["coverage"]["jobs"].update({"unknown": {"issues": []}}),
+            lambda r: r["coverage"]["jobs"]["renamed-tree"].update(issues=None),
+            lambda r: r["coverage"]["jobs"]["renamed-tree"].update(counts=[]),
+            lambda r: r["coverage"]["jobs"]["renamed-tree"]["issues"].append(None),
+            lambda r: r["coverage"]["jobs"]["renamed-tree"]["issues"].append({}),
+            lambda r: r["coverage"]["jobs"]["renamed-tree"]["issues"].append(tree_issue(action=[])),
+            lambda r: r["coverage"]["jobs"]["renamed-tree"]["issues"].append(tree_issue(observed=[])),
+            lambda r: r["coverage"]["jobs"]["renamed-tree"]["issues"].append(tree_issue(domain="other")),
+            lambda r: r["coverage"]["jobs"]["renamed-tree"]["counts"].update(listed=True),
+        )
+        for index, change in enumerate(changes):
+            with self.subTest(index=index):
+                receipt = copy.deepcopy(forward_receipt())
+                change(receipt)
+                self.assertIn("invalid D40 evidence", export_receipt.refusal(receipt))
+        # Removing only coverage from a previous forward receipt cannot look historical.
+        receipt = forward_receipt()
+        receipt.pop("coverage")
+        self.assertIn("missing or invalid forward coverage", export_receipt.refusal(receipt))
 
 
 if __name__ == "__main__":
