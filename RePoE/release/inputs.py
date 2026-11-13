@@ -354,6 +354,8 @@ def main(argv=None, runner=None):
         problems += receipt_problems(args.repo, staged["receipts"])
     except (ValueError, KeyError, TypeError, OSError, zipfile.BadZipFile) as error:
         parser.exit(1, f"release:inputs: {error}\n")
+    if steps is None and problems:
+        parser.exit(1, "release:inputs: refusing to publish:\n" + publish.bullets(problems))
     print(f"inputs.lock.json packages: {build.display(directory / 'lock.json')}")
     print(build.runtime_encoded(lock_entries(staged, tag)).decode(), end="")
     if steps is None:
