@@ -26,6 +26,45 @@ manifest. The target patch must agree across F, policy and CSD manifest. Selecte
 payloads are authenticated before parsing, using the existing strict reader.
 No client, Lua, network acquisition or implicit translation input is invoked.
 
+An optional historical context input is available only with tree refresh:
+
+```sh
+--tree-context-baseline /absolute/path/to/old/tables/PassiveSkills.json \
+--tree-context-baseline-sha256 <64-lowercase-hex-sha256>
+```
+
+Both flags must be present together. The refresh policy must also contain
+`"context_baseline": {"sha256": "<same digest>", "review": "reviewed",
+"reason": "<nonblank review reason>"}`. Absent input and absent policy preserve
+the historical command and receipt shape. Explicit null, incomplete or
+unreviewed entries, malformed digests, pin disagreement and input without
+policy authorization fail in strict and forward modes. Output cannot replace
+the table or write into its protected source directory.
+
+The existing pinned reader verifies the exact table bytes before parsing.
+The table must have native PassiveSkills identity and row wrappers, unique
+nonblank physical field names, object values containing exactly those fields,
+and unique nonblank string Ids. The old reference is found by the existing
+`base_policy.qualification.reference_passive_id`; its original, unnormalized
+`source::context` must match `base_policy.qualification.context_sha256` under
+the existing canonical JSON plus newline hash. The validated table retains
+sorted fields and old rows indexed by stable Id. Target row numbers never
+identify old rows.
+
+The conversion receipt's optional `context_baseline` records the consumed
+digest, reviewed reason, qualification reference/hash and table counts. It is
+historical evidence; target facts still come exclusively from the target
+package. The adapter does not decode an old client or independently verify an
+old manifest, producer or schema from this table alone. The declaration must
+pin its containing package and member through the release runner's existing
+input path; a cached file is not policy authorization. See
+[release input declarations](../../../RELEASING.md#input-packages).
+
+The baseline authenticates historical evidence. A separate reviewed
+`context_columns` entry can authorize the limited comparison adjustments
+described below. Without that entry, forward mode can diagnose proven
+column-only differences while keeping a table-level gap open.
+
 ## Field owners
 
 | Output | Owner and boundary |
@@ -63,6 +102,7 @@ first error and output bytes; informational notes do not change strict receipts.
 
 | Decision site | Kind | Action | Entity |
 | --- | --- | --- | --- |
+| Authenticated old/target physical field sets differ without a reviewed allowance | `context-columns-changed` | `emitted-with-gap`; compare only provable historical projections | `PassiveSkills` |
 | Excluded node definition changed | `excluded-definition` | `emitted-with-gap`; re-evaluate the node normally | Target passive ID |
 | Unchanged node exclusion on a policy-excluded ascendancy emitted in this run | `stale-exclusion` | `emitted-with-gap`; keep the node excluded pending review | Target passive ID |
 | Prepared identity collision | `identity-collision` | `quarantined` | Target passive ID |
@@ -101,7 +141,7 @@ Render-context issues carry both the target and bound render hashes.
 Variant issues identify the replacement passive ID and graph skill where known.
 Omitting a variant leaves its base node usable with an open issue and no packet.
 
-An unrenderable target without prepared text produces one
+Without reviewed whole-text lines, an unrenderable target without prepared text produces one
 `text-unrenderable-new` issue, even if its whole-text binding is missing or stale.
 The official reference's lines, when available, are split into trimmed nonempty
 lines under `observed.candidate_lines`. They are review evidence only and never
@@ -117,10 +157,39 @@ omission also preserves duplicate replacement-selector rejection and physical
 identity validation. A missing or ambiguous physical target remains fatal;
 it cannot supply an identity for a compatibility binding.
 
-The reference qualification hash and current column contracts remain fatal in
-both modes. PassiveSkills column-change evidence, a table-level issue and
-reviewed context normalization are deferred together to P12a. Existing hashes
-do not reveal the old physical field list or removed values.
+The reference qualification must still match its unchanged historical hash.
+Without a verified baseline, an unexplained qualification mismatch remains
+fatal in both modes. A baseline with unchanged fields also leaves that failure
+unchanged. Hash strings alone reveal neither historical field names nor removed
+values. Current consumed-column contracts and actual scalar, FK, identity,
+stat-slot and duplicate-stat checks remain fatal; column comparison never
+supplies or repairs gameplay values.
+
+Forward projection validates consumed definitions, retained variant identities
+and replacement targets before exclusions or quarantine can skip them. This
+includes actual ascendancy FKs and targets whose replacement owner is
+quarantined. Removed bases and superseded variants do not become new consumers.
+Successful strict runs using new geometry or text review receive the same
+physical checks, after the original strict decisions so stale placement keeps
+its original first error.
+
+With authenticated differing field sets and no allowance, strict mode rejects
+at its original qualification/content gate. Forward mode emits one table issue
+whose observations contain `bound_fields_sha256`, `target_fields_sha256`, exact
+sorted `added` and `removed` names, the baseline pin and affected Ids, including
+Ids with no old-row evidence. Each field hash independently uses the sorted
+actual field list and the adapter's canonical JSON plus newline.
+
+To continue diagnostically, the adapter joins a target row to its authenticated
+old `PassiveSkills.Id`, drops added fields from a comparison copy and restores
+that row's actual removed values. A comparison can use this view only when its
+specific projection equals that old row's projection and the applicable
+historical binding still matches. Qualification, policy context, render
+context, whole-row exclusions and variants keep their distinct projections.
+This proof can avoid duplicate column-caused row issues; it never establishes
+neutrality, closes the table issue or permits affected emitted nodes to carry
+native packets. Missing old rows, changes in surviving context, whole-text stat
+changes and changed full definitions retain their applicable failures.
 
 Placement rebases produce one aggregate issue after projection, bound to the
 reference hash, prepared source hash and sorted moved-skill list hash/count.
@@ -129,6 +198,65 @@ existing ascendancy, reference placement also receives the prepared start-node
 coordinate minus the reference start-node coordinate. Existing coordinate
 absence survives. A new ascendancy has no prepared offset and keeps the reference
 frame, with one issue binding its start node and emitted member list.
+
+The refresh policy accepts these optional closing entries in v1–v4. Policies
+without them keep their strict behavior and bytes. Every new entry requires
+`review: "reviewed"` and a `reason` string whose trimmed value is nonempty.
+Missing, draft or unreviewed metadata, explicit null entries, malformed values and
+unexpected fields fail as integrity errors in both modes, even when the entry
+would otherwise be unused. Hashes use the adapter's canonical JSON plus newline;
+copy the observed values rather than hashing an alternate encoding.
+
+| Entry and key | Exact fields in addition to `review` and `reason` | Matching and effect |
+| --- | --- | --- |
+| `context_columns` | `bound_fields_sha256`, `target_fields_sha256`; `added` array of `{field, neutral_value, review, reason}`; `removed` array of `{field, constant_value, review, reason}` | Requires the verified baseline input. Both hashes and both name sets must exactly match independently observed old/target fields and differences. Names must be nonblank, unique and disjoint. Stale, unknown, incomplete, unreviewed or unused allowances reject in either mode. Each column needs its own completed review and nonblank reason. |
+| `placement_rebase` | `reference_sha256`, `legacy_source_sha256`, `moved_skills_sha256` (SHA-256 strings); `moved_count` (positive integer) | All four must match the current reference pin, prepared input pin and P5 sorted moved-set evidence. Closes only `placement-rebase`, authorizing reference placement plus the existing derived prepared ascendancy-start offset. A stale entry keeps the aggregate forward issue and the original strict per-node placement error. An entry with no moved nodes is rejected as unused. |
+| `ascendancy_frames[<stable Ascendancy.Id>]` | `start_skill` (graph skill integer), `dx`, `dy` (finite numbers), `reference_start_node_sha256`, `member_skills_sha256` (SHA-256 strings) | Requires the exact target start, reference-start hash and sorted actual emitted member hash after quarantine and its dependant cascade. Adds dx/dy once to that new ascendancy's existing coordinates, preserving coordinate absence. A usable emitted start with reference coordinates is required. Missing approval retains candidate geometry and the forward frame issue; stale approval leaves that issue open forward and rejects strict. Unknown, existing or otherwise unused frame keys reject. |
+| `compatibility_bindings[<PassiveSkills.Id>]` | Existing `context_sha256`, `stats_sha256` and scoped `render_context_sha256`, plus `lines` (nonempty array of nonblank strings) and `origin` (`"official-reference"` or `"manual"`) | All new text fields must be present together. Exact context/stat/render binding permits a new unrenderable target to emit the approved complete lines as `reviewed-whole-text`, with no native packet. It closes only the text gap. Missing/stale bindings keep the existing gap and empty new-node stats. Unknown or unused target keys reject. |
+
+Every column value must be explicitly written. JSON `null` is a legitimate
+reviewed neutral or constant value; an omitted value is incomplete. For a
+matching reviewed allowance, an added field disappears from comparison only on
+rows whose actual value equals its reviewed `neutral_value`. A removed field is
+restored only where the same authenticated old Id has exactly the declared
+`constant_value`. The reference row's value does not establish global constancy.
+An unsupported removal stays absent in that row's comparison, retaining ordinary
+content/binding failures and packet suppression. A reviewer can separately bind
+that exact row's actual new content; the global entry cannot manufacture the
+binding. Non-neutral additions likewise stay visible to existing checks.
+
+Review closes only the table-level column issue and matching row comparisons.
+It cannot clear independent geometry, text or variant issues. Adjustments are
+comparison views only: source names, graph membership, raw gameplay values,
+target stats and rendering use the original target rows.
+
+`lines` on any target with prepared node or identified variant text is an
+integrity error, including when rendering would succeed or the field is unused.
+Old bindings with none of the new text fields remain valid. Rendering success
+always uses target-rendered text. The original render-context scope still
+applies: v4 requires `render_context_sha256`; v1–v3 use `context_sha256` for that
+guard and reject the separate field. Approving lines does not waive any physical
+or semantic guard. If the reference supplies text, its normalized candidate lines
+must agree with the normalized approved lines; disagreement leaves an open text
+issue and empty new-node stats in forward mode, and rejects strict mode. Neither
+origin permits an automatic copy from the reference.
+
+For manual review, run forward mode, inspect the complete source and reference
+evidence, then run `mise run release:policy-draft -- --receipt <build-receipt>
+--out <fresh-cache-directory>`. The draft uses real consumer keys and observed
+hashes, but its `"unreviewed"` markers, empty reasons, null frame offsets and
+candidate column values cannot authorize output. To draft column changes,
+supply the reviewed baseline pair and run forward with no `context_columns`;
+do not rewrite stale allowance pins or review fields automatically. Copy only
+the applicable entries into a new policy, inspect each proposed neutral/constant
+value, resolve the geometry/text decisions, complete every review field and preserve
+the policy version's render-context scope. Draft lines for an existing prepared
+target must be removed together with their new review/origin/reason fields;
+review its existing binding separately. Pin the new policy through the existing
+input process and rerun the same projection. Recheck every remaining
+[coverage issue](ordinary-coverage.md); closing one entry never closes another
+geometry, variant or render issue, and an open node issue still suppresses its
+native packet. Changed evidence requires another review.
 
 For new nodes, forward mode validates the target `IsAnointmentOnly` bool column.
 A flagged node absent from the reference stays coordinate-less without a

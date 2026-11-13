@@ -97,9 +97,28 @@ fn project_with_coverage(
     extra: &selected::Input,
     coverage: &mut Coverage,
 ) -> Result<(Value, Value, Value), String> {
+    project_with_baseline(f, p, old, r, extra, None, coverage)
+}
+#[allow(clippy::too_many_arguments)]
+fn project_with_baseline(
+    f: &mut Fixture,
+    p: &Value,
+    old: &Value,
+    r: &Value,
+    extra: &selected::Input,
+    baseline: Option<&refresh::ContextBaselineArgs>,
+    coverage: &mut Coverage,
+) -> Result<(Value, Value, Value), String> {
     let input = refresh_tests::input(f);
-    let policy: refresh::Policy = serde_json::from_value(p.clone()).unwrap();
-    let facts = Facts::read(&input, &policy.base_policy)?;
+    let policy: refresh::Policy = serde_json::from_value(p.clone()).map_err(|e| e.to_string())?;
+    let baseline = refresh::read_context_baseline(&policy, baseline)?;
+    let facts = Facts::read_with_context(
+        &input,
+        &policy.base_policy,
+        baseline.as_ref().map(|(b, _)| b),
+        policy.context_columns.as_ref(),
+        coverage.is_forward(),
+    )?;
     let source = Source::read(
         &input,
         &facts,
@@ -252,6 +271,11 @@ fn moved_ascendancy_member_uses_the_prepared_start_offset() {
     );
     assert_eq!(receipt["coverage"]["issues"].as_array().unwrap().len(), 1);
     assert_eq!(receipt["coverage"]["issues"][0]["kind"], "placement-rebase");
+    p["placement_rebase"] = refresh_tests::closing_entry(&receipt, "placement-rebase");
+    let closed = forward_project(&mut f, &p, &old, &r, &extra);
+    assert_eq!(closed.2["coverage"]["issues"], json!([]));
+    assert_eq!(closed.0, tree);
+    assert_eq!(project(&mut f, &p, &old, &r, &extra).unwrap().0, tree);
 }
 
 #[test]
@@ -291,6 +315,159 @@ fn new_ascendancy_uses_reference_geometry_with_one_frame_issue() {
             "member_skills_sha256":sha256_hex(&reader::json_bytes(&vec![101_u64,303]).unwrap())
         })
     );
+}
+
+#[test]
+fn reviewed_new_frame_uses_exact_emitted_members_and_applies_once() {
+    let (mut f, mut p, mut old, mut r, extra) = fixture();
+    f.values("PassiveSkills", 0)["Ascendancy"] = json!(0);
+    f.values("PassiveSkills", 2)["IsAscendancyStartingNode"] = json!(true);
+    p["base_policy"]["qualification"]["context_sha256"] = json!(sha256_hex(
+        &reader::json_bytes(&super::super::source::context(f.values("PassiveSkills", 0)).unwrap())
+            .unwrap()
+    ));
+    old[0].as_object_mut().unwrap().remove("x");
+    old[0].as_object_mut().unwrap().remove("y");
+    f.documents.get_mut("graph.json").unwrap()["groups"][0]["x"] = json!(110.0);
+    let (_, _, receipt) = forward_project(&mut f, &p, &old, &r, &extra);
+    let mut frame = refresh_tests::closing_entry(&receipt, "ascendancy-frame");
+    frame["dx"] = json!(90.0);
+    frame["dy"] = json!(-30.0);
+    p["ascendancy_frames"]["Witch3"] = frame.clone();
+    let (tree, _, receipt) = forward_project(&mut f, &p, &old, &r, &extra);
+    assert_eq!(receipt["coverage"]["issues"], json!([]));
+    assert_eq!(tree[2]["x"], 200.0);
+    assert_eq!(tree[2]["y"], -10.0);
+    assert!(tree[0].get("x").is_none());
+    assert!(tree[0].get("y").is_none());
+    assert_eq!(
+        receipt["source_records"][2]["output_entry_sha256"],
+        sha256_hex(&reader::json_bytes(&tree[2]).unwrap())
+    );
+    assert_eq!(forward_project(&mut f, &p, &old, &r, &extra).0, tree);
+    for field in [
+        "start_skill",
+        "reference_start_node_sha256",
+        "member_skills_sha256",
+    ] {
+        let mut stale = p.clone();
+        stale["ascendancy_frames"]["Witch3"][field] = if field == "start_skill" {
+            json!(101)
+        } else {
+            json!("f".repeat(64))
+        };
+        let (candidate, _, receipt) = forward_project(&mut f, &stale, &old, &r, &extra);
+        assert_eq!(candidate[2]["x"], 110.0);
+        assert_eq!(receipt["coverage"]["issues"][0]["kind"], "ascendancy-frame");
+    }
+    assert_eq!(project(&mut f, &p, &old, &r, &extra).unwrap().0, tree);
+    let mut stale = p.clone();
+    stale["ascendancy_frames"]["Witch3"]["start_skill"] = json!(101);
+    assert!(
+        project(&mut f, &stale, &old, &r, &extra)
+            .unwrap_err()
+            .contains("stale or unusable")
+    );
+    // Quarantining a member changes the actual emitted-member hash.
+    f.values("PassiveSkills", 0)["Name"] = json!("[DNT] member");
+    let mut coverage = Coverage::new(AdapterMode::Forward, "passive-tree");
+    let (tree, _, mut receipt) =
+        project_with_coverage(&mut f, &p, &old, &r, &extra, &mut coverage).unwrap();
+    coverage.finish(&mut receipt).unwrap();
+    assert_eq!(tree[1]["x"], 110.0);
+    let issue = receipt["coverage"]["issues"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .find(|issue| issue["kind"] == "ascendancy-frame")
+        .unwrap();
+    assert_eq!(
+        issue["observed"]["member_skills_sha256"],
+        sha256_hex(&reader::json_bytes(&vec![303_u64]).unwrap())
+    );
+    // Even an exact hash for a missing/quarantined start cannot invent a frame.
+    f.values("PassiveSkills", 0)["Name"] = json!("restored");
+    r["nodes"].as_object_mut().unwrap().remove("303");
+    let mut coverage = Coverage::new(AdapterMode::Forward, "passive-tree");
+    let (_, _, mut receipt) =
+        project_with_coverage(&mut f, &p, &old, &r, &extra, &mut coverage).unwrap();
+    coverage.finish(&mut receipt).unwrap();
+    let mut entry = refresh_tests::closing_entry(&receipt, "ascendancy-frame");
+    entry["dx"] = json!(90.0);
+    entry["dy"] = json!(-30.0);
+    p["ascendancy_frames"]["Witch3"] = entry;
+    let mut coverage = Coverage::new(AdapterMode::Forward, "passive-tree");
+    let (_, _, mut receipt) =
+        project_with_coverage(&mut f, &p, &old, &r, &extra, &mut coverage).unwrap();
+    coverage.finish(&mut receipt).unwrap();
+    assert!(
+        receipt["coverage"]["issues"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .any(|issue| issue["kind"] == "ascendancy-frame")
+    );
+    p["ascendancy_frames"]["Absent"] = frame;
+    let mut coverage = Coverage::new(AdapterMode::Forward, "passive-tree");
+    assert!(
+        project_with_coverage(&mut f, &p, &old, &r, &extra, &mut coverage)
+            .unwrap_err()
+            .contains("unknown or unused")
+    );
+    let mut parsed: refresh::Policy = serde_json::from_value(p.clone()).unwrap();
+    parsed.ascendancy_frames.get_mut("Witch3").unwrap().dx = f64::INFINITY;
+    let input = refresh_tests::input(&mut f);
+    let facts = Facts::read(&input, &parsed.base_policy).unwrap();
+    assert!(
+        refresh::project(
+            &input,
+            &facts,
+            &parsed,
+            &old,
+            &r,
+            &Renderer::new(&refresh_tests::descriptions()).unwrap(),
+            None,
+            &sha256_hex(&reader::json_bytes(&old).unwrap()),
+            &mut coverage
+        )
+        .unwrap_err()
+        .contains("invalid reviewed ascendancy frame")
+    );
+}
+
+#[test]
+fn a_reviewed_frame_does_not_approve_another_ascendancy() {
+    let (mut f, mut p, old, r, mut extra) = fixture();
+    let table = extra.documents.get_mut("tables/Ascendancy.json").unwrap();
+    table["rows"].as_array_mut().unwrap().push(json!({"_row":1,"values":{
+        "Id":"OtherOwner","Name":"Other source owner","Character":0,"Disabled":false,"BaseAscendancy":null
+    }}));
+    table["validation"]["rows"] = json!(2);
+    f.values("PassiveSkills", 0)["Ascendancy"] = json!(1);
+    f.values("PassiveSkills", 0)["IsAscendancyStartingNode"] = json!(true);
+    f.values("PassiveSkills", 2)["IsAscendancyStartingNode"] = json!(true);
+    p["base_policy"]["qualification"]["context_sha256"] = json!(sha256_hex(
+        &reader::json_bytes(&super::super::source::context(f.values("PassiveSkills", 0)).unwrap())
+            .unwrap()
+    ));
+    let (_, _, receipt) = forward_project(&mut f, &p, &old, &r, &extra);
+    let issue = receipt["coverage"]["issues"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .find(|issue| issue["kind"] == "ascendancy-frame" && issue["entity"] == "Witch3")
+        .unwrap();
+    let mut frame = refresh_tests::reviewed(issue["observed"].clone());
+    frame["dx"] = json!(90.0);
+    frame["dy"] = json!(10.0);
+    p["ascendancy_frames"]["Witch3"] = frame;
+    let (tree, _, receipt) = forward_project(&mut f, &p, &old, &r, &extra);
+    assert_eq!(tree[0]["x"], 10.0);
+    assert_eq!(tree[2]["x"], 100.0);
+    let issues = receipt["coverage"]["issues"].as_array().unwrap();
+    assert_eq!(issues.len(), 1);
+    assert_eq!(issues[0]["kind"], "ascendancy-frame");
+    assert_eq!(issues[0]["entity"], "OtherOwner");
 }
 
 #[test]
@@ -338,6 +515,28 @@ fn changed_ascendancy_exclusion_emits_and_exposes_its_stale_node_exclusion() {
     assert_eq!(issues[1]["kind"], "stale-exclusion");
     assert_eq!(issues[1]["entity"], "Multi");
     assert_eq!(issues[1]["action"], "emitted-with-gap");
+    let table = f.documents["tables/PassiveSkills.json"].clone();
+    let baseline = refresh_tests::baseline_input(&f, &mut p, &table);
+    refresh_tests::add_context_column(&mut f, "NewContext", json!(0));
+    let mut coverage = Coverage::new(AdapterMode::Forward, "passive-tree");
+    let (column_tree, _, mut receipt) =
+        project_with_baseline(&mut f, &p, &old, &r, &extra, Some(&baseline), &mut coverage)
+            .unwrap();
+    coverage.finish(&mut receipt).unwrap();
+    assert_eq!(column_tree, tree);
+    let issues = receipt["coverage"]["issues"].as_array().unwrap();
+    assert_eq!(issues.len(), 3);
+    assert!(
+        issues
+            .iter()
+            .any(|i| i["kind"] == "context-columns-changed")
+    );
+    assert!(
+        issues
+            .iter()
+            .any(|i| i["kind"] == "stale-exclusion" && i["entity"] == "Multi")
+    );
+    assert!(issues.iter().all(|i| i["kind"] != "excluded-definition"));
 }
 
 #[test]
@@ -875,6 +1074,417 @@ fn bind_text_contexts(f: &mut Fixture, policy: &mut Value) {
         }
         binding["render_context_sha256"] =
             json!(sha256_hex(&reader::json_bytes(&context).unwrap()));
+    }
+}
+
+#[test]
+fn audit_frame_evidence_uses_survivors_after_a_two_pass_unlock_cascade() {
+    let (mut f, mut p, old, mut r, extra) = text_fixture();
+    refresh_tests::anointment_column(&mut f, &mut p, &[]);
+    refresh_tests::instantiate(&mut f, 12);
+    r["nodes"]["1304"] = json!({
+        "skill":1304,"group":1,"orbit":0,"orbitIndex":0,"x":10.0,"y":20.0
+    });
+    for row in [0, 1] {
+        f.values("PassiveSkills", row)["Ascendancy"] = json!(0);
+    }
+    f.values("PassiveSkills", 2)["IsAscendancyStartingNode"] = json!(true);
+    f.values("PassiveSkills", 0)["UnlockedBy"] = json!([1]);
+    f.values("PassiveSkills", 1)["UnlockedBy"] = json!([12]);
+    bind_text_contexts(&mut f, &mut p);
+    let (_, _, open) = forward_project(&mut f, &p, &old, &r, &extra);
+    let mut frame = refresh_tests::closing_entry(&open, "ascendancy-frame");
+    frame["dx"] = json!(90.0);
+    frame["dy"] = json!(-30.0);
+    p["ascendancy_frames"]["Witch3"] = frame;
+    assert_eq!(
+        forward_project(&mut f, &p, &old, &r, &extra).2["coverage"]["issues"],
+        json!([])
+    );
+    // A frame-only strict approval must also validate every physical flag.
+    f.values("PassiveSkills", 2)["IsKeystone"] = json!(true);
+    f.values("PassiveSkills", 2)["IsNotable"] = json!("bad");
+    assert!(
+        project(&mut f, &p, &old, &r, &extra)
+            .unwrap_err()
+            .contains("IsNotable")
+    );
+    f.values("PassiveSkills", 2)["IsKeystone"] = json!(false);
+    f.values("PassiveSkills", 2)["IsNotable"] = json!(false);
+    f.values("PassiveSkills", 12)["Name"] = json!("[DNT] Quarantined prerequisite");
+    let (tree, _, receipt) = forward_project(&mut f, &p, &old, &r, &extra);
+    assert_eq!(tree.as_array().unwrap().len(), 1);
+    assert_eq!(tree[0]["skill"], 303);
+    assert_eq!(tree[0]["x"], 10.0);
+    let issues = receipt["coverage"]["issues"].as_array().unwrap();
+    assert_eq!(
+        issues
+            .iter()
+            .filter(|i| i["kind"] == "dependant-quarantined")
+            .count(),
+        2
+    );
+    let mut frame = refresh_tests::closing_entry(&receipt, "ascendancy-frame");
+    assert_eq!(
+        frame["member_skills_sha256"],
+        sha256_hex(&reader::json_bytes(&vec![303_u64]).unwrap())
+    );
+    frame["dx"] = json!(90.0);
+    frame["dy"] = json!(-30.0);
+    p["ascendancy_frames"]["Witch3"] = frame;
+    let (tree, _, receipt) = forward_project(&mut f, &p, &old, &r, &extra);
+    assert_eq!(tree[0]["x"], 100.0);
+    assert!(tree[0].get("native_stats").is_none());
+    assert!(
+        receipt["coverage"]["issues"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .all(|i| i["kind"] != "ascendancy-frame")
+    );
+    assert_eq!(
+        receipt["source_records"][0]["output_entry_sha256"],
+        sha256_hex(&reader::json_bytes(&tree[0]).unwrap())
+    );
+}
+
+#[test]
+fn audit_reviewed_variant_text_cannot_waive_its_physical_ascendancy_fk() {
+    for mode in [AdapterMode::Strict, AdapterMode::Forward] {
+        for owner in [json!(999), json!("bad")] {
+            let (mut f, mut p, mut old, r, extra) = text_fixture();
+            old[2]["ascendancy_id"] = json!("Witch3");
+            old[2].as_object_mut().unwrap().remove("variants");
+            f.values("PassiveSkills", 5)["Stats"] = json!([1]);
+            f.values("PassiveSkills", 5)["Ascendancy"] = owner;
+            let binding = &mut p["compatibility_bindings"]["OverrideTarget"];
+            binding["stats_sha256"] = json!(sha256_hex(
+                &reader::json_bytes(&json!([["unknown_stat", -7]])).unwrap()
+            ));
+            binding["lines"] = json!(["approved complete text"]);
+            binding["origin"] = json!("manual");
+            *binding = refresh_tests::reviewed(binding.clone());
+            let result = project_with_coverage(
+                &mut f,
+                &p,
+                &old,
+                &r,
+                &extra,
+                &mut Coverage::new(mode, "passive-tree"),
+            );
+            assert!(
+                result.is_err(),
+                "reviewed variant accepted an invalid owner FK"
+            );
+        }
+    }
+}
+
+#[test]
+fn audit_owner_quarantine_validates_members_and_raw_override_targets() {
+    for defect in ["points", "grant", "override-stats"] {
+        let (mut f, mut p, old, r, mut extra) = text_fixture();
+        p["ascendancy"]["excluded"]["Witch3"] = json!({
+            "definition_sha256":sha256_hex(&reader::json_bytes(value(&mut extra,"Ascendancy",0)).unwrap()),
+            "reason":"previous eligibility decision"
+        });
+        value(&mut extra, "Ascendancy", 0)["Disabled"] = json!(true);
+        match defect {
+            "points" => f.values("PassiveSkills", 2)["SkillPointsGranted"] = json!("bad"),
+            "grant" => f.values("PassiveSkills", 2)["GrantedSkill"] = json!(99),
+            _ => {
+                value(&mut extra, "AscendancyPassiveSkillOverrides", 0)["Override"] = json!(6);
+                f.values("PassiveSkills", 6)["Stats"] = json!([999]);
+            }
+        }
+        let result = project_with_coverage(
+            &mut f,
+            &p,
+            &old,
+            &r,
+            &extra,
+            &mut Coverage::new(AdapterMode::Forward, "passive-tree"),
+        );
+        assert!(
+            result.is_err(),
+            "{defect}: owner quarantine skipped physical input"
+        );
+    }
+}
+
+fn forward_project(
+    f: &mut Fixture,
+    p: &Value,
+    old: &Value,
+    r: &Value,
+    extra: &selected::Input,
+) -> (Value, Value, Value) {
+    let mut coverage = Coverage::new(AdapterMode::Forward, "passive-tree");
+    let (tree, meta, mut receipt) =
+        project_with_coverage(f, p, old, r, extra, &mut coverage).unwrap();
+    coverage.finish(&mut receipt).unwrap();
+    (tree, meta, receipt)
+}
+
+#[test]
+fn reviewed_geometry_and_text_round_trip_through_the_actual_draft_consumer() {
+    let (mut f, mut p, mut old, mut r, extra) = text_fixture();
+    refresh_tests::anointment_column(&mut f, &mut p, &[]);
+    old.as_array_mut().unwrap().remove(1);
+    old[0]["group"] = json!(2);
+    f.values("PassiveSkills", 0)["Ascendancy"] = json!(0);
+    f.values("PassiveSkills", 2)["IsAscendancyStartingNode"] = json!(true);
+    bind_text_contexts(&mut f, &mut p);
+    p["compatibility_bindings"]
+        .as_object_mut()
+        .unwrap()
+        .remove("Unknown");
+    r["nodes"]["202"]["stats"] = json!([" Official whole text\n Second line "]);
+    p["reference_sha256"] = json!(sha256_hex(&reader::json_bytes(&r).unwrap()));
+    p["base_policy"]["source"]["sha256"] = json!(sha256_hex(&reader::json_bytes(&old).unwrap()));
+    let open = forward_project(&mut f, &p, &old, &r, &extra);
+    assert_eq!(open.2["coverage"]["issues"].as_array().unwrap().len(), 3);
+    assert_eq!(forward_project(&mut f, &p, &old, &r, &extra), open);
+
+    let evidence = f.root.join("actual-consumer");
+    std::fs::create_dir(&evidence).unwrap();
+    std::fs::write(
+        evidence.join("conversion.json"),
+        reader::json_bytes(&open.2).unwrap(),
+    )
+    .unwrap();
+    for (file, value) in [
+        ("reference.json", &r),
+        ("legacy.json", &old),
+        ("open-tree.json", &open.0),
+    ] {
+        std::fs::write(evidence.join(file), reader::json_bytes(value).unwrap()).unwrap();
+    }
+    // Exercise the real Python consumers, rather than reproducing their mapping.
+    let repo = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
+        .parent()
+        .unwrap()
+        .parent()
+        .unwrap();
+    let consumer = r#"
+import json, sys
+from pathlib import Path
+from types import SimpleNamespace
+from RePoE.release import build, policy_draft
+root = Path(sys.argv[1])
+conversion = json.loads((root / 'conversion.json').read_text())
+coverage = build.build_coverage(SimpleNamespace(coverage={'tree': conversion['coverage']}))
+assert coverage['open_tree_issues'] == 3
+(root / 'build-receipt.json').write_text(json.dumps({'coverage': coverage}, sort_keys=True) + '\n')
+summary = policy_draft.draft(receipt=root / 'build-receipt.json', out=root / 'draft')
+assert summary['entries'] == 3 and summary['drafted'] == 3
+print(json.dumps(summary, sort_keys=True))
+"#;
+    std::fs::write(evidence.join("consume.py"), consumer).unwrap();
+    let output = std::process::Command::new("python3")
+        .arg("-B")
+        .arg(evidence.join("consume.py"))
+        .arg(&evidence)
+        .current_dir(repo)
+        .env("PYTHONPATH", repo)
+        .output()
+        .unwrap();
+    assert!(
+        output.status.success(),
+        "{}",
+        String::from_utf8_lossy(&output.stderr)
+    );
+    let draft: Value = serde_json::from_slice(
+        &std::fs::read(evidence.join("draft/passive-tree.draft.json")).unwrap(),
+    )
+    .unwrap();
+    let merge = |draft: &Value| {
+        let mut policy = p.clone();
+        policy["placement_rebase"] = draft["placement_rebase"].clone();
+        policy["ascendancy_frames"] = draft["ascendancy_frames"].clone();
+        policy["compatibility_bindings"]["Unknown"] =
+            draft["compatibility_bindings"]["Unknown"].clone();
+        policy
+    };
+    let unreviewed = merge(&draft);
+    for mode in [AdapterMode::Strict, AdapterMode::Forward] {
+        assert!(
+            project_with_coverage(
+                &mut f,
+                &unreviewed,
+                &old,
+                &r,
+                &extra,
+                &mut Coverage::new(mode, "passive-tree")
+            )
+            .is_err()
+        );
+    }
+    let mut reviewed = draft.clone();
+    reviewed["placement_rebase"] = refresh_tests::reviewed(reviewed["placement_rebase"].clone());
+    reviewed["ascendancy_frames"]["Witch3"] =
+        refresh_tests::reviewed(reviewed["ascendancy_frames"]["Witch3"].clone());
+    reviewed["ascendancy_frames"]["Witch3"]["dx"] = json!(90.0);
+    reviewed["ascendancy_frames"]["Witch3"]["dy"] = json!(-30.0);
+    reviewed["compatibility_bindings"]["Unknown"] =
+        refresh_tests::reviewed(reviewed["compatibility_bindings"]["Unknown"].clone());
+    let approved = merge(&reviewed);
+    let closed = forward_project(&mut f, &approved, &old, &r, &extra);
+    assert_eq!(closed.2["coverage"]["issues"], json!([]));
+    assert_eq!(
+        closed.0[1]["stats"],
+        json!(["Official whole text", "Second line"])
+    );
+    assert!(closed.0[1].get("native_stats").is_none());
+    assert_eq!(closed.0[0]["x"], 100.0);
+    assert_eq!(closed.0[2]["x"], 100.0);
+    assert_eq!(
+        project(&mut f, &approved, &old, &r, &extra).unwrap().0,
+        closed.0
+    );
+    assert_eq!(forward_project(&mut f, &approved, &old, &r, &extra), closed);
+    for field in ["context_sha256", "stats_sha256", "render_context_sha256"] {
+        let mut stale = approved.clone();
+        stale["compatibility_bindings"]["Unknown"][field] = json!("f".repeat(64));
+        let (tree, _, receipt) = forward_project(&mut f, &stale, &old, &r, &extra);
+        assert_eq!(tree[1]["stats"], json!([]));
+        assert!(
+            receipt["coverage"]["issues"]
+                .as_array()
+                .unwrap()
+                .iter()
+                .any(|issue| issue["kind"] == "text-unrenderable-new")
+        );
+        assert!(project(&mut f, &stale, &old, &r, &extra).is_err());
+    }
+    // Reviewing text never waives the v4 physical grant checks.
+    for (field, bad) in [
+        ("GrantedSkill", json!(999)),
+        ("PassiveSkillBuffs", json!([0, "bad"])),
+        ("SkillPointsGranted", json!("bad")),
+        ("UnlockedBy", json!([999])),
+    ] {
+        let saved = f.values("PassiveSkills", 1)[field].clone();
+        f.values("PassiveSkills", 1)[field] = bad;
+        let mut coverage = Coverage::new(AdapterMode::Forward, "passive-tree");
+        assert!(
+            project_with_coverage(&mut f, &approved, &old, &r, &extra, &mut coverage).is_err(),
+            "{field}"
+        );
+        f.values("PassiveSkills", 1)[field] = saved;
+    }
+    // A separate variant gap survives all three approvals.
+    old[0]["variants"] = json!([{"class":"Warrior","stats":["unresolved alias"],"extension":9}]);
+    let mut partial = approved.clone();
+    partial["placement_rebase"]["legacy_source_sha256"] =
+        json!(sha256_hex(&reader::json_bytes(&old).unwrap()));
+    let remaining = forward_project(&mut f, &partial, &old, &r, &extra);
+    assert_eq!(
+        remaining.2["coverage"]["issues"].as_array().unwrap().len(),
+        1
+    );
+    assert_eq!(
+        remaining.2["coverage"]["issues"][0]["kind"],
+        "variant-alias-missing"
+    );
+    assert!(remaining.0[0].get("native_stats").is_none());
+    for (file, value) in [
+        ("reviewed-policy.json", &approved),
+        ("closed-conversion.json", &closed.2),
+        ("closed-tree.json", &closed.0),
+        ("remaining-conversion.json", &remaining.2),
+        ("unreviewed-policy.json", &unreviewed),
+    ] {
+        std::fs::write(evidence.join(file), reader::json_bytes(value).unwrap()).unwrap();
+    }
+    if let Some(destination) = std::env::var_os("P12A_EVIDENCE_DIR") {
+        let destination = std::path::PathBuf::from(destination);
+        std::fs::create_dir_all(destination.join("draft")).unwrap();
+        for file in [
+            "conversion.json",
+            "reference.json",
+            "legacy.json",
+            "open-tree.json",
+            "build-receipt.json",
+            "consume.py",
+            "reviewed-policy.json",
+            "closed-conversion.json",
+            "closed-tree.json",
+            "remaining-conversion.json",
+            "unreviewed-policy.json",
+            "draft/passive-tree.draft.json",
+            "draft/summary.json",
+        ] {
+            std::fs::copy(evidence.join(file), destination.join(file)).unwrap();
+        }
+    }
+    // The completed stage-1 closures remain effective beside an open column issue.
+    let table = f.documents["tables/PassiveSkills.json"].clone();
+    let baseline = refresh_tests::baseline_input(&f, &mut partial, &table);
+    refresh_tests::add_context_column(&mut f, "NewContext", json!(0));
+    let mut coverage = Coverage::new(AdapterMode::Forward, "passive-tree");
+    let (tree, _, mut receipt) = project_with_baseline(
+        &mut f,
+        &partial,
+        &old,
+        &r,
+        &extra,
+        Some(&baseline),
+        &mut coverage,
+    )
+    .unwrap();
+    coverage.finish(&mut receipt).unwrap();
+    let issues = receipt["coverage"]["issues"].as_array().unwrap();
+    assert_eq!(issues.len(), 2);
+    assert!(
+        issues
+            .iter()
+            .any(|i| i["kind"] == "context-columns-changed")
+    );
+    assert!(issues.iter().any(|i| i["kind"] == "variant-alias-missing"));
+    assert_eq!(tree[1]["stats"], closed.0[1]["stats"]);
+    assert_eq!(tree[2]["x"], closed.0[2]["x"]);
+    assert!(
+        tree.as_array()
+            .unwrap()
+            .iter()
+            .all(|n| n.get("native_stats").is_none())
+    );
+    // The same reviewed addition cannot absorb malformed consumed grant/unlock data.
+    let mut fields = table["physical_fields"].as_array().unwrap().clone();
+    fields.sort_by(|a, b| a.as_str().cmp(&b.as_str()));
+    let mut target_fields = fields.clone();
+    target_fields.push(json!("NewContext"));
+    target_fields.sort_by(|a, b| a.as_str().cmp(&b.as_str()));
+    partial["context_columns"] = refresh_tests::reviewed(json!({
+        "bound_fields_sha256":sha256_hex(&reader::json_bytes(&fields).unwrap()),
+        "target_fields_sha256":sha256_hex(&reader::json_bytes(&target_fields).unwrap()),
+        "added":[refresh_tests::reviewed(json!({"field":"NewContext","neutral_value":0}))],"removed":[]
+    }));
+    for mode in [AdapterMode::Strict, AdapterMode::Forward] {
+        for (field, bad) in [
+            ("GrantedSkill", json!(999)),
+            ("SkillPointsGranted", json!("bad")),
+            ("UnlockedBy", json!([999])),
+            ("IsJustIcon", json!("bad")),
+        ] {
+            let saved = f.values("PassiveSkills", 1)[field].clone();
+            f.values("PassiveSkills", 1)[field] = bad;
+            assert!(
+                project_with_baseline(
+                    &mut f,
+                    &partial,
+                    &old,
+                    &r,
+                    &extra,
+                    Some(&baseline),
+                    &mut Coverage::new(mode, "passive-tree")
+                )
+                .is_err(),
+                "{field}"
+            );
+            f.values("PassiveSkills", 1)[field] = saved;
+        }
     }
 }
 

@@ -10,7 +10,7 @@ mod refresh_tests;
 pub(super) mod render;
 mod source;
 mod unlock;
-pub(super) use refresh::Args as RefreshArgs;
+pub(super) use refresh::{Args as RefreshArgs, ContextBaselineArgs};
 pub(super) const REFRESH_TABLES: [&str; 5] = [
     "PassiveSkills",
     "Stats",

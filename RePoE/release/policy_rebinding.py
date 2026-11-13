@@ -94,8 +94,17 @@ class Identities:
 
 def rebind_document(document, identities, old_patch, patch, policy):
     changes = []
+    tree_context_paths = (
+        {("context_baseline",), ("context_columns",)}
+        if document.get("schema") in {f"pobr-ordinary-target-tree-policy/v{version}" for version in range(1, 5)}
+        else set()
+    )
 
     def visit(value, path=()):
+        # These tree-policy subtrees deliberately bind historical evidence.
+        # Rebinding carries review markers verbatim; the adapter validates them.
+        if path in tree_context_paths:
+            return copy.deepcopy(value)
         if isinstance(value, dict):
             result = {key: visit(child, (*path, key)) for key, child in value.items()}
             # Pins containing a byte count must move both fields together.

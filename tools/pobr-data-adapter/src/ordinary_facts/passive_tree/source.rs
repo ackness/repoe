@@ -1,11 +1,208 @@
 //! Authenticated physical identities, complete stat slots and whole-row context.
 
 use super::policy::{Policy, VARIABLES};
-use crate::facts::reader::{self, Tables, VerifiedFacts};
+use crate::facts::reader::{Tables, VerifiedFacts};
 use crate::raw_source::sha256_hex;
 use pobr_data::native_stat::{NativeStat, NativeStatProvenance, NativeStatReference};
 use serde_json::{Value, json};
 use std::collections::{BTreeMap, BTreeSet};
+
+/// Historical evidence only. Rows retain their native wrapper and old `_row`;
+/// callers must join through stable Id, never through a target row number.
+pub(super) struct ContextBaseline {
+    pub fields: Vec<String>,
+    pub rows: BTreeMap<String, Value>,
+}
+
+impl ContextBaseline {
+    pub fn read(
+        document: Value,
+        qualification: &super::policy::Qualification,
+    ) -> Result<Self, String> {
+        if document["table"] != "PassiveSkills"
+            || document["raw_resource"] != "Data/Balance/PassiveSkills.datc64"
+            || document["row_key"]
+                .as_str()
+                .is_none_or(|description| description.trim().is_empty())
+        {
+            return Err("tree context baseline must be a native PassiveSkills table".into());
+        }
+        let fields = physical_fields(&document, "tree context baseline")?;
+        let mut rows = BTreeMap::new();
+        for (index, row) in document["rows"]
+            .as_array()
+            .ok_or("tree context baseline rows must be an array")?
+            .iter()
+            .enumerate()
+        {
+            if !row.is_object() || row["_row"].as_u64() != Some(index as u64) {
+                return Err(format!(
+                    "tree context baseline row {index}: invalid native row"
+                ));
+            }
+            let values = row["values"].as_object().ok_or_else(|| {
+                format!("tree context baseline row {index}: values must be an object")
+            })?;
+            if values.keys().ne(fields.iter()) {
+                return Err(format!(
+                    "tree context baseline row {index}: incomplete physical fields"
+                ));
+            }
+            let id = values["Id"]
+                .as_str()
+                .filter(|id| !id.trim().is_empty())
+                .ok_or("tree context baseline has an empty/invalid Id")?;
+            if rows.insert(id.to_owned(), row.clone()).is_some() {
+                return Err(format!("tree context baseline has a duplicate Id: {id}"));
+            }
+        }
+        let baseline = Self {
+            fields: fields.into_iter().collect(),
+            rows,
+        };
+        let raw = baseline
+            .row(&qualification.reference_passive_id)
+            .ok_or("tree context baseline is missing the reviewed passive reference")?;
+        if super::refresh::hash(&context(raw)?)? != qualification.context_sha256 {
+            return Err("tree context baseline reference context SHA256 mismatch".into());
+        }
+        Ok(baseline)
+    }
+
+    pub fn row(&self, id: &str) -> Option<&Value> {
+        self.rows.get(id).map(|row| &row["values"])
+    }
+}
+
+fn physical_fields(document: &Value, label: &str) -> Result<BTreeSet<String>, String> {
+    let mut fields = BTreeSet::new();
+    for field in document["physical_fields"]
+        .as_array()
+        .ok_or_else(|| format!("{label} physical_fields must be an array"))?
+    {
+        let field = field
+            .as_str()
+            .filter(|name| !name.trim().is_empty())
+            .ok_or_else(|| format!("{label} has an invalid physical field"))?;
+        if !fields.insert(field.to_owned()) {
+            return Err(format!("{label} has a duplicate physical field"));
+        }
+    }
+    if !fields.contains("Id") {
+        return Err(format!("{label} fields must include Id"));
+    }
+    Ok(fields)
+}
+
+/// The sole owner of column comparison views. It never changes target facts.
+#[derive(Default)]
+pub(super) struct RowContext<'a> {
+    pub baseline: Option<&'a ContextBaseline>,
+    columns: Option<&'a super::refresh::ContextColumns>,
+    pub change: Option<ColumnChange>,
+    pub diagnostic: bool,
+}
+pub(super) struct ColumnChange {
+    pub bound_fields_sha256: String,
+    pub target_fields_sha256: String,
+    pub added: Vec<String>,
+    pub removed: Vec<String>,
+}
+impl<'a> RowContext<'a> {
+    fn new(
+        input: &VerifiedFacts,
+        baseline: Option<&'a ContextBaseline>,
+        columns: Option<&'a super::refresh::ContextColumns>,
+        forward: bool,
+    ) -> Result<Self, String> {
+        let Some(old) = baseline else {
+            if columns.is_some() {
+                return Err("context_columns requires a verified context baseline".into());
+            }
+            return Ok(Self::default());
+        };
+        if let Some(entry) = columns {
+            entry.validate()?;
+        }
+        let table = &input.documents["tables/PassiveSkills.json"];
+        // Tables::selected has already checked target row wrappers, exact value
+        // keys and physical column mapping; only the sorted inventory is needed.
+        let target = physical_fields(table, "target PassiveSkills")?;
+        let bound: BTreeSet<_> = old.fields.iter().cloned().collect();
+        let added: Vec<_> = target.difference(&bound).cloned().collect();
+        let removed: Vec<_> = bound.difference(&target).cloned().collect();
+        let bound_hash = super::refresh::hash(&old.fields)?;
+        let target_hash = super::refresh::hash(&target.iter().collect::<Vec<_>>())?;
+        let changed = !added.is_empty() || !removed.is_empty();
+        if let Some(entry) = columns {
+            let expected_added: BTreeSet<_> = entry.added.iter().map(|c| &c.field).collect();
+            let expected_removed: BTreeSet<_> = entry.removed.iter().map(|c| &c.field).collect();
+            if !changed
+                || entry.bound_fields_sha256 != bound_hash
+                || entry.target_fields_sha256 != target_hash
+                || expected_added != added.iter().collect()
+                || expected_removed != removed.iter().collect()
+            {
+                return Err("stale or mismatched context_columns field evidence".into());
+            }
+        }
+        Ok(Self {
+            baseline,
+            columns,
+            change: changed.then_some(ColumnChange {
+                bound_fields_sha256: bound_hash,
+                target_fields_sha256: target_hash,
+                added,
+                removed,
+            }),
+            diagnostic: changed && columns.is_none() && forward,
+        })
+    }
+
+    /// Project only after adjusting a comparison copy. Diagnostic views are
+    /// usable only when this exact projection equals the authenticated old row.
+    pub fn project(
+        &self,
+        raw: &Value,
+        projection: impl Fn(&Value) -> Result<Value, String>,
+    ) -> Result<Value, String> {
+        if self.columns.is_none() && !self.diagnostic {
+            return projection(raw);
+        }
+        let old = raw["Id"].as_str().and_then(|id| self.baseline?.row(id));
+        let mut adjusted = raw.as_object().ok_or("invalid passive row")?.clone();
+        if let Some(columns) = self.columns {
+            for column in &columns.added {
+                if adjusted.get(&column.field) == Some(&column.neutral_value) {
+                    adjusted.remove(&column.field);
+                }
+            }
+            for column in &columns.removed {
+                if old.and_then(|raw| raw.get(&column.field)) == Some(&column.constant_value) {
+                    adjusted.insert(column.field.clone(), column.constant_value.clone());
+                }
+            }
+        } else if self.diagnostic
+            && let Some(old) = old
+        {
+            let change = self
+                .change
+                .as_ref()
+                .ok_or("missing diagnostic field change")?;
+            for field in &change.added {
+                adjusted.remove(field);
+            }
+            for field in &change.removed {
+                adjusted.insert(field.clone(), old[field].clone());
+            }
+        }
+        let projected = projection(&Value::Object(adjusted))?;
+        if self.diagnostic && old.map(&projection).transpose()?.as_ref() != Some(&projected) {
+            return projection(raw);
+        }
+        Ok(projected)
+    }
+}
 
 pub(super) struct Facts<'a> {
     pub tables: Tables<'a>,
@@ -16,10 +213,20 @@ pub(super) struct Facts<'a> {
     pub reference_row: usize,
     pub reference_context: Value,
     pub slots: Vec<String>,
+    pub context: RowContext<'a>,
 }
 
 impl<'a> Facts<'a> {
     pub fn read(input: &'a VerifiedFacts, policy: &Policy) -> Result<Self, String> {
+        Self::read_with_context(input, policy, None, None, false)
+    }
+    pub fn read_with_context(
+        input: &'a VerifiedFacts,
+        policy: &Policy,
+        baseline: Option<&'a ContextBaseline>,
+        columns: Option<&'a super::refresh::ContextColumns>,
+        forward: bool,
+    ) -> Result<Self, String> {
         let tables = Tables::selected(input, &super::TABLES)?;
         for (table, field, kind, array, target) in [
             ("PassiveSkills", "Id", "string", false, None),
@@ -108,22 +315,30 @@ impl<'a> Facts<'a> {
             .get(&policy.qualification.reference_passive_id)
             .ok_or("missing reviewed passive reference")?;
         let raw = tables.row("PassiveSkills", reference_row)?;
-        let reference_context = context(raw)?;
-        if sha256_hex(&reader::json_bytes(&reference_context)?)
-            != policy.qualification.context_sha256
-        {
-            return Err("reference context SHA256 mismatch".into());
-        }
-        let out = Self {
+        let row_context = RowContext::new(input, baseline, columns, forward)?;
+        let mut out = Self {
             tables,
             passives,
             characters,
             involved,
             relations,
             reference_row,
-            reference_context,
+            reference_context: context(raw)?,
             slots,
+            context: row_context,
         };
+        if out.context.diagnostic || columns.is_some() {
+            // Validate the actual qualification row before adjusting its view.
+            // Projection separately preflights its consumed nodes and variants;
+            // unused definitions do not become new stat consumers.
+            let stats = out.stats(input, reference_row)?;
+            let stats: Vec<_> = stats.into_iter().map(|s| (s.id, s.value)).collect();
+            super::render::Renderer::stat_values(&stats)?;
+        }
+        out.reference_context = out.context.project(raw, context)?;
+        if super::refresh::hash(&out.reference_context)? != policy.qualification.context_sha256 {
+            return Err("reference context SHA256 mismatch".into());
+        }
         let stats = out.stats(input, reference_row)?;
         if stats.len() != 1 || stats[0].id != "base_fire_damage_resistance_%" {
             return Err("reference must have the complete one fire-resistance stat".into());
@@ -180,11 +395,12 @@ impl<'a> Facts<'a> {
             .collect()
     }
     pub fn differences(&self, raw: &Value) -> Result<Vec<String>, String> {
-        let reference = self
-            .tables
-            .row("PassiveSkills", self.reference_row)?
-            .as_object()
-            .ok_or("invalid reference context")?;
+        let reference = self.context.project(
+            self.tables.row("PassiveSkills", self.reference_row)?,
+            |raw| Ok(raw.clone()),
+        )?;
+        let raw = self.context.project(raw, |raw| Ok(raw.clone()))?;
+        let reference = reference.as_object().ok_or("invalid reference context")?;
         let raw = raw.as_object().ok_or("invalid passive context")?;
         // Whole-row rule: identical keys;
         // only these six fields vary. No interpretation of unknown/context keys.

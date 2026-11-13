@@ -50,6 +50,20 @@ including replacing the historical `facts.archive` / `facts.handoff` fields
 with `facts.root` for a fresh candidate.
 Rebinding identities does not certify new content or refresh codec rules.
 
+For `pobr-ordinary-target-tree-policy/v1` through `/v4`, the root
+`context_baseline` and `context_columns` subtrees are deliberately historical.
+Rebinding preserves them in full, even if one of their digests also names a
+refreshed package member. Field-list hashes, neutral/constant values, reasons
+and reviewed or unreviewed markers stay as recorded; rebinding grants no review.
+The adapter validates a supplied baseline entry and its input, then checks a
+column allowance against the independently observed field lists and each row's
+supporting old evidence; see the [tree input contract](../../../tools/pobr-data-adapter/docs/ordinary-passive-tree.md).
+This exception applies only at those two tree-policy paths: target patch and
+manifest identities, descriptions, codec inputs and identically named fields
+elsewhere continue through the usual rebinding and malformed-identity checks.
+If a later field change makes a historical allowance stale, it needs explicit
+review rather than another identity rewrite.
+
 All destinations are preflighted and created exclusively. Existing policies,
 declarations and inputs are never overwritten; a failed preflight creates no
 output policy or domains file. Choose fresh paths for another run.

@@ -203,6 +203,8 @@ pub(crate) fn parse_args(args: impl Iterator<Item = String>) -> Result<Args, Str
             "--branch-codec-sha256",
             "--tree-reference",
             "--tree-descriptions",
+            "--tree-context-baseline",
+            "--tree-context-baseline-sha256",
             "--item-descriptions",
             "--supplement",
             "--supplement-manifest-sha256",
@@ -299,7 +301,7 @@ pub(crate) fn parse_args(args: impl Iterator<Item = String>) -> Result<Args, Str
                 .into(),
         );
     }
-    let tree_refresh = match (
+    let mut tree_refresh = match (
         values.remove("--tree-reference"),
         values.remove("--tree-descriptions"),
     ) {
@@ -308,10 +310,35 @@ pub(crate) fn parse_args(args: impl Iterator<Item = String>) -> Result<Args, Str
             Some(Box::new(passive_tree::RefreshArgs {
                 reference: reference.into(),
                 descriptions: descriptions.into(),
+                context_baseline: None,
             }))
         }
         _ => return Err("both tree-reference and tree-descriptions require passive-tree".into()),
     };
+    let context_baseline = match (
+        values.remove("--tree-context-baseline"),
+        values.remove("--tree-context-baseline-sha256"),
+    ) {
+        (None, None) => None,
+        (Some(path), Some(sha256)) if tree_refresh.is_some() => {
+            stat_set_codec::policy::hex(&sha256, 64, "tree context baseline SHA256")?;
+            if path.trim().is_empty() {
+                return Err("tree context baseline needs a nonempty path".into());
+            }
+            Some(passive_tree::ContextBaselineArgs {
+                path: path.into(),
+                sha256,
+            })
+        }
+        _ => {
+            return Err(
+                "paired tree-context-baseline arguments require passive-tree refresh".into(),
+            );
+        }
+    };
+    if let Some(refresh) = tree_refresh.as_mut() {
+        refresh.context_baseline = context_baseline;
+    }
     let item_descriptions = values.remove("--item-descriptions").map(PathBuf::from);
     if matches!(domain, Domain::Socketables | Domain::StatDescriptions)
         != item_descriptions.is_some()

@@ -132,6 +132,361 @@ pub(super) fn input(f: &mut Fixture) -> VerifiedFacts {
     reader::read_tree(&f.root.join("input"), &mut input).unwrap();
     input
 }
+
+fn pinned_refresh_args(
+    f: &mut Fixture,
+    policy: &mut Value,
+    old: &Value,
+    reference: &Value,
+) -> crate::ordinary_facts::Args {
+    f.seal();
+    fs::create_dir_all(f.root.join("refresh-inputs")).unwrap();
+    let write = |path: &str, value: &Value| {
+        let bytes = reader::json_bytes(value).unwrap();
+        fs::write(f.root.join(path), &bytes).unwrap();
+        sha256_hex(&bytes)
+    };
+    policy["base_policy"]["source"]["sha256"] = json!(write("legacy/source.json", old));
+    policy["base_policy"]["target"]["facts_manifest_sha256"] =
+        json!(f.args().expected_manifest_sha256);
+    policy["reference_sha256"] = json!(write("refresh-inputs/reference.json", reference));
+    policy["descriptions_sha256"] =
+        json!(write("refresh-inputs/descriptions.json", &descriptions()));
+    let manifest = json!({
+        "format":"repoe-native-descriptions/v1",
+        "source_identity":f.manifest["source_identity"],
+        "files":{"descriptions.json":{
+            "sha256":policy["descriptions_sha256"],
+            "bytes":fs::read(f.root.join("refresh-inputs/descriptions.json")).unwrap().len()
+        }}
+    });
+    policy["descriptions_manifest_sha256"] =
+        json!(write("refresh-inputs/manifest.json", &manifest));
+    write("policy/policy.json", policy);
+    let mut args = super::tests::args(f);
+    args.tree_refresh = Some(Box::new(refresh::Args {
+        reference: f.root.join("refresh-inputs/reference.json"),
+        descriptions: f.root.join("refresh-inputs/descriptions.json"),
+        context_baseline: None,
+    }));
+    args
+}
+
+pub(super) fn baseline_input(
+    f: &Fixture,
+    policy: &mut Value,
+    table: &Value,
+) -> refresh::ContextBaselineArgs {
+    fs::create_dir_all(f.root.join("context-baseline")).unwrap();
+    let path = f.root.join("context-baseline/PassiveSkills.json");
+    let bytes = reader::json_bytes(table).unwrap();
+    fs::write(&path, &bytes).unwrap();
+    let sha256 = sha256_hex(&bytes);
+    policy["context_baseline"] = reviewed(json!({"sha256":sha256}));
+    refresh::ContextBaselineArgs { path, sha256 }
+}
+
+#[test]
+fn context_baseline_requires_reviewed_policy_and_the_exact_input_pin_in_both_modes() {
+    for mode in [AdapterMode::Strict, AdapterMode::Forward] {
+        for case in [
+            "absent-input",
+            "absent-policy",
+            "cli-pin",
+            "tampered",
+            "null",
+            "empty",
+            "missing-sha",
+            "missing-review",
+            "unreviewed",
+            "missing-reason",
+            "blank-reason",
+            "bad-sha",
+            "uppercase-sha",
+            "extra-field",
+        ] {
+            let (mut f, mut p, old, reference) = fixture();
+            let table = f.documents["tables/PassiveSkills.json"].clone();
+            let mut baseline = baseline_input(&f, &mut p, &table);
+            match case {
+                "absent-policy" => {
+                    p.as_object_mut().unwrap().remove("context_baseline");
+                }
+                "cli-pin" => baseline.sha256 = "f".repeat(64),
+                "tampered" => fs::write(&baseline.path, b"{not JSON").unwrap(),
+                "null" => p["context_baseline"] = Value::Null,
+                "empty" => p["context_baseline"] = json!({}),
+                "missing-sha" => {
+                    p["context_baseline"]
+                        .as_object_mut()
+                        .unwrap()
+                        .remove("sha256");
+                }
+                "missing-review" => {
+                    p["context_baseline"]
+                        .as_object_mut()
+                        .unwrap()
+                        .remove("review");
+                }
+                "unreviewed" => p["context_baseline"]["review"] = json!("unreviewed"),
+                "missing-reason" => {
+                    p["context_baseline"]
+                        .as_object_mut()
+                        .unwrap()
+                        .remove("reason");
+                }
+                "blank-reason" => p["context_baseline"]["reason"] = json!(" \n "),
+                "bad-sha" => p["context_baseline"]["sha256"] = json!("invalid"),
+                "uppercase-sha" => p["context_baseline"]["sha256"] = json!("A".repeat(64)),
+                "extra-field" => p["context_baseline"]["unknown"] = json!(true),
+                _ => {}
+            }
+            let mut args = pinned_refresh_args(&mut f, &mut p, &old, &reference);
+            args.mode = mode;
+            if case != "absent-input" {
+                args.tree_refresh.as_mut().unwrap().context_baseline = Some(baseline);
+            }
+            let error = crate::ordinary_facts::run(args).unwrap_err();
+            if case == "tampered" {
+                assert!(
+                    error.contains("SHA256 mismatch (checked before parsing)"),
+                    "{error}"
+                );
+            }
+            assert!(!f.root.join("out").exists(), "{case}: {error}");
+        }
+    }
+}
+
+#[test]
+fn context_baseline_validates_native_shape_and_original_qualification() {
+    let (f, mut p, _, _) = fixture();
+    let original = f.documents["tables/PassiveSkills.json"].clone();
+    for case in [
+        "table",
+        "resource",
+        "row-key",
+        "fields-type",
+        "field-type",
+        "blank-field",
+        "duplicate-field",
+        "missing-id-field",
+        "rows-type",
+        "row-type",
+        "row-index",
+        "values-type",
+        "missing-value",
+        "extra-value",
+        "duplicate-id",
+        "empty-id",
+        "invalid-id",
+        "missing-reference",
+        "changed-reference",
+    ] {
+        let mut table = original.clone();
+        match case {
+            "table" => table["table"] = json!("Stats"),
+            "resource" => table["raw_resource"] = json!("Data/Balance/Stats.datc64"),
+            "row-key" => table["row_key"] = Value::Null,
+            "fields-type" => table["physical_fields"] = json!({}),
+            "field-type" => table["physical_fields"][0] = json!(1),
+            "blank-field" => table["physical_fields"][0] = json!(" "),
+            "duplicate-field" => {
+                let field = table["physical_fields"][0].clone();
+                table["physical_fields"].as_array_mut().unwrap().push(field);
+            }
+            "missing-id-field" => {
+                table["physical_fields"]
+                    .as_array_mut()
+                    .unwrap()
+                    .retain(|f| f != "Id");
+            }
+            "rows-type" => table["rows"] = Value::Null,
+            "row-type" => table["rows"][1] = json!([]),
+            "row-index" => table["rows"][1]["_row"] = json!(55),
+            "values-type" => table["rows"][1]["values"] = json!([]),
+            "missing-value" => {
+                table["rows"][1]["values"]
+                    .as_object_mut()
+                    .unwrap()
+                    .remove("Opaque");
+            }
+            "extra-value" => table["rows"][1]["values"]["extra"] = json!(0),
+            "duplicate-id" => {
+                table["rows"][1]["values"]["Id"] = table["rows"][0]["values"]["Id"].clone()
+            }
+            "empty-id" => table["rows"][1]["values"]["Id"] = json!(" "),
+            "invalid-id" => table["rows"][1]["values"]["Id"] = Value::Null,
+            "missing-reference" => table["rows"][0]["values"]["Id"] = json!("different-reference"),
+            "changed-reference" => table["rows"][0]["values"]["Opaque"] = json!(99),
+            _ => unreachable!(),
+        }
+        // Re-pin malformed tables so the native validator, rather than byte tampering, rejects them.
+        let baseline = baseline_input(&f, &mut p, &table);
+        let policy: refresh::Policy = serde_json::from_value(p.clone()).unwrap();
+        let error = refresh::read_context_baseline(&policy, Some(&baseline))
+            .err()
+            .unwrap();
+        assert!(error.contains("tree context baseline"), "{case}: {error}");
+        if case == "changed-reference" {
+            assert!(
+                error.contains("reference context SHA256 mismatch"),
+                "{error}"
+            );
+        }
+    }
+}
+
+#[test]
+fn context_baseline_indexes_old_rows_by_id_and_sorts_fields() {
+    let (mut f, mut p, _, _) = fixture();
+    let mut table = f.documents["tables/PassiveSkills.json"].clone();
+    // Native exports describe the row key in prose; `_row` lives on each row.
+    table["row_key"] = json!(
+        "Zero-based physical source row; ephemeral within these exact raw bytes, never a stable game ID."
+    );
+    let target_row = f.values("PassiveSkills", 0).clone();
+    table["physical_fields"].as_array_mut().unwrap().reverse();
+    table["rows"].as_array_mut().unwrap().reverse();
+    for (index, row) in table["rows"].as_array_mut().unwrap().iter_mut().enumerate() {
+        row["_row"] = json!(index);
+    }
+    let baseline = baseline_input(&f, &mut p, &table);
+    let policy: refresh::Policy = serde_json::from_value(p).unwrap();
+    let (baseline, _) = refresh::read_context_baseline(&policy, Some(&baseline))
+        .unwrap()
+        .unwrap();
+    assert_eq!(baseline.row("maximum_resistances1"), Some(&target_row));
+    assert_ne!(baseline.rows["maximum_resistances1"]["_row"], json!(0));
+    assert!(baseline.row("absent").is_none());
+    assert!(baseline.fields.windows(2).all(|pair| pair[0] < pair[1]));
+}
+
+#[test]
+fn context_baseline_records_only_optional_conversion_evidence_and_protects_its_parent() {
+    for mode in [AdapterMode::Strict, AdapterMode::Forward] {
+        let (mut f, mut p, old, reference) = fixture();
+        let mut args = pinned_refresh_args(&mut f, &mut p, &old, &reference);
+        args.mode = mode;
+        args.out = f.root.join("without-baseline");
+        crate::ordinary_facts::run(args).unwrap();
+        let absent: Value =
+            crate::read_json(&f.root.join("without-baseline/producer-receipt.json")).unwrap();
+        assert!(absent["conversion"].get("context_baseline").is_none());
+        let table = f.documents["tables/PassiveSkills.json"].clone();
+        let baseline = baseline_input(&f, &mut p, &table);
+        let baseline_pin = baseline.sha256.clone();
+        let baseline_path = baseline.path.clone();
+        let mut args = pinned_refresh_args(&mut f, &mut p, &old, &reference);
+        args.mode = mode;
+        args.tree_refresh.as_mut().unwrap().context_baseline = Some(baseline);
+        crate::ordinary_facts::run(args).unwrap();
+        let present: Value = crate::read_json(&f.root.join("out/producer-receipt.json")).unwrap();
+        assert_eq!(
+            present.as_object().unwrap().keys().collect::<Vec<_>>(),
+            absent.as_object().unwrap().keys().collect::<Vec<_>>()
+        );
+        assert_eq!(
+            present["files"]
+                .as_object()
+                .unwrap()
+                .keys()
+                .collect::<Vec<_>>(),
+            absent["files"]
+                .as_object()
+                .unwrap()
+                .keys()
+                .collect::<Vec<_>>()
+        );
+        for file in ["base/passive_tree.json", "base/passive_tree_meta.json"] {
+            assert_eq!(
+                fs::read(f.root.join("out").join(file)).unwrap(),
+                fs::read(f.root.join("without-baseline").join(file)).unwrap()
+            );
+        }
+        let evidence = &present["conversion"]["context_baseline"];
+        assert_eq!(evidence["sha256"], baseline_pin);
+        assert_eq!(evidence["reason"], p["context_baseline"]["reason"]);
+        assert_eq!(evidence["review"], "reviewed");
+        assert_eq!(
+            evidence["reference_context_sha256"],
+            p["base_policy"]["qualification"]["context_sha256"]
+        );
+        assert_eq!(
+            evidence["row_count"],
+            table["rows"].as_array().unwrap().len()
+        );
+        assert_eq!(
+            evidence["physical_field_count"],
+            table["physical_fields"].as_array().unwrap().len()
+        );
+        let mut conversion = present["conversion"].clone();
+        conversion
+            .as_object_mut()
+            .unwrap()
+            .remove("context_baseline");
+        conversion["codec_policy"] = absent["conversion"]["codec_policy"].clone();
+        assert_eq!(conversion, absent["conversion"]);
+        assert_eq!(sha256_hex(&fs::read(&baseline_path).unwrap()), baseline_pin);
+
+        for out in [
+            baseline_path.clone(),
+            baseline_path.parent().unwrap().join("candidate"),
+        ] {
+            let mut args = pinned_refresh_args(&mut f, &mut p, &old, &reference);
+            args.mode = mode;
+            args.tree_refresh.as_mut().unwrap().context_baseline =
+                Some(refresh::ContextBaselineArgs {
+                    path: baseline_path.clone(),
+                    sha256: baseline_pin.clone(),
+                });
+            args.out = out.clone();
+            let error = crate::ordinary_facts::run(args).unwrap_err();
+            if out != baseline_path {
+                assert!(error.contains("supplemental input"), "{error}");
+                assert!(!out.exists());
+            }
+            assert_eq!(sha256_hex(&fs::read(&baseline_path).unwrap()), baseline_pin);
+        }
+    }
+}
+
+#[test]
+fn a_valid_context_baseline_cannot_bypass_target_qualification_or_consumed_columns() {
+    for mode in [AdapterMode::Strict, AdapterMode::Forward] {
+        for case in ["qualification", "column"] {
+            let (mut f, mut p, old, reference) = fixture();
+            let table = f.documents["tables/PassiveSkills.json"].clone();
+            let baseline = baseline_input(&f, &mut p, &table);
+            if case == "qualification" {
+                f.values("PassiveSkills", 0)["Opaque"] = json!(99);
+            } else {
+                let columns = f.documents.get_mut("tables/PassiveSkills.json").unwrap()["columns"]
+                    .as_array_mut()
+                    .unwrap();
+                let stats = columns
+                    .iter_mut()
+                    .find(|c| c["schema"]["name"] == "Stats")
+                    .unwrap();
+                stats["schema"]["type"] = json!("string");
+            }
+            let mut args = pinned_refresh_args(&mut f, &mut p, &old, &reference);
+            args.mode = mode;
+            args.tree_refresh.as_mut().unwrap().context_baseline = Some(baseline);
+            let error = crate::ordinary_facts::run(args).unwrap_err();
+            if case == "qualification" {
+                assert_eq!(error, "reference context SHA256 mismatch");
+            } else {
+                assert!(
+                    error.contains("column") || error.contains("schema"),
+                    "{error}"
+                );
+            }
+            assert!(!f.root.join("out").exists());
+        }
+    }
+}
+
 fn project(
     f: &mut Fixture,
     policy: &Value,
@@ -153,9 +508,727 @@ fn project_with_coverage(
     reference: &Value,
     coverage: &mut Coverage,
 ) -> Result<(Value, Value, Value), String> {
+    project_with_baseline(f, policy, old, reference, None, coverage)
+}
+
+pub(super) fn add_context_column(f: &mut Fixture, field: &str, value: Value) {
+    let descriptor = table("PassiveSkills", &[(field, "i32", false, None)], json!([]));
+    let doc = f.documents.get_mut("tables/PassiveSkills.json").unwrap();
+    let mut column = descriptor["columns"][0].clone();
+    column["source_column"] = json!(doc["columns"].as_array().unwrap().len());
+    doc["columns"].as_array_mut().unwrap().push(column);
+    doc["physical_fields"]
+        .as_array_mut()
+        .unwrap()
+        .push(json!(field));
+    for row in doc["rows"].as_array_mut().unwrap() {
+        row["values"][field] = value.clone();
+    }
+}
+
+fn remove_context_column(f: &mut Fixture, field: &str) {
+    let doc = f.documents.get_mut("tables/PassiveSkills.json").unwrap();
+    doc["physical_fields"]
+        .as_array_mut()
+        .unwrap()
+        .retain(|v| v != field);
+    doc["columns"]
+        .as_array_mut()
+        .unwrap()
+        .retain(|c| c["schema"]["name"] != field);
+    for (i, column) in doc["columns"]
+        .as_array_mut()
+        .unwrap()
+        .iter_mut()
+        .enumerate()
+    {
+        column["source_column"] = json!(i);
+    }
+    for row in doc["rows"].as_array_mut().unwrap() {
+        row["values"].as_object_mut().unwrap().remove(field);
+    }
+}
+
+fn column_allowance(old: &Value, f: &Fixture, added: Value, removed: Value) -> Value {
+    let sorted = |table: &Value| {
+        let mut fields = table["physical_fields"].as_array().unwrap().clone();
+        fields.sort_by(|a, b| a.as_str().cmp(&b.as_str()));
+        fields
+    };
+    reviewed(json!({
+        "bound_fields_sha256":hash(&sorted(old)),
+        "target_fields_sha256":hash(&sorted(&f.documents["tables/PassiveSkills.json"])),
+        "added":added,"removed":removed
+    }))
+}
+
+fn column_projection(
+    f: &mut Fixture,
+    p: &Value,
+    old: &Value,
+    reference: &Value,
+    baseline: &refresh::ContextBaselineArgs,
+    mode: AdapterMode,
+) -> Result<(Value, Value, Value), String> {
+    let mut coverage = Coverage::new(mode, "passive-tree");
+    let (tree, meta, mut receipt) =
+        project_with_baseline(f, p, old, reference, Some(baseline), &mut coverage)?;
+    coverage.finish(&mut receipt)?;
+    Ok((tree, meta, receipt))
+}
+
+#[test]
+fn column_diagnostics_prove_each_projection_and_suppress_all_affected_packets() {
+    let (mut f, mut p, old, r) = fixture();
+    let table = f.documents["tables/PassiveSkills.json"].clone();
+    let baseline = baseline_input(&f, &mut p, &table);
+    add_context_column(&mut f, "NewContext", json!(0));
+    // Target-owned values still render from the actual target, not old evidence.
+    f.values("PassiveSkills", 0)["Name"] = json!("Current target name");
+    f.values("PassiveSkills", 0)["Stat1Value"] = json!(11);
+    assert_eq!(
+        column_projection(&mut f, &p, &old, &r, &baseline, AdapterMode::Strict).unwrap_err(),
+        "reference context SHA256 mismatch"
+    );
+    let open = column_projection(&mut f, &p, &old, &r, &baseline, AdapterMode::Forward).unwrap();
+    assert_eq!(open.0[0]["name"], "Current target name");
+    assert_eq!(open.0[0]["stats"], json!(["+11% to Fire Resistance"]));
+    assert!(
+        open.0
+            .as_array()
+            .unwrap()
+            .iter()
+            .all(|n| n.get("native_stats").is_none())
+    );
+    let issues = open.2["coverage"]["issues"].as_array().unwrap();
+    assert_eq!(issues.len(), 1);
+    assert_eq!(issues[0]["kind"], "context-columns-changed");
+    assert_eq!(issues[0]["entity"], "PassiveSkills");
+    assert_eq!(issues[0]["action"], "emitted-with-gap");
+    let expected = column_allowance(&table, &f, json!([]), json!([]));
+    assert_eq!(
+        issues[0]["observed"]["bound_fields_sha256"],
+        expected["bound_fields_sha256"]
+    );
+    assert_eq!(
+        issues[0]["observed"]["target_fields_sha256"],
+        expected["target_fields_sha256"]
+    );
+    assert_eq!(issues[0]["observed"]["added"], json!(["NewContext"]));
+    assert_eq!(issues[0]["observed"]["removed"], json!([]));
+    assert_eq!(
+        issues[0]["observed"]["context_baseline_sha256"],
+        baseline.sha256
+    );
+    assert_eq!(issues[0]["observed"]["ids_without_old_evidence"], json!([]));
+    assert_eq!(
+        column_projection(&mut f, &p, &old, &r, &baseline, AdapterMode::Forward).unwrap(),
+        open
+    );
+    // Reordering fields changes neither evidence nor row comparisons.
+    f.documents.get_mut("tables/PassiveSkills.json").unwrap()["physical_fields"]
+        .as_array_mut()
+        .unwrap()
+        .reverse();
+    let columns = f.documents.get_mut("tables/PassiveSkills.json").unwrap()["columns"]
+        .as_array_mut()
+        .unwrap();
+    columns.reverse();
+    for (i, column) in columns.iter_mut().enumerate() {
+        column["source_column"] = json!(i);
+    }
+    assert_eq!(
+        column_projection(&mut f, &p, &old, &r, &baseline, AdapterMode::Forward).unwrap(),
+        open
+    );
+}
+
+#[test]
+fn column_review_is_row_specific_for_ordinary_nodes_and_class_variants() {
+    let (mut f, mut p, mut old, r) = fixture();
+    f.values("ClassPassiveSkillOverrides", 0)["SkillToOverride"] = json!(0);
+    p["class_bindings"] = json!([{"base_id":"maximum_resistances1","class":"Witch"}]);
+    old[0]["variants"] = json!([{"class":"Witch","variant_skill":606,"stats":["old variant"]}]);
+    let table = f.documents["tables/PassiveSkills.json"].clone();
+    let baseline = baseline_input(&f, &mut p, &table);
+    add_context_column(&mut f, "NewContext", Value::Null);
+    let diagnostic =
+        column_projection(&mut f, &p, &old, &r, &baseline, AdapterMode::Forward).unwrap();
+    assert_eq!(
+        diagnostic.2["coverage"]["issues"].as_array().unwrap().len(),
+        1
+    );
+    assert!(diagnostic.0[0].get("variants").is_some());
+    assert!(diagnostic.0[0].get("native_stats").is_none());
+    p["context_columns"] = column_allowance(
+        &table,
+        &f,
+        json!([reviewed(json!({"field":"NewContext","neutral_value":null}))]),
+        json!([]),
+    );
+    // Explicit null is a valid reviewed value, and the target text remains current.
+    f.values("PassiveSkills", 5)["Stat1Value"] = json!(42);
+    let closed = column_projection(&mut f, &p, &old, &r, &baseline, AdapterMode::Forward).unwrap();
+    assert_eq!(closed.2["coverage"]["issues"], json!([]));
+    assert_eq!(
+        closed.0[0]["variants"][0]["stats"],
+        json!(["+42% to Fire Resistance"])
+    );
+    assert_eq!(
+        column_projection(&mut f, &p, &old, &r, &baseline, AdapterMode::Strict)
+            .unwrap()
+            .0,
+        closed.0
+    );
+    f.values("PassiveSkills", 2)["NewContext"] = json!(1);
+    f.values("PassiveSkills", 5)["NewContext"] = json!(1);
+    let partial = column_projection(&mut f, &p, &old, &r, &baseline, AdapterMode::Forward).unwrap();
+    let issues = partial.2["coverage"]["issues"].as_array().unwrap();
+    assert_eq!(issues.len(), 2);
+    assert!(
+        issues
+            .iter()
+            .any(|i| i["kind"] == "render-context-changed" && i["entity"] == "Multi")
+    );
+    assert!(
+        issues
+            .iter()
+            .any(|i| i["kind"] == "variant-context-changed")
+    );
+    assert!(
+        issues
+            .iter()
+            .all(|i| i["kind"] != "context-columns-changed")
+    );
+    assert!(partial.0[0].get("native_stats").is_none());
+    assert!(partial.0[0].get("variants").is_none());
+    assert!(partial.0[2].get("native_stats").is_none());
+    assert!(column_projection(&mut f, &p, &old, &r, &baseline, AdapterMode::Strict).is_err());
+}
+
+#[test]
+fn column_removal_uses_each_old_id_and_never_the_reference_constant_or_row_number() {
+    let (mut f, mut p, old, r) = fixture();
+    // Give the unrenderable row a different historical value and exact old binding.
+    f.values("PassiveSkills", 1)["Opaque"] = json!(9);
+    p["compatibility_bindings"]["Unknown"]["context_sha256"] = json!(hash(
+        &refresh::context(f.values("PassiveSkills", 1)).unwrap()
+    ));
+    let mut table = f.documents["tables/PassiveSkills.json"].clone();
+    table["rows"].as_array_mut().unwrap().reverse();
+    for (i, row) in table["rows"].as_array_mut().unwrap().iter_mut().enumerate() {
+        row["_row"] = json!(i);
+    }
+    let baseline = baseline_input(&f, &mut p, &table);
+    remove_context_column(&mut f, "Opaque");
+    p["context_columns"] = column_allowance(
+        &table,
+        &f,
+        json!([]),
+        json!([reviewed(json!({"field":"Opaque","constant_value":7}))]),
+    );
+    let partial = column_projection(&mut f, &p, &old, &r, &baseline, AdapterMode::Forward).unwrap();
+    let issues = partial.2["coverage"]["issues"].as_array().unwrap();
+    assert!(
+        issues
+            .iter()
+            .any(|i| i["entity"] == "Unknown" && i["kind"] == "text-binding-stale")
+    );
+    assert!(
+        issues
+            .iter()
+            .all(|i| i["kind"] != "context-columns-changed")
+    );
+    assert!(partial.0[0].get("native_stats").is_some());
+    assert!(partial.0[1].get("native_stats").is_none());
+    assert_eq!(partial.0[1]["stats"], old[1]["stats"]);
+    // The observed unsupported row hashes its actual missing content.
+    let stale = issues
+        .iter()
+        .find(|i| i["kind"] == "text-binding-stale")
+        .unwrap();
+    assert_eq!(
+        stale["observed"]["context_sha256"],
+        hash(&refresh::context(f.values("PassiveSkills", 1)).unwrap())
+    );
+    // Explicit exact row review can bind that actual new content.
+    p["compatibility_bindings"]["Unknown"]["context_sha256"] =
+        stale["observed"]["context_sha256"].clone();
+    let closed = column_projection(&mut f, &p, &old, &r, &baseline, AdapterMode::Forward).unwrap();
+    assert_eq!(closed.2["coverage"]["issues"], json!([]));
+    // Losing old-Id evidence must not manufacture the reference constant.
+    table["rows"]
+        .as_array_mut()
+        .unwrap()
+        .retain(|row| row["values"]["Id"] != "Multi");
+    for (i, row) in table["rows"].as_array_mut().unwrap().iter_mut().enumerate() {
+        row["_row"] = json!(i);
+    }
+    let baseline = baseline_input(&f, &mut p, &table);
+    let absent = column_projection(&mut f, &p, &old, &r, &baseline, AdapterMode::Forward).unwrap();
+    assert!(
+        absent.2["coverage"]["issues"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .any(|i| i["kind"] == "render-context-changed" && i["entity"] == "Multi")
+    );
+    // Unreviewed diagnostics may restore the row's actual varying old value.
+    p.as_object_mut().unwrap().remove("context_columns");
+    p["compatibility_bindings"]["Unknown"]["context_sha256"] = json!(hash(
+        &refresh::context(
+            &table["rows"]
+                .as_array()
+                .unwrap()
+                .iter()
+                .find(|row| row["values"]["Id"] == "Unknown")
+                .unwrap()["values"]
+        )
+        .unwrap()
+    ));
+    let diagnostic =
+        column_projection(&mut f, &p, &old, &r, &baseline, AdapterMode::Forward).unwrap();
+    assert!(
+        diagnostic.2["coverage"]["issues"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .all(|i| i["entity"] != "Unknown")
+    );
+    assert!(
+        diagnostic.2["coverage"]["issues"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .any(|i| i["entity"] == "Multi" && i["kind"] == "render-context-changed")
+    );
+}
+
+#[test]
+fn column_allowances_reject_incomplete_stale_and_contradictory_authorizations() {
+    for mode in [AdapterMode::Strict, AdapterMode::Forward] {
+        for case in [
+            "null",
+            "unknown",
+            "unreviewed",
+            "column-unreviewed",
+            "blank",
+            "column-blank",
+            "missing-value",
+            "missing-constant",
+            "removed-null-entry",
+            "null-entry",
+            "duplicate",
+            "overlap",
+            "wrong-added",
+            "wrong-removed",
+            "bound-hash",
+            "target-hash",
+            "bad-hash",
+            "no-baseline",
+            "unused",
+            "unknown-column-key",
+        ] {
+            let (mut f, mut p, old, r) = fixture();
+            let table = f.documents["tables/PassiveSkills.json"].clone();
+            let baseline = baseline_input(&f, &mut p, &table);
+            if case != "unused" {
+                add_context_column(&mut f, "NewContext", json!(0));
+            }
+            p["context_columns"] = column_allowance(
+                &table,
+                &f,
+                json!([reviewed(json!({"field":"NewContext","neutral_value":0}))]),
+                json!([]),
+            );
+            match case {
+                "null" => p["context_columns"] = Value::Null,
+                "unknown" => p["context_columns"]["extra"] = json!(true),
+                "unreviewed" => p["context_columns"]["review"] = json!("unreviewed"),
+                "column-unreviewed" => {
+                    p["context_columns"]["added"][0]["review"] = json!("unreviewed")
+                }
+                "blank" => p["context_columns"]["reason"] = json!(" \n"),
+                "column-blank" => p["context_columns"]["added"][0]["reason"] = json!(" "),
+                "missing-value" => {
+                    p["context_columns"]["added"][0]
+                        .as_object_mut()
+                        .unwrap()
+                        .remove("neutral_value");
+                }
+                "missing-constant" => {
+                    p["context_columns"]["removed"] = json!([reviewed(json!({"field":"Opaque"}))])
+                }
+                "removed-null-entry" => p["context_columns"]["removed"] = json!([null]),
+                "null-entry" => p["context_columns"]["added"][0] = Value::Null,
+                "duplicate" => {
+                    let c = p["context_columns"]["added"][0].clone();
+                    p["context_columns"]["added"]
+                        .as_array_mut()
+                        .unwrap()
+                        .push(c);
+                }
+                "overlap" => {
+                    p["context_columns"]["removed"] =
+                        json!([reviewed(json!({"field":"NewContext","constant_value":0}))])
+                }
+                "wrong-added" => p["context_columns"]["added"][0]["field"] = json!("Different"),
+                "wrong-removed" => {
+                    p["context_columns"]["removed"] =
+                        json!([reviewed(json!({"field":"Opaque","constant_value":0}))])
+                }
+                "bound-hash" => p["context_columns"]["bound_fields_sha256"] = json!("f".repeat(64)),
+                "target-hash" => {
+                    p["context_columns"]["target_fields_sha256"] = json!("f".repeat(64))
+                }
+                "bad-hash" => p["context_columns"]["target_fields_sha256"] = json!("A".repeat(64)),
+                "unknown-column-key" => p["context_columns"]["added"][0]["extra"] = json!(true),
+                "no-baseline" => {
+                    p.as_object_mut().unwrap().remove("context_baseline");
+                }
+                _ => {}
+            }
+            assert!(
+                column_projection(&mut f, &p, &old, &r, &baseline, mode).is_err(),
+                "{case}"
+            );
+        }
+    }
+}
+
+#[test]
+fn column_diagnostics_and_reviews_cannot_waive_semantic_or_physical_failures() {
+    for mode in [AdapterMode::Strict, AdapterMode::Forward] {
+        for approved in [false, true] {
+            for case in [
+                "surviving-reference",
+                "scalar",
+                "fk",
+                "duplicate-stat",
+                "missing-column",
+                "wrong-kind",
+                "wrong-array",
+                "wrong-fk",
+                "stat-slot",
+            ] {
+                let (mut f, mut p, old, r) = fixture();
+                let table = f.documents["tables/PassiveSkills.json"].clone();
+                let baseline = baseline_input(&f, &mut p, &table);
+                add_context_column(&mut f, "NewContext", json!(0));
+                if approved {
+                    p["context_columns"] = column_allowance(
+                        &table,
+                        &f,
+                        json!([reviewed(json!({"field":"NewContext","neutral_value":0}))]),
+                        json!([]),
+                    );
+                }
+                match case {
+                    "surviving-reference" => f.values("PassiveSkills", 0)["Opaque"] = json!(5),
+                    "scalar" => f.values("PassiveSkills", 2)["Stat1Value"] = json!("bad"),
+                    "fk" => f.values("PassiveSkills", 2)["Stats"] = json!([999]),
+                    "duplicate-stat" => f.values("PassiveSkills", 2)["Stats"] = json!([0, 0]),
+                    "missing-column" => remove_context_column(&mut f, "Name"),
+                    "stat-slot" => remove_context_column(&mut f, "Stat1Value"),
+                    _ => {
+                        let columns =
+                            f.documents.get_mut("tables/PassiveSkills.json").unwrap()["columns"]
+                                .as_array_mut()
+                                .unwrap();
+                        let stats = columns
+                            .iter_mut()
+                            .find(|c| c["schema"]["name"] == "Stats")
+                            .unwrap();
+                        match case {
+                            "wrong-kind" => stats["schema"]["type"] = json!("string"),
+                            "wrong-array" => stats["schema"]["array"] = json!(false),
+                            _ => stats["schema"]["references"]["table"] = json!("Characters"),
+                        }
+                    }
+                }
+                assert!(
+                    column_projection(&mut f, &p, &old, &r, &baseline, mode).is_err(),
+                    "{case}"
+                );
+            }
+        }
+    }
+    for case in ["surviving-row", "whole-text-stat", "missing-old-row"] {
+        let (mut f, mut p, old, r) = fixture();
+        let mut table = f.documents["tables/PassiveSkills.json"].clone();
+        if case == "missing-old-row" {
+            table["rows"].as_array_mut().unwrap().remove(1);
+            for (i, row) in table["rows"].as_array_mut().unwrap().iter_mut().enumerate() {
+                row["_row"] = json!(i);
+            }
+        }
+        let baseline = baseline_input(&f, &mut p, &table);
+        add_context_column(&mut f, "NewContext", json!(0));
+        match case {
+            "surviving-row" => f.values("PassiveSkills", 1)["Opaque"] = json!(33),
+            "whole-text-stat" => f.values("PassiveSkills", 1)["Stat1Value"] = json!(33),
+            _ => {}
+        }
+        let result =
+            column_projection(&mut f, &p, &old, &r, &baseline, AdapterMode::Forward).unwrap();
+        let issues = result.2["coverage"]["issues"].as_array().unwrap();
+        assert!(
+            issues
+                .iter()
+                .any(|i| i["kind"] == "context-columns-changed")
+        );
+        assert!(
+            issues
+                .iter()
+                .any(|i| i["entity"] == "Unknown" && i["kind"] == "text-binding-stale"),
+            "{case}"
+        );
+        assert!(result.0[1].get("native_stats").is_none());
+    }
+}
+
+#[test]
+fn column_adjustment_preserves_the_consumed_definition_scope() {
+    for approved in [false, true] {
+        let (mut f, mut p, old, r) = fixture();
+        let table = f.documents["tables/PassiveSkills.json"].clone();
+        let baseline = baseline_input(&f, &mut p, &table);
+        add_context_column(&mut f, "NewContext", json!(0));
+        if approved {
+            p["context_columns"] = column_allowance(
+                &table,
+                &f,
+                json!([reviewed(json!({"field":"NewContext","neutral_value":0}))]),
+                json!([]),
+            );
+        }
+        // The published table contains an unused definition with duplicate
+        // stats. Column review cannot introduce a new consumer for such rows.
+        f.values("PassiveSkills", 3)["Stats"] = json!([0, 0]);
+        let result =
+            column_projection(&mut f, &p, &old, &r, &baseline, AdapterMode::Forward).unwrap();
+        assert_eq!(
+            result.2["coverage"]["issues"].as_array().unwrap().len(),
+            usize::from(!approved)
+        );
+        // The same physical defect on a consumed definition remains fatal.
+        f.values("PassiveSkills", 2)["Stats"] = json!([0, 0]);
+        let error =
+            column_projection(&mut f, &p, &old, &r, &baseline, AdapterMode::Forward).unwrap_err();
+        assert!(error.contains("duplicate"), "{error}");
+    }
+}
+
+#[test]
+fn column_exclusion_proofs_keep_actual_definition_and_stats_changes_visible() {
+    for change in ["none", "name", "stats"] {
+        let (mut f, mut p, old, r) = fixture();
+        p["excluded"]["Unknown"] = json!({
+            "definition_sha256":hash(f.values("PassiveSkills",1)), "reason":"reviewed placeholder"
+        });
+        let table = f.documents["tables/PassiveSkills.json"].clone();
+        let baseline = baseline_input(&f, &mut p, &table);
+        add_context_column(&mut f, "NewContext", json!(0));
+        match change {
+            "name" => f.values("PassiveSkills", 1)["Name"] = json!("new actual definition"),
+            "stats" => f.values("PassiveSkills", 1)["Stat1Value"] = json!(44),
+            _ => {}
+        }
+        let result =
+            column_projection(&mut f, &p, &old, &r, &baseline, AdapterMode::Forward).unwrap();
+        let issues = result.2["coverage"]["issues"].as_array().unwrap();
+        if change == "none" {
+            assert_eq!(issues.len(), 1);
+            assert_eq!(result.2["excluded"].as_array().unwrap().len(), 1);
+        } else {
+            assert!(
+                issues.iter().any(|i| i["kind"] == "excluded-definition"),
+                "{change}"
+            );
+        }
+    }
+}
+#[test]
+fn columns_round_trip_through_production_conversion_build_coverage_and_policy_draft() {
+    let (mut f, mut p, old, r) = fixture();
+    let table = f.documents["tables/PassiveSkills.json"].clone();
+    let baseline = baseline_input(&f, &mut p, &table);
+    add_context_column(&mut f, "NewContext", json!(0));
+    let make_args = |f: &mut Fixture, p: &mut Value, mode, name: &str| {
+        let mut args = pinned_refresh_args(f, p, &old, &r);
+        args.mode = mode;
+        args.out = f.root.join(name);
+        args.tree_refresh.as_mut().unwrap().context_baseline = Some(refresh::ContextBaselineArgs {
+            path: baseline.path.clone(),
+            sha256: baseline.sha256.clone(),
+        });
+        args
+    };
+    crate::ordinary_facts::run(make_args(
+        &mut f,
+        &mut p,
+        AdapterMode::Forward,
+        "column-open",
+    ))
+    .unwrap();
+    let evidence = f.root.join("column-consumer");
+    fs::create_dir(&evidence).unwrap();
+    fs::copy(
+        f.root.join("column-open/producer-receipt.json"),
+        evidence.join("producer-receipt.json"),
+    )
+    .unwrap();
+    let consumer = r#"
+import json, sys
+from pathlib import Path
+from types import SimpleNamespace
+from RePoE.release import build, policy_draft
+root = Path(sys.argv[1])
+receipt = json.loads((root / 'producer-receipt.json').read_text())
+coverage = build.build_coverage(SimpleNamespace(coverage={'tree': receipt['conversion']['coverage']}))
+assert coverage['open_tree_issues'] == 1
+(root / 'build-receipt.json').write_text(json.dumps({'coverage': coverage}, sort_keys=True) + '\n')
+summary = policy_draft.draft(receipt=root / 'build-receipt.json', out=root / 'draft')
+assert summary['entries'] == summary['drafted'] == 1
+assert summary['by_entry_type']['context_columns'] == 1
+assert not summary['by_entry_type']['blocked'] and not summary['by_entry_type']['unhandled']
+print(json.dumps(summary, sort_keys=True))
+"#;
+    fs::write(evidence.join("consume.py"), consumer).unwrap();
+    let repo = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
+        .parent()
+        .unwrap()
+        .parent()
+        .unwrap();
+    let result = std::process::Command::new("python3")
+        .arg("-B")
+        .arg(evidence.join("consume.py"))
+        .arg(&evidence)
+        .current_dir(repo)
+        .env("PYTHONPATH", repo)
+        .output()
+        .unwrap();
+    assert!(
+        result.status.success(),
+        "{}",
+        String::from_utf8_lossy(&result.stderr)
+    );
+    let draft: Value = crate::read_json(&evidence.join("draft/passive-tree.draft.json")).unwrap();
+    let fields = column_allowance(&table, &f, json!([]), json!([]));
+    let columns = &draft["context_columns"];
+    assert_eq!(
+        columns["bound_fields_sha256"],
+        fields["bound_fields_sha256"]
+    );
+    assert_eq!(
+        columns["target_fields_sha256"],
+        fields["target_fields_sha256"]
+    );
+    assert_eq!(columns["review"], "unreviewed");
+    assert_eq!(
+        columns["added"],
+        json!([{
+            "field":"NewContext","neutral_value":null,"review":"unreviewed","reason":""
+        }])
+    );
+    assert_eq!(columns["removed"], json!([]));
+    p["context_columns"] = columns.clone();
+    fs::write(
+        evidence.join("unreviewed-policy.json"),
+        reader::json_bytes(&p).unwrap(),
+    )
+    .unwrap();
+    for mode in [AdapterMode::Strict, AdapterMode::Forward] {
+        assert!(crate::ordinary_facts::run(make_args(&mut f, &mut p, mode, "unreviewed")).is_err());
+        assert!(!f.root.join("unreviewed").exists());
+    }
+    p["context_columns"] = reviewed(columns.clone());
+    p["context_columns"]["added"][0] = reviewed(columns["added"][0].clone());
+    p["context_columns"]["added"][0]["neutral_value"] = json!(0);
+    fs::write(
+        evidence.join("reviewed-policy.json"),
+        reader::json_bytes(&p).unwrap(),
+    )
+    .unwrap();
+    for (mode, name) in [
+        (AdapterMode::Forward, "column-closed-forward"),
+        (AdapterMode::Strict, "column-closed-strict"),
+    ] {
+        crate::ordinary_facts::run(make_args(&mut f, &mut p, mode, name)).unwrap();
+        let receipt: Value =
+            crate::read_json(&f.root.join(name).join("producer-receipt.json")).unwrap();
+        let tree: Value =
+            crate::read_json(&f.root.join(name).join("base/passive_tree.json")).unwrap();
+        if mode == AdapterMode::Forward {
+            assert_eq!(receipt["conversion"]["coverage"]["issues"], json!([]));
+        }
+        assert!(tree[0].get("native_stats").is_some());
+        assert_eq!(tree[0]["stats"], json!(["-7% to Fire Resistance"]));
+        fs::write(
+            evidence.join(format!("{name}-receipt.json")),
+            reader::json_bytes(&receipt).unwrap(),
+        )
+        .unwrap();
+        fs::write(
+            evidence.join(format!("{name}-tree.json")),
+            reader::json_bytes(&tree).unwrap(),
+        )
+        .unwrap();
+    }
+    assert_eq!(
+        fs::read(f.root.join("column-closed-forward/base/passive_tree.json")).unwrap(),
+        fs::read(f.root.join("column-closed-strict/base/passive_tree.json")).unwrap()
+    );
+    if let Some(destination) = std::env::var_os("P12A_COLUMNS_EVIDENCE_DIR") {
+        let destination = std::path::PathBuf::from(destination);
+        fs::create_dir_all(destination.join("draft")).unwrap();
+        for file in [
+            "producer-receipt.json",
+            "build-receipt.json",
+            "consume.py",
+            "draft/passive-tree.draft.json",
+            "draft/summary.json",
+            "unreviewed-policy.json",
+            "reviewed-policy.json",
+            "column-closed-forward-receipt.json",
+            "column-closed-forward-tree.json",
+            "column-closed-strict-receipt.json",
+            "column-closed-strict-tree.json",
+        ] {
+            fs::copy(evidence.join(file), destination.join(file)).unwrap();
+        }
+        fs::copy(
+            &baseline.path,
+            destination.join("PassiveSkills-baseline.json"),
+        )
+        .unwrap();
+        fs::write(
+            destination.join("PassiveSkills-target.json"),
+            reader::json_bytes(&f.documents["tables/PassiveSkills.json"]).unwrap(),
+        )
+        .unwrap();
+    }
+}
+
+pub(super) fn project_with_baseline(
+    f: &mut Fixture,
+    policy: &Value,
+    old: &Value,
+    reference: &Value,
+    baseline: Option<&refresh::ContextBaselineArgs>,
+    coverage: &mut Coverage,
+) -> Result<(Value, Value, Value), String> {
     let input = input(f);
-    let policy: refresh::Policy = serde_json::from_value(policy.clone()).unwrap();
-    let facts = Facts::read(&input, &policy.base_policy)?;
+    let policy: refresh::Policy =
+        serde_json::from_value(policy.clone()).map_err(|e| e.to_string())?;
+    let baseline = refresh::read_context_baseline(&policy, baseline)?;
+    let facts = Facts::read_with_context(
+        &input,
+        &policy.base_policy,
+        baseline.as_ref().map(|(b, _)| b),
+        policy.context_columns.as_ref(),
+        coverage.is_forward(),
+    )?;
     let descriptions = descriptions();
     let renderer = Renderer::new(&descriptions)?;
     refresh::project(
@@ -200,6 +1273,671 @@ fn forward_project(
         project_with_coverage(f, policy, old, reference, &mut coverage).unwrap();
     coverage.finish(&mut receipt).unwrap();
     (tree, meta, receipt)
+}
+
+pub(super) fn reviewed(mut entry: Value) -> Value {
+    entry["review"] = json!("reviewed");
+    entry["reason"] = json!("explicit fixture review of current evidence");
+    entry
+}
+
+pub(super) fn closing_entry(receipt: &Value, kind: &str) -> Value {
+    reviewed(
+        receipt["coverage"]["issues"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .find(|issue| issue["kind"] == kind)
+            .unwrap()["observed"]
+            .clone(),
+    )
+}
+
+#[test]
+fn audit_reviewed_placement_validates_consumed_flags_without_reordering_stale_errors() {
+    let (mut f, mut p, mut old, r) = fixture();
+    old[0]["group"] = json!(2);
+    let (_, _, open) = forward_project(&mut f, &p, &old, &r);
+    p["placement_rebase"] = closing_entry(&open, "placement-rebase");
+    // Both classification fields are outside the context projection. The first
+    // true flag must not hide a malformed later flag after geometry review.
+    f.values("PassiveSkills", 2)["IsKeystone"] = json!(true);
+    f.values("PassiveSkills", 2)["IsNotable"] = json!("bad");
+    let mut stale = p.clone();
+    stale["placement_rebase"]["moved_count"] = json!(2);
+    assert_eq!(
+        project(&mut f, &stale, &old, &r).unwrap_err(),
+        "prepared placement lacks exact reference group/orbit/slot binding"
+    );
+    let result = project(&mut f, &p, &old, &r);
+    assert!(
+        result.is_err(),
+        "reviewed placement accepted malformed flags"
+    );
+    assert!(result.unwrap_err().contains("IsNotable"));
+}
+
+#[test]
+fn audit_quarantined_new_node_keeps_anointment_scalar_validation() {
+    let (mut f, mut p, mut old, r) = fixture();
+    anointment_column(&mut f, &mut p, &[]);
+    old.as_array_mut().unwrap().remove(2);
+    f.values("PassiveSkills", 2)["Name"] = json!("[DNT] New placeholder");
+    f.values("PassiveSkills", 2)["IsAnointmentOnly"] = json!("bad");
+    let result = project_with_coverage(
+        &mut f,
+        &p,
+        &old,
+        &r,
+        &mut Coverage::new(AdapterMode::Forward, "passive-tree"),
+    );
+    assert!(
+        result.is_err(),
+        "quarantine swallowed anointment scalar validation"
+    );
+    assert!(
+        result
+            .unwrap_err()
+            .contains("IsAnointmentOnly: bool required")
+    );
+}
+
+#[test]
+fn audit_forward_quarantine_and_exclusion_keep_complete_physical_validation() {
+    for skip in ["name", "identity", "exclusion"] {
+        for defect in ["stats", "flag"] {
+            let (mut f, mut p, mut old, r) = fixture();
+            match defect {
+                "stats" => f.values("PassiveSkills", 2)["Stats"] = json!([0, 0]),
+                _ => f.values("PassiveSkills", 2)["IsNotable"] = json!("bad"),
+            }
+            match skip {
+                "name" => f.values("PassiveSkills", 2)["Name"] = json!("[DNT] Placeholder"),
+                "identity" => old[2]["id"] = json!("previous-Multi"),
+                _ => {
+                    p["excluded"]["Multi"] = json!({
+                        "definition_sha256":hash(f.values("PassiveSkills", 2)),
+                        "reason":"reviewed placeholder"
+                    });
+                }
+            }
+            let result = project_with_coverage(
+                &mut f,
+                &p,
+                &old,
+                &r,
+                &mut Coverage::new(AdapterMode::Forward, "passive-tree"),
+            );
+            assert!(
+                result.is_err(),
+                "{skip}/{defect}: skipped physical validation"
+            );
+            let error = result.unwrap_err();
+            assert!(
+                error.contains(if defect == "stats" {
+                    "duplicate"
+                } else {
+                    "IsNotable"
+                }),
+                "{skip}/{defect}: {error}"
+            );
+        }
+    }
+}
+
+#[test]
+fn audit_column_preflight_does_not_consume_unused_or_replaced_alias_rows() {
+    for replaced in [false, true] {
+        let (mut f, mut p, mut old, r) = fixture();
+        if replaced {
+            f.values("ClassPassiveSkillOverrides", 0)["SkillToOverride"] = json!(0);
+            p["class_bindings"] = json!([{"base_id":"maximum_resistances1","class":"Witch"}]);
+            old[0]["variants"] =
+                json!([{"class":"Witch","variant_skill":707,"stats":["superseded"]}]);
+            f.values("PassiveSkills", 6)["Stats"] = json!([0, 0]);
+        } else {
+            f.values("PassiveSkills", 3)["PassiveSkillGraphId"] = json!("unused");
+        }
+        let mut original = project(&mut f, &p, &old, &r).unwrap().0;
+        let table = f.documents["tables/PassiveSkills.json"].clone();
+        let baseline = baseline_input(&f, &mut p, &table);
+        add_context_column(&mut f, "NewContext", json!(0));
+        p["context_columns"] = column_allowance(
+            &table,
+            &f,
+            json!([reviewed(json!({"field":"NewContext","neutral_value":0}))]),
+            json!([]),
+        );
+        let result = column_projection(&mut f, &p, &old, &r, &baseline, AdapterMode::Strict);
+        assert!(result.is_ok(), "unused row became a consumer: {result:?}");
+        let mut adjusted = result.unwrap().0;
+        for (before, after) in original
+            .as_array_mut()
+            .unwrap()
+            .iter_mut()
+            .zip(adjusted.as_array_mut().unwrap())
+        {
+            let old_packet = before.as_object_mut().unwrap().remove("native_stats");
+            let new_packet = after.as_object_mut().unwrap().remove("native_stats");
+            assert_eq!(old_packet.is_some(), new_packet.is_some());
+            if let (Some(mut old_packet), Some(mut new_packet)) = (old_packet, new_packet) {
+                // Re-sealing the target table changes its provenance pin.
+                for packet in [&mut old_packet, &mut new_packet] {
+                    for stat in packet["stats"].as_array_mut().unwrap() {
+                        stat.as_object_mut().unwrap().remove("provenance");
+                    }
+                }
+                assert_eq!(old_packet, new_packet);
+            }
+        }
+        assert_eq!(adjusted, original);
+    }
+}
+
+#[test]
+fn audit_quarantine_keeps_retained_alias_identity_unambiguous() {
+    for duplicate in [false, true] {
+        let (mut f, p, mut old, r) = fixture();
+        old[0]["variants"] = json!([{
+            "class":"Lich","variant_skill":if duplicate {707} else {65000},"stats":["old"]
+        }]);
+        if duplicate {
+            f.values("PassiveSkills", 3)["PassiveSkillGraphId"] = json!(707);
+        }
+        f.values("PassiveSkills", 0)["Name"] = json!("[DNT] Placeholder");
+        let result = project_with_coverage(
+            &mut f,
+            &p,
+            &old,
+            &r,
+            &mut Coverage::new(AdapterMode::Forward, "passive-tree"),
+        );
+        assert!(
+            result.is_err(),
+            "quarantine swallowed alias identity failure"
+        );
+        assert!(
+            result
+                .unwrap_err()
+                .contains("ambiguous/missing physical identity")
+        );
+    }
+}
+
+#[test]
+fn audit_preflight_resolves_alias_owners_from_actual_target_membership_and_identity() {
+    for renamed in [false, true] {
+        let (mut f, mut p, mut old, r) = fixture();
+        f.values("PassiveSkills", 6)["Stats"] = json!([0, 0]);
+        if renamed {
+            f.values("ClassPassiveSkillOverrides", 0)["SkillToOverride"] = json!(0);
+            p["class_bindings"] = json!([{"base_id":"maximum_resistances1","class":"Witch"}]);
+            old[0]["id"] = json!("legacy-resistance");
+            old[0]["variants"] =
+                json!([{"class":"Witch","variant_skill":707,"stats":["superseded"]}]);
+            p["base_policy"]["legacy_id_bindings"] = json!([{
+                "legacy_id":"legacy-resistance","skill":101,"target_passive_id":"maximum_resistances1",
+                "expected_name":"old","source_entry_sha256":hash(&old[0]),"role":"fixture alias"
+            }]);
+        } else {
+            old[2]["variants"] =
+                json!([{"class":"Lich","variant_skill":707,"stats":["removed base"]}]);
+            edit_node(&mut f, 101, |node| {
+                node["connections"] = json!([]);
+                node["splines"] = json!([]);
+            });
+            f.documents.get_mut("graph.json").unwrap()["groups"][0]["nodes"]
+                .as_array_mut()
+                .unwrap()
+                .retain(|n| n["graph_id"] != 303);
+            f.documents.get_mut("passives.json").unwrap()["default_graph_instances"]
+                .as_array_mut()
+                .unwrap()
+                .retain(|n| n["graph_id"] != 303);
+        }
+        // The original strict path consumes neither retired alias.
+        project(&mut f, &p, &old, &r).unwrap();
+        let result = project_with_coverage(
+            &mut f,
+            &p,
+            &old,
+            &r,
+            &mut Coverage::new(AdapterMode::Forward, "passive-tree"),
+        );
+        assert!(
+            result.is_ok(),
+            "retired alias became a consumer: {result:?}"
+        );
+    }
+}
+
+#[test]
+fn audit_quarantined_base_still_rejects_duplicate_class_replacement_selectors() {
+    let (mut f, p, old, r) = fixture();
+    f.values("ClassPassiveSkillOverrides", 0)["SkillToOverride"] = json!(0);
+    let overrides = f
+        .documents
+        .get_mut("tables/ClassPassiveSkillOverrides.json")
+        .unwrap();
+    let mut duplicate = overrides["rows"][0].clone();
+    duplicate["_row"] = json!(1);
+    overrides["rows"].as_array_mut().unwrap().push(duplicate);
+    overrides["validation"]["rows"] = json!(2);
+    f.values("PassiveSkills", 0)["Name"] = json!("[DNT] Placeholder");
+    let result = project_with_coverage(
+        &mut f,
+        &p,
+        &old,
+        &r,
+        &mut Coverage::new(AdapterMode::Forward, "passive-tree"),
+    );
+    assert!(result.is_err(), "quarantine swallowed duplicate selectors");
+    assert!(
+        result
+            .unwrap_err()
+            .contains("repeated replacement selector")
+    );
+}
+
+#[test]
+fn audit_column_adjusted_exclusions_preserve_exact_placement_sets_and_independent_gaps() {
+    for columns in ["absent", "diagnostic", "reviewed"] {
+        let (mut f, mut p, mut old, r) = fixture();
+        old[0]["group"] = json!(2);
+        old[1]["group"] = json!(2);
+        let table = f.documents["tables/PassiveSkills.json"].clone();
+        p["excluded"]["Unknown"] = json!({
+            "definition_sha256":hash(&table["rows"][1]["values"]),
+            "reason":"reviewed placeholder"
+        });
+        let baseline = if columns == "absent" {
+            None
+        } else {
+            let baseline = baseline_input(&f, &mut p, &table);
+            add_context_column(&mut f, "NewContext", json!(0));
+            if columns == "reviewed" {
+                p["context_columns"] = column_allowance(
+                    &table,
+                    &f,
+                    json!([reviewed(json!({"field":"NewContext","neutral_value":0}))]),
+                    json!([]),
+                );
+            }
+            Some(baseline)
+        };
+        let run = |f: &mut Fixture, p: &Value, mode| {
+            let mut coverage = Coverage::new(mode, "passive-tree");
+            let (tree, meta, mut receipt) =
+                project_with_baseline(f, p, &old, &r, baseline.as_ref(), &mut coverage)?;
+            coverage.finish(&mut receipt)?;
+            Ok::<_, String>((tree, meta, receipt))
+        };
+        let open = run(&mut f, &p, AdapterMode::Forward).unwrap();
+        p["placement_rebase"] = closing_entry(&open.2, "placement-rebase");
+        assert_eq!(
+            p["placement_rebase"]["moved_skills_sha256"],
+            hash(&vec![101_u64])
+        );
+        let closed = run(&mut f, &p, AdapterMode::Forward).unwrap();
+        assert!(
+            closed.2["coverage"]["issues"]
+                .as_array()
+                .unwrap()
+                .iter()
+                .all(|issue| issue["kind"] == "context-columns-changed")
+        );
+        // Change only which exact row is excluded: source/reference pins and
+        // moved count stay fixed, so only the set hash can invalidate review.
+        p["excluded"] = json!({"maximum_resistances1":{
+            "definition_sha256":hash(&table["rows"][0]["values"]),
+            "reason":"reviewed placeholder"
+        }});
+        let stale = run(&mut f, &p, AdapterMode::Forward).unwrap();
+        let moved = closing_entry(&stale.2, "placement-rebase");
+        assert_eq!(moved["moved_count"], 1);
+        assert_eq!(moved["moved_skills_sha256"], hash(&vec![202_u64]));
+        assert!(stale.0[0].get("native_stats").is_none());
+        assert_eq!(
+            run(&mut f, &p, AdapterMode::Strict).unwrap_err(),
+            if columns == "diagnostic" {
+                "reference context SHA256 mismatch"
+            } else {
+                "prepared placement lacks exact reference group/orbit/slot binding"
+            }
+        );
+        // Fresh geometry review cannot close a separate changed exclusion or
+        // the whole-text semantic change on that row.
+        p["excluded"] = json!({"Unknown":{
+            "definition_sha256":hash(&table["rows"][1]["values"]),
+            "reason":"reviewed placeholder"
+        }});
+        f.values("PassiveSkills", 1)["Opaque"] = json!(99);
+        let open = run(&mut f, &p, AdapterMode::Forward).unwrap();
+        p["placement_rebase"] = closing_entry(&open.2, "placement-rebase");
+        let partial = run(&mut f, &p, AdapterMode::Forward).unwrap();
+        let issues = partial.2["coverage"]["issues"].as_array().unwrap();
+        assert!(
+            issues
+                .iter()
+                .any(|issue| issue["kind"] == "excluded-definition")
+        );
+        assert!(
+            issues
+                .iter()
+                .any(|issue| issue["kind"] == "text-binding-stale")
+        );
+        assert!(
+            issues
+                .iter()
+                .all(|issue| issue["kind"] != "placement-rebase")
+        );
+        assert!(partial.0[1].get("native_stats").is_none());
+    }
+}
+
+#[test]
+fn reviewed_placement_closes_only_exact_moved_evidence_at_the_old_strict_site() {
+    let (mut f, mut p, mut old, r) = fixture();
+    old[0]["group"] = json!(2);
+    old[0].as_object_mut().unwrap().remove("x");
+    old[0].as_object_mut().unwrap().remove("y");
+    f.documents.get_mut("graph.json").unwrap()["groups"][0]["x"] = json!(35.0);
+    let (_, _, open) = forward_project(&mut f, &p, &old, &r);
+    p["placement_rebase"] = closing_entry(&open, "placement-rebase");
+    let (tree, _, closed) = forward_project(&mut f, &p, &old, &r);
+    assert_eq!(closed["coverage"]["issues"], json!([]));
+    assert!(tree[0].get("x").is_none());
+    assert!(tree[0].get("y").is_none());
+    assert!(tree[0].get("native_stats").is_some());
+    assert_eq!(project(&mut f, &p, &old, &r).unwrap().0, tree);
+    for field in [
+        "reference_sha256",
+        "legacy_source_sha256",
+        "moved_skills_sha256",
+        "moved_count",
+    ] {
+        let mut stale = p.clone();
+        stale["placement_rebase"][field] = if field == "moved_count" {
+            json!(2)
+        } else {
+            json!("f".repeat(64))
+        };
+        let (_, _, receipt) = forward_project(&mut f, &stale, &old, &r);
+        assert_eq!(receipt["coverage"], open["coverage"], "{field}");
+        let mut later_defect = r.clone();
+        later_defect["nodes"].as_object_mut().unwrap().remove("303");
+        assert_eq!(
+            project(&mut f, &stale, &old, &later_defect).unwrap_err(),
+            "prepared placement lacks exact reference group/orbit/slot binding",
+            "{field}"
+        );
+    }
+    // Same count, different set cannot reuse the approval.
+    let mut other = old.clone();
+    other[0]["group"] = json!(1);
+    other[1]["group"] = json!(2);
+    let (_, _, receipt) = forward_project(&mut f, &p, &other, &r);
+    assert!(
+        receipt["coverage"]["issues"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .any(|issue| issue["kind"] == "placement-rebase")
+    );
+    // Approval does not excuse another open variant issue.
+    old[0]["variants"] = json!([{"class":"Lich","stats":["unknown alias"]}]);
+    let (_, _, open) = forward_project(&mut f, &p, &old, &r);
+    p["placement_rebase"] = closing_entry(&open, "placement-rebase");
+    let (tree, _, receipt) = forward_project(&mut f, &p, &old, &r);
+    assert_eq!(
+        receipt["coverage"]["issues"][0]["kind"],
+        "variant-alias-missing"
+    );
+    assert!(tree[0].get("native_stats").is_none());
+    let (_, _, original_old, _) = fixture();
+    assert!(
+        project(&mut f, &p, &original_old, &r)
+            .unwrap_err()
+            .contains("unused placement_rebase")
+    );
+}
+
+#[test]
+fn closing_entries_require_complete_review_in_both_modes() {
+    let (_, p, old, r) = fixture();
+    let entries = [
+        (
+            "placement_rebase",
+            reviewed(json!({
+                "reference_sha256":p["reference_sha256"],"legacy_source_sha256":hash(&old),
+                "moved_skills_sha256":hash(&vec![101_u64]),"moved_count":1
+            })),
+        ),
+        (
+            "ascendancy_frames",
+            json!({"Witch3":reviewed(json!({
+                "start_skill":303,"dx":10.0,"dy":20.0,
+                "reference_start_node_sha256":hash(&r["nodes"]["303"]),
+                "member_skills_sha256":hash(&vec![303_u64])
+            }))}),
+        ),
+        (
+            "compatibility_bindings",
+            json!({"Unknown":reviewed(json!({
+                "context_sha256":p["compatibility_bindings"]["Unknown"]["context_sha256"],
+                "stats_sha256":p["compatibility_bindings"]["Unknown"]["stats_sha256"],
+                "lines":["reviewed complete text"],"origin":"manual"
+            }))}),
+        ),
+    ];
+    for (field, valid) in entries {
+        for defect in [
+            "review",
+            "reason",
+            "blank-reason",
+            "draft",
+            "null",
+            "unknown",
+            "partial",
+        ] {
+            let mut policy = p.clone();
+            policy[field] = valid.clone();
+            let entry = match field {
+                "ascendancy_frames" => &mut policy[field]["Witch3"],
+                "compatibility_bindings" => &mut policy[field]["Unknown"],
+                _ => &mut policy[field],
+            };
+            match defect {
+                "review" | "reason" => {
+                    entry.as_object_mut().unwrap().remove(defect);
+                }
+                "blank-reason" => entry["reason"] = json!(" \t\n "),
+                "draft" => entry["review"] = json!("unreviewed"),
+                "null" => {
+                    entry[if field == "ascendancy_frames" {
+                        "dx"
+                    } else {
+                        "review"
+                    }] = Value::Null
+                }
+                "unknown" => entry["unexpected"] = json!(true),
+                _ => {
+                    entry.as_object_mut().unwrap().remove(match field {
+                        "placement_rebase" => "moved_skills_sha256",
+                        "ascendancy_frames" => "dy",
+                        _ => "origin",
+                    });
+                }
+            }
+            for mode in [AdapterMode::Strict, AdapterMode::Forward] {
+                let (mut f, _, _, _) = fixture();
+                assert!(
+                    project_with_coverage(
+                        &mut f,
+                        &policy,
+                        &old,
+                        &r,
+                        &mut Coverage::new(mode, "passive-tree")
+                    )
+                    .is_err(),
+                    "{field}/{defect}"
+                );
+            }
+        }
+    }
+    for lines in [json!([]), json!(["  "]), json!([4]), Value::Null] {
+        let (mut f, mut p, old, r) = fixture();
+        let mut binding = reviewed(p["compatibility_bindings"]["Unknown"].clone());
+        binding["lines"] = lines;
+        binding["origin"] = json!("manual");
+        p["compatibility_bindings"]["Unknown"] = binding;
+        assert!(project(&mut f, &p, &old, &r).is_err());
+    }
+}
+
+#[test]
+fn reviewed_new_whole_text_requires_exact_evidence_and_never_creates_a_packet() {
+    let (mut f, mut p, mut old, mut r) = fixture();
+    anointment_column(&mut f, &mut p, &[]);
+    old.as_array_mut().unwrap().remove(1);
+    let mut binding = reviewed(p["compatibility_bindings"]["Unknown"].clone());
+    binding["lines"] = json!(["Approved one", "Approved two"]);
+    binding["origin"] = json!("official-reference");
+    p["compatibility_bindings"]["Unknown"] = binding;
+    r["nodes"]["202"]["stats"] = json!([" Approved one\n\n Approved two "]);
+    let (tree, _, receipt) = forward_project(&mut f, &p, &old, &r);
+    assert_eq!(receipt["coverage"]["issues"], json!([]));
+    assert_eq!(tree[1]["stats"], json!(["Approved one", "Approved two"]));
+    assert!(tree[1].get("native_stats").is_none());
+    assert_eq!(
+        receipt["source_records"][1]["text"]["owner"],
+        "reviewed-whole-text"
+    );
+    assert_eq!(project(&mut f, &p, &old, &r).unwrap().0, tree);
+    for field in ["context_sha256", "stats_sha256"] {
+        let mut stale = p.clone();
+        stale["compatibility_bindings"]["Unknown"][field] = json!("f".repeat(64));
+        let (tree, _, receipt) = forward_project(&mut f, &stale, &old, &r);
+        assert_eq!(tree[1]["stats"], json!([]));
+        assert!(
+            receipt["coverage"]["issues"]
+                .as_array()
+                .unwrap()
+                .iter()
+                .any(|issue| issue["kind"] == "text-unrenderable-new")
+        );
+        assert!(project(&mut f, &stale, &old, &r).is_err());
+    }
+    // Conflicting reference candidates leave the new node empty and open.
+    r["nodes"]["202"]["stats"] = json!(["Different official text"]);
+    let (tree, _, receipt) = forward_project(&mut f, &p, &old, &r);
+    assert_eq!(tree[1]["stats"], json!([]));
+    assert!(
+        receipt["coverage"]["issues"][0]["message"]
+            .as_str()
+            .unwrap()
+            .contains("differs from reference")
+    );
+    assert!(project(&mut f, &p, &old, &r).is_err());
+    r["nodes"]["202"].as_object_mut().unwrap().remove("stats");
+    // A manual review can supply text when the reference has none.
+    p["compatibility_bindings"]["Unknown"]["origin"] = json!("manual");
+    assert_eq!(
+        forward_project(&mut f, &p, &old, &r).0[1]["stats"],
+        json!(["Approved one", "Approved two"])
+    );
+    // Prepared text, even if the renderer would succeed, cannot be overridden.
+    let (_, _, original_old, _) = fixture();
+    for mode in [AdapterMode::Strict, AdapterMode::Forward] {
+        assert!(
+            project_with_coverage(
+                &mut f,
+                &p,
+                &original_old,
+                &r,
+                &mut Coverage::new(mode, "passive-tree")
+            )
+            .unwrap_err()
+            .contains("existing prepared text")
+        );
+    }
+    // Rendering success keeps target numbers, without borrowing reviewed text.
+    f.values("PassiveSkills", 1)["Stats"] = json!([0]);
+    let (tree, _, receipt) = forward_project(&mut f, &p, &old, &r);
+    assert_eq!(tree[1]["stats"], json!(["-7% to Fire Resistance"]));
+    assert_eq!(receipt["source_records"][1]["text"]["owner"], "target-csd");
+    assert_eq!(receipt["coverage"]["issues"], json!([]));
+    // An unrelated open variant issue still suppresses its base packet.
+    old[0]["variants"] = json!([{"class":"Lich","stats":["aliasless"]}]);
+    let (tree, _, receipt) = forward_project(&mut f, &p, &old, &r);
+    assert_eq!(
+        receipt["coverage"]["issues"][0]["kind"],
+        "variant-alias-missing"
+    );
+    assert!(tree[0].get("native_stats").is_none());
+    // Complete reviewed text cannot swallow malformed stats or later flags.
+    for defect in ["duplicate-stats", "bad-flag", "bad-stat", "dangling-stat"] {
+        let (mut f, _, _, _) = fixture();
+        anointment_column(&mut f, &mut p, &[]);
+        match defect {
+            "duplicate-stats" => {
+                f.values("PassiveSkills", 1)["Stats"] = json!([1, 1]);
+                f.values("PassiveSkills", 1)["Stat2Value"] = json!(-7);
+            }
+            "bad-flag" => {
+                f.values("PassiveSkills", 1)["IsKeystone"] = json!(true);
+                f.values("PassiveSkills", 1)["IsNotable"] = json!("bad");
+            }
+            "bad-stat" => f.values("PassiveSkills", 1)["Stat1Value"] = json!("bad"),
+            _ => f.values("PassiveSkills", 1)["Stats"] = json!([999]),
+        }
+        for mode in [AdapterMode::Strict, AdapterMode::Forward] {
+            assert!(
+                project_with_coverage(
+                    &mut f,
+                    &p,
+                    &old,
+                    &r,
+                    &mut Coverage::new(mode, "passive-tree")
+                )
+                .is_err(),
+                "{defect}"
+            );
+        }
+    }
+}
+
+#[test]
+fn reviewed_text_entries_cannot_name_unknown_unused_or_prepared_variant_targets() {
+    for id in ["Absent", "Context", "OverrideTarget"] {
+        let (mut f, mut p, mut old, r) = fixture();
+        let mut binding = reviewed(p["compatibility_bindings"]["Unknown"].clone());
+        binding["lines"] = json!(["complete text"]);
+        binding["origin"] = json!("manual");
+        p["compatibility_bindings"][id] = binding;
+        if id == "OverrideTarget" {
+            old[0]["variants"] =
+                json!([{"class":"Lich","variant_skill":606,"stats":["prepared text"]}]);
+        }
+        for mode in [AdapterMode::Strict, AdapterMode::Forward] {
+            let error = project_with_coverage(
+                &mut f,
+                &p,
+                &old,
+                &r,
+                &mut Coverage::new(mode, "passive-tree"),
+            )
+            .unwrap_err();
+            assert!(
+                error.contains(match id {
+                    "Absent" => "unknown reviewed text identity",
+                    "Context" => "unused reviewed whole-text binding",
+                    _ => "existing prepared text",
+                }),
+                "{error}"
+            );
+        }
+    }
 }
 
 pub(super) fn anointment_column(f: &mut Fixture, p: &mut Value, flagged: &[usize]) {
@@ -247,7 +1985,7 @@ pub(super) fn anointment_column(f: &mut Fixture, p: &mut Value, flagged: &[usize
     ));
 }
 
-fn instantiate(f: &mut Fixture, row: usize) {
+pub(super) fn instantiate(f: &mut Fixture, row: usize) {
     let raw = f.values("PassiveSkills", row).clone();
     let instance = json!({
         "definition":{"row":row,"id":raw["Id"]},"graph_id":raw["PassiveSkillGraphId"],
@@ -741,6 +2479,7 @@ fn forward_run_records_multiple_kinds_in_conversion_coverage() {
     args.tree_refresh = Some(Box::new(refresh::Args {
         reference: f.root.join("refresh-inputs/reference.json"),
         descriptions: f.root.join("refresh-inputs/descriptions.json"),
+        context_baseline: None,
     }));
     crate::ordinary_facts::run(args).unwrap();
     let receipt: Value =

@@ -69,6 +69,7 @@ PAIRED = {
     "--player-context": "--player-manifest-sha256",
     "--tree-reference": None,
     "--tree-descriptions": None,
+    "--tree-context-baseline": "--tree-context-baseline-sha256",
     "--item-descriptions": None,
 }
 DIRECTORY_OPTIONS = {"--supplement", "--player-context"}

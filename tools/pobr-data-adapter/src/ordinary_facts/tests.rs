@@ -628,6 +628,120 @@ fn refuses_existing_output_production_and_input_directories() {
 }
 
 #[test]
+fn tree_context_baseline_cli_requires_a_valid_refresh_pair() {
+    let flags = [
+        "--ordinary-facts",
+        "facts",
+        "--facts-manifest-sha256",
+        "pin",
+        "--version",
+        "0.5.5.5",
+        "--out",
+        "fresh",
+        "--ordinary-domain",
+        "passive-tree",
+        "--codec-source",
+        "source",
+        "--codec-source-sha256",
+        "source-pin",
+        "--codec-policy",
+        "policy",
+        "--codec-policy-sha256",
+        "policy-pin",
+    ];
+    let refresh = [
+        "--tree-reference",
+        "reference",
+        "--tree-descriptions",
+        "descriptions",
+    ];
+    let pin = "a".repeat(64);
+    let parse = |extra: Vec<&str>, with_refresh: bool| {
+        parse_args(
+            flags
+                .into_iter()
+                .chain(refresh.into_iter().filter(|_| with_refresh))
+                .chain(extra)
+                .map(String::from),
+        )
+    };
+    let old = parse(vec![], true).unwrap();
+    assert!(old.tree_refresh.unwrap().context_baseline.is_none());
+    assert!(parse(vec![], false).unwrap().tree_refresh.is_none());
+    let pair = vec![
+        "--tree-context-baseline",
+        "old-table.json",
+        "--tree-context-baseline-sha256",
+        &pin,
+    ];
+    let args = parse(pair.clone(), true).unwrap();
+    let baseline = args.tree_refresh.unwrap().context_baseline.unwrap();
+    assert_eq!(baseline.path, PathBuf::from("old-table.json"));
+    assert_eq!(baseline.sha256, pin);
+    assert!(parse(pair.clone(), false).is_err());
+    for extra in [
+        vec!["--tree-context-baseline", "old-table.json"],
+        vec!["--tree-context-baseline-sha256", &pin],
+        vec!["--tree-context-baseline"],
+        vec!["--tree-context-baseline", "--tree-context-baseline-sha256"],
+        vec!["--tree-context-baseline-sha256"],
+        vec!["--tree-context-baseline-unknown", "old-table.json"],
+        vec![
+            "--tree-context-baseline",
+            "",
+            "--tree-context-baseline-sha256",
+            &pin,
+        ],
+    ] {
+        assert!(parse(extra, true).is_err());
+    }
+    for flag in ["--tree-context-baseline", "--tree-context-baseline-sha256"] {
+        let mut duplicate = pair.clone();
+        duplicate.extend([flag, &pin]);
+        assert!(parse(duplicate, true).is_err());
+    }
+    for digest in [
+        "a".repeat(63),
+        "a".repeat(65),
+        "A".repeat(64),
+        "g".repeat(64),
+        String::new(),
+    ] {
+        assert!(
+            parse(
+                vec![
+                    "--tree-context-baseline",
+                    "old-table.json",
+                    "--tree-context-baseline-sha256",
+                    &digest
+                ],
+                true
+            )
+            .is_err()
+        );
+    }
+    for domain in ["base-items", "skills", "stats-mods"] {
+        assert!(
+            parse_args(flags.into_iter().chain(pair.clone()).map(|value| {
+                if value == "passive-tree" {
+                    domain
+                } else {
+                    value
+                }
+                .to_owned()
+            }))
+            .is_err()
+        );
+    }
+    let mut forward = pair;
+    forward.extend(["--mode", "forward"]);
+    assert_eq!(
+        parse(forward, true).unwrap().mode,
+        super::AdapterMode::Forward
+    );
+}
+
+#[test]
 fn explicit_mode_requires_pin_and_keeps_legacy_raw_dispatch() {
     let flags = [
         "--ordinary-facts",
