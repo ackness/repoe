@@ -35,7 +35,7 @@ from urllib.parse import parse_qs, urlsplit
 import zipfile
 
 from RePoE.client import export_receipt, source_rebinding
-from RePoE.release import assets, crafting_catalog, gem_descriptions, historical_trees
+from RePoE.release import assets, content_diff, crafting_catalog, gem_descriptions, historical_trees
 from RePoE.release.pins import archive_manifest, byte_pin, decode, encoded, pin, pinned, relative, require
 
 ROOT = Path(__file__).resolve().parents[2]
@@ -83,6 +83,7 @@ COVERAGE_ACTIONS = export_receipt.COVERAGE_ACTIONS
 BUILD_ERRORS = (ValueError, KeyError, TypeError, OSError, zipfile.BadZipFile)
 CODE = (
     "RePoE/release/build.py",
+    "RePoE/release/content_diff.py",
     "RePoE/release/assets.py",
     "RePoE/client/export_receipt.py",
     "RePoE/client/source_rebinding.py",
@@ -324,7 +325,9 @@ class Package:
     @property
     def game_patch(self):
         """The package's declared patch, independent of its asset name or the build target."""
-        patch = decode(self.read("manifest.json")).get("target", {}).get("game_patch")
+        manifest = decode(self.read("manifest.json"))
+        target = manifest.get("target") if isinstance(manifest, dict) else None
+        patch = target.get("game_patch") if isinstance(target, dict) else None
         require(isinstance(patch, str) and patch, f"{self.name}: manifest.json has no target.game_patch")
         require(len(relative(patch).parts) == 1, f"{self.name}: invalid target.game_patch {patch!r}")
         return patch
@@ -996,12 +999,33 @@ def export_commits(packages):
     return commits
 
 
-def classify(members, reference, passthrough=()):
+def classify(members, reference, target, passthrough=()):
     """Class of every member: provenance (generated/passthrough/frozen) and comparison with the reference."""
+    reference_patch = reference.game_patch
+    source_prefix = f"data/{reference_patch}/"
+    target_prefix = f"data/{target['game_patch']}/"
+    manifest = decode(reference.read("manifest.json"))
+    snapshot = source_prefix + "manifest.json"
+    if snapshot in manifest["files"]:
+        document = decode(reference.read(snapshot))
+        require(
+            isinstance(document, dict) and document.get("poe_version") == reference_patch,
+            f"{reference.name}: conflicting reference snapshot poe_version and target.game_patch",
+        )
+    paths = {}
+    for original in manifest["files"]:
+        member = target_prefix + original[len(source_prefix) :] if original.startswith(source_prefix) else original
+        require(
+            not original.startswith("data/") or original.startswith((source_prefix, "data/overlay-common/")),
+            f"{reference.name}: ambiguous reference patch prefix: {original}",
+        )
+        require(member not in paths, f"{reference.name}: reference prefix mapping collision: {member}")
+        paths[member] = original
+    reference_pins = {member: manifest["files"][original] for member, original in paths.items()}
     result, counts = {}, {}
     for member, (raw, origin) in sorted(members.items()):
         value = pin(raw)
-        expected = reference.get(member)
+        expected = reference_pins.get(member)
         provenance = "passthrough" if member in passthrough else "generated"
         if origin == "frozen":
             kind = "frozen"
@@ -1014,10 +1038,18 @@ def classify(members, reference, passthrough=()):
             entry["reference"] = expected
         result[member] = entry
         counts[kind] = counts.get(kind, 0) + 1
-    for member in sorted(set(reference) - set(members) - {"manifest.json"}):
-        result[member] = {"class": "missing", "reference": reference[member]}
+    for member in sorted(set(reference_pins) - set(members) - {"manifest.json"}):
+        result[member] = {"class": "missing", "reference": reference_pins[member]}
         counts["missing"] = counts.get("missing", 0) + 1
-    return result, counts
+    return (
+        result,
+        counts,
+        {
+            "paths": paths,
+            "reference_patch": reference_patch,
+            "prefix_mapped": reference_patch != target["game_patch"],
+        },
+    )
 
 
 def provenance_counts(counts):
@@ -1105,7 +1137,14 @@ def build(
 
     reference = packages[lock["reference"]]
     reference_manifest = decode(reference.read("manifest.json"))
-    classes, counts = classify(ctx.members, reference_manifest["files"], passthrough)
+    classes, counts, comparison = classify(ctx.members, reference, target, passthrough)
+    content = content_diff.compare(
+        {name: raw for name, (raw, _) in ctx.members.items()},
+        {name: reference.read(original) for name, original in comparison["paths"].items()},
+        classes,
+        prefix,
+        comparison["paths"],
+    )
     files = {member: pin(raw) for member, (raw, _) in sorted(ctx.members.items())}
     producer = producer_identity(repo, adapter, config, config_pins)
     mode = manifest_mode or domains["manifest"]["mode"]
@@ -1134,11 +1173,17 @@ def build(
         "members": classes,
         "summary": counts,
         "provenance": provenance_counts(counts),
-        "reference": {"package": lock["reference"], "members_identical": identical},
+        "reference": {
+            "package": lock["reference"],
+            "members_identical": identical,
+            **{key: comparison[key] for key in ("reference_patch", "prefix_mapped")},
+        },
     }
     if ctx.adapter_mode == "forward":
         receipt["coverage"] = build_coverage(ctx)
         if any(job["status"] == "failed" for job in jobs.values()):
+            diagnostic = content_diff.attach(receipt, content)
+            log(diagnostic or content_diff.summary(content))
             (out / "receipt.json").write_bytes(encoded(receipt))
             raise ValueError(coverage_report(receipt))
     # The zip depends only on the members and the declaration (never on the
@@ -1155,6 +1200,9 @@ def build(
     package_pin = file_pin(zip_path)
     manifest_pin = {"class": manifest_class, **pin(manifest_raw)}
     receipt["package"] = {"path": zip_path.name, **package_pin, "manifest": manifest_pin}
+    diagnostic = content_diff.attach(receipt, content)
+    if diagnostic:
+        log(diagnostic)
     receipt_raw = encoded(receipt)
     receipt_pin = {"path": "receipt.json", **pin(receipt_raw)}
     (out / "receipt.json").write_bytes(receipt_raw)
@@ -1202,6 +1250,17 @@ def report(receipt, outcome):
         lines.append(f"matches the declared expect pin: {package['matches_expect']}")
     if "coverage" in receipt:
         lines.append(coverage_report(receipt))
+    if "content_diff" in receipt:
+        content = receipt["content_diff"]
+        lines.append(content_diff.summary(content))
+        for member in content["members"]:
+            counts = member["counts"]
+            lines.append(
+                f"  {member['member']}: {member['status']} ({member['raw_class']}); "
+                f"payload fields={counts['payload_fields']}, metadata fields={counts['metadata_fields']}, "
+                f"retargets={counts['retargeted_references']}, unresolved references={counts['unresolved_references']}"
+            )
+        lines.append(f"content diff details: receipt.json.content_diff ({content['detail']})")
     return "\n".join(lines)
 
 

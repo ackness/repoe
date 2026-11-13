@@ -1,5 +1,9 @@
 # Forward release builds
 
+The [content comparison report](content-diff.md) owns cross-patch byte
+classification, identity exclusions, stable entity/reference comparison and
+bounded receipt evidence. It is available in strict and forward builds.
+
 ## Forward mode
 
 To collect content gaps across a new patch, add `"adapter_mode": "forward"`
