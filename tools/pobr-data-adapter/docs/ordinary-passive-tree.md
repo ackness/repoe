@@ -55,6 +55,59 @@ eligibility decision. New normal members with supported context and an explicit
 geometry binding can be emitted; removed members disappear. These are policy
 observations, not compiled node IDs or a fixed output count.
 
+### Forward mode
+
+`--mode forward` reports the following membership, geometry and class decisions
+through [ordinary coverage](ordinary-coverage.md). Strict mode keeps its original
+first error and output bytes; informational notes do not change strict receipts.
+Text, opaque context and replacement-variant checks retain their existing guards.
+
+| Decision site | Kind | Action | Entity |
+| --- | --- | --- | --- |
+| Excluded node definition changed | `excluded-definition` | `emitted-with-gap`; re-evaluate the node normally | Target passive ID |
+| Unchanged node exclusion on a policy-excluded ascendancy emitted in this run | `stale-exclusion` | `emitted-with-gap`; keep the node excluded pending review | Target passive ID |
+| Prepared identity collision | `identity-collision` | `quarantined` | Target passive ID |
+| Stale prepared identity alias | `stale-alias` | `quarantined` | Target passive ID |
+| Empty or `[DNT` node name | `unclassified-name` | `quarantined` | Target passive ID |
+| Missing reference node, or new unflagged node without reference coordinates | `reference-missing` | `quarantined` | Target passive ID |
+| Reference orbit or slot differs from target | `reference-slot-changed` | `quarantined` | Target passive ID |
+| Prepared group, orbit or slot differs from reference | `placement-rebase` | `emitted-with-gap`; use reference placement | `passive-tree` |
+| Emitted ascendancy has no prepared member | `ascendancy-frame` | `emitted-with-gap`; use the reference frame | Ascendancy ID |
+| New target anointment-only node has a reference without `isBlighted` | `anointment-geometry` | `emitted-with-gap`; keep coordinate absence | Target passive ID |
+| Ascendancy eligibility exclusion changed | `ascendancy-exclusion-changed` | `emitted-with-gap` if real; `quarantined` if still disabled, empty or `[DNT` | Ascendancy ID |
+| Ascendancy exclusion has no target row | `unused-ascendancy-exclusion` | `listed` | Policy ascendancy ID |
+| Unlock prerequisite node or visibility ascendancy was quarantined | `dependant-quarantined` | `quarantined`, repeated through node dependants to a fixed point | Target passive ID |
+| Numeric target/reference node membership differs | `reference-membership` | `listed` | `passive-tree` |
+| Target class name is absent from prepared metadata | `new-class` | `emitted-with-gap`; append target base attributes without prepared ascendancies | Class name |
+
+Quarantine removes the node and incoming edges; each dropped dependant has its
+own issue. A changed ascendancy exclusion that remains a placeholder also omits
+its nodes and replacement relationships, including dependants with a prepared
+v2 unlock owner. Dangling references and duplicate
+replacement owners still fail. A node with an open issue carries no
+`native_stats` packet.
+
+Placement rebases produce one aggregate issue after projection, bound to the
+reference hash, prepared source hash and sorted moved-skill list hash/count.
+Coordinates use the reference plus the target group-centre translation. For an
+existing ascendancy, reference placement also receives the prepared start-node
+coordinate minus the reference start-node coordinate. Existing coordinate
+absence survives. A new ascendancy has no prepared offset and keeps the reference
+frame, with one issue binding its start node and emitted member list.
+
+For new nodes, forward mode validates the target `IsAnointmentOnly` bool column.
+A flagged node absent from the reference stays coordinate-less without a
+geometry issue; the listed membership summary still records its absence.
+A reference marked `isBlighted` agrees with that absence. Existing nodes retain
+their coordinate presence or absence. The membership summary ignores `root` and
+other nonnumeric reference keys and is silent when the numeric sets agree.
+
+New classes append after existing classes, using target attributes. A prepared
+metadata class absent from target `Characters` remains fatal in both modes.
+Numeric compatibility tags of the form `^[0-9]+_[0-9]+$` are accepted in both
+modes; malformed tags, column contracts, pins and other integrity errors remain
+fatal.
+
 ## Supplemental ascendancy source
 
 The current materialized v4 policy includes the v2 ownership rules. Add

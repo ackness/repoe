@@ -78,8 +78,12 @@ pub(super) fn convert(input: &VerifiedFacts, args: &super::CodecArgs) -> Result<
     prepared::validate(&nodes, &meta)?;
     let facts = source::Facts::read(input, &policy)?;
     let connections = prepared::connections(&nodes, &legacy.document, &policy, &facts)?;
-    let (metadata, class_records) =
-        prepared::metadata(&policy.legacy_metadata.value, &meta, &facts)?;
+    let (metadata, class_records) = prepared::metadata(
+        &policy.legacy_metadata.value,
+        &meta,
+        &facts,
+        &mut super::coverage::Coverage::new(super::coverage::AdapterMode::Strict, "passive-tree"),
+    )?;
     let aliases: BTreeMap<_, _> = policy
         .legacy_id_bindings
         .iter()

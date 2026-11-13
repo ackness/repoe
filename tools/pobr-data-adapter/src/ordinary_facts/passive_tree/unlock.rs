@@ -1,7 +1,7 @@
 //! Physical prerequisite identities in the existing all-prerequisites DTO.
 
 use super::{ascendancy, source::Facts};
-use crate::facts::reader::VerifiedFacts;
+use crate::facts::reader::{Tables, VerifiedFacts};
 use serde_json::{Map, Value, json};
 
 pub(super) fn validate(input: &VerifiedFacts) -> Result<(), String> {
@@ -14,12 +14,13 @@ pub(super) fn validate(input: &VerifiedFacts) -> Result<(), String> {
     Ok(())
 }
 
-pub(super) fn project(
-    facts: &Facts<'_>,
-    ascendancy: &ascendancy::Source,
-    row: usize,
-    out: &mut Map<String, Value>,
-) -> Result<Value, String> {
+struct References {
+    nodes: Vec<u32>,
+    records: Vec<Value>,
+    visibility: Option<usize>,
+}
+
+fn physical_references(facts: &Facts<'_>, row: usize) -> Result<References, String> {
     let raw = facts.tables.row("PassiveSkills", row)?;
     let refs = raw["UnlockedBy"]
         .as_array()
@@ -39,17 +40,49 @@ pub(super) fn project(
     let visibility = raw
         .get("VisibleForAscendancy")
         .ok_or("missing VisibleForAscendancy")?;
-    let visible = if visibility.is_null() {
+    let visibility = if visibility.is_null() {
         None
     } else {
-        let target = index(visibility)?;
-        Some(
+        Some(index(visibility)?)
+    };
+    Ok(References {
+        nodes,
+        records,
+        visibility,
+    })
+}
+
+pub(super) fn validate_physical(
+    facts: &Facts<'_>,
+    ascendancies: &Tables<'_>,
+    row: usize,
+) -> Result<(), String> {
+    let references = physical_references(facts, row)?;
+    if let Some(owner) = references.visibility {
+        ascendancies.row("Ascendancy", owner)?;
+    }
+    Ok(())
+}
+
+pub(super) fn project(
+    facts: &Facts<'_>,
+    ascendancy: &ascendancy::Source,
+    row: usize,
+    out: &mut Map<String, Value>,
+) -> Result<Value, String> {
+    let References {
+        nodes,
+        records,
+        visibility,
+    } = physical_references(facts, row)?;
+    let visible = visibility
+        .map(|target| {
             ascendancy
                 .entries
                 .get(&target)
-                .ok_or("unlock targets unavailable ascendancy")?,
-        )
-    };
+                .ok_or("unlock targets unavailable ascendancy")
+        })
+        .transpose()?;
     // Preserve extensions in the prepared object; only the two proven fields are owned.
     let mut constraint = match out.get("unlock_constraint") {
         None | Some(Value::Null) => Map::new(),

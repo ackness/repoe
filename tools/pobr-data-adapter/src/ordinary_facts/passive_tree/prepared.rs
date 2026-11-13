@@ -2,6 +2,7 @@
 
 use super::source::{Facts, integer};
 use crate::facts::reader;
+use crate::ordinary_facts::coverage::{Action, Coverage, Issue};
 use crate::raw_source::sha256_hex;
 use pobr_data::catalog::{PassiveNodeDef, PassiveTreeMeta};
 use serde_json::{Value, json};
@@ -87,19 +88,42 @@ pub(super) fn metadata(
     raw: &Value,
     meta: &PassiveTreeMeta,
     facts: &Facts<'_>,
+    coverage: &mut Coverage,
 ) -> Result<(Value, Vec<Value>), String> {
     let provided: BTreeSet<_> = meta.classes.iter().map(|c| c.name.as_str()).collect();
     let expected: BTreeSet<_> = facts.characters.keys().map(String::as_str).collect();
-    if provided != expected {
+    if !provided.is_subset(&expected) {
         return Err("prepared metadata does not completely cover exact target class names".into());
+    }
+    let added: Vec<_> = expected.difference(&provided).copied().collect();
+    for name in &added {
+        let source = facts.tables.row("Characters", facts.characters[*name])?;
+        coverage.decide(
+            Issue::new(
+                "new-class",
+                *name,
+                Action::EmittedWithGap,
+                "prepared metadata does not completely cover exact target class names",
+            )
+            .observed(
+                "definition_sha256",
+                sha256_hex(&reader::json_bytes(source)?),
+            )
+            .observed("character", source.clone()),
+        )?;
     }
     let mut out = raw.clone();
     let mut records = Vec::new();
     let classes = out["classes"]
         .as_array_mut()
         .ok_or("metadata classes must be an array")?;
-    for (position, (class, output)) in meta.classes.iter().zip(classes).enumerate() {
-        let row = facts.characters[&class.name];
+    classes.extend(added.into_iter().map(|name| json!({"name":name})));
+    for (position, output) in classes.iter_mut().enumerate() {
+        let name = output["name"]
+            .as_str()
+            .ok_or("invalid prepared class name")?
+            .to_owned();
+        let row = facts.characters[&name];
         let source = facts.tables.row("Characters", row)?;
         let mut attrs = Vec::new();
         for (field, target) in [
@@ -112,11 +136,15 @@ pub(super) fn metadata(
             attrs.push(json!({"column":field,"field":target,"raw":value,"output":value,
                 "source_pointer":format!("/rows/{row}/values/{field}"),"legacy":raw["classes"][position][target]}));
         }
-        let retained:Vec<_>=raw["classes"][position].as_object().ok_or("invalid prepared class")?.iter()
+        let retained: Vec<_> = if position < meta.classes.len() {
+            raw["classes"][position].as_object().ok_or("invalid prepared class")?.iter()
             .filter(|(field,_)|!["base_str","base_dex","base_int"].contains(&field.as_str()))
             .map(|(field,value)|Ok(json!({"field":field,"policy_pointer":format!("/legacy_metadata/value/classes/{position}/{}",token(field)),"value_sha256":sha256_hex(&reader::json_bytes(value)?)})))
-            .collect::<Result<_,String>>()?;
-        records.push(json!({"policy_class_position":position,"name":class.name,"source_row":row,"character_id":source["Id"],
+            .collect::<Result<_,String>>()?
+        } else {
+            Vec::new()
+        };
+        records.push(json!({"policy_class_position":if position<meta.classes.len(){Some(position)}else{None},"name":name,"source_row":row,"character_id":source["Id"],
             "attributes":attrs,"retained_fields":retained,"output_class_sha256":sha256_hex(&reader::json_bytes(output)?)}));
     }
     let _: PassiveTreeMeta = serde_json::from_value(out.clone()).map_err(|e| e.to_string())?;

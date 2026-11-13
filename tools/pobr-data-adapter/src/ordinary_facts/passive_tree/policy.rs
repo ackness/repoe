@@ -122,7 +122,7 @@ impl Policy {
             || self.catalog.domain != "passive-tree"
             || self.catalog.tree_file != "passive_tree.json"
             || self.catalog.meta_file != "passive_tree_meta.json"
-            || self.catalog.tree_compatibility_tag != "0_5"
+            || !tree_tag(&self.catalog.tree_compatibility_tag)
             || self.legacy_metadata.value["tree"] != "Default"
         {
             return Err("unsupported passive-tree policy schema/catalog/tree tag".into());
@@ -218,6 +218,15 @@ impl Policy {
         }
         Ok(())
     }
+}
+/// A PoB2 tree compatibility label (`0_5`, `^[0-9]+_[0-9]+$`). It is never derived
+/// from the game patch: a new patch keeps the old label until PoB2 publishes its own.
+fn tree_tag(tag: &str) -> bool {
+    tag.split_once('_').is_some_and(|(major, minor)| {
+        [major, minor]
+            .iter()
+            .all(|part| !part.is_empty() && part.bytes().all(|b| b.is_ascii_digit()))
+    })
 }
 fn path(version: &str, path: &str, file: &str) -> Result<(), String> {
     if version.is_empty()

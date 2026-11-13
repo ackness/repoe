@@ -737,6 +737,26 @@ fn physical_rows_metadata_exact_values_fk_and_complete_slots_are_strict() {
 }
 
 #[test]
+fn tree_compatibility_tag_accepts_numeric_components_only() {
+    for tag in ["1_0", "0_", "a_5", "05", "_5"] {
+        let f = fixture();
+        let mut policy = doc(&f, POLICY);
+        policy["catalog"]["tree_compatibility_tag"] = json!(tag);
+        write(&f, POLICY, &policy);
+        if tag == "1_0" {
+            run(args(&f)).unwrap();
+            assert_eq!(output(&f)[0]["native_stats"]["tree_version"], tag);
+        } else {
+            assert_eq!(
+                run(args(&f)).unwrap_err(),
+                "unsupported passive-tree policy schema/catalog/tree tag"
+            );
+            assert!(!f.root.join("out").exists());
+        }
+    }
+}
+
+#[test]
 fn policy_context_source_pins_and_embedded_metadata_guards_precede_reserve() {
     for (pointer, value) in [
         ("/schema", json!("future")),
