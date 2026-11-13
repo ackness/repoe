@@ -202,7 +202,7 @@ fn forward_project(
     (tree, meta, receipt)
 }
 
-fn anointment_column(f: &mut Fixture, p: &mut Value, flagged: &[usize]) {
+pub(super) fn anointment_column(f: &mut Fixture, p: &mut Value, flagged: &[usize]) {
     let stats = f.documents["tables/Stats.json"]["rows"].clone();
     let passive = f.documents.get_mut("tables/PassiveSkills.json").unwrap();
     let n = passive["columns"].as_array().unwrap().len();
@@ -859,6 +859,543 @@ fn changed_unrenderable_values_or_context_cannot_reuse_old_numbers() {
             .contains("context change")
     );
 }
+
+#[test]
+fn forward_missing_and_stale_text_bindings_keep_prepared_text_with_exact_hashes() {
+    let (mut f, mut p, old, r) = fixture();
+    p["compatibility_bindings"]
+        .as_object_mut()
+        .unwrap()
+        .remove("Unknown");
+    f.values("PassiveSkills", 2)["Stats"] = json!([1]);
+    assert_eq!(
+        project(&mut f, &p, &old, &r).unwrap_err(),
+        "Unknown: no whole-text compatibility binding"
+    );
+    let (tree, _, receipt) = forward_project(&mut f, &p, &old, &r);
+    let issues = receipt["coverage"]["issues"].as_array().unwrap();
+    assert_eq!(issues.len(), 2);
+    for (issue, row, kind) in [
+        (&issues[0], 1, "text-binding-missing"),
+        (&issues[1], 2, "text-binding-stale"),
+    ] {
+        assert_eq!(issue["kind"], kind);
+        assert_eq!(issue["entity"], f.values("PassiveSkills", row)["Id"]);
+        assert_eq!(issue["action"], "emitted-with-gap");
+        assert_eq!(
+            issue["observed"]["context_sha256"],
+            hash(&refresh::context(f.values("PassiveSkills", row)).unwrap())
+        );
+        assert_eq!(
+            issue["observed"]["stats_sha256"],
+            hash(&json!([["unknown_stat", -7]]))
+        );
+        assert_eq!(tree[row]["stats"], old[row]["stats"]);
+        assert!(tree[row].get("native_stats").is_none());
+    }
+    p["compatibility_bindings"]["Unknown"] = json!({
+        "context_sha256":hash(&refresh::context(f.values("PassiveSkills", 1)).unwrap()),
+        "stats_sha256":hash(&json!([["unknown_stat", -7]]))
+    });
+    assert_eq!(
+        project(&mut f, &p, &old, &r).unwrap_err(),
+        "Multi: target semantics changed; stale whole-text compatibility rejected"
+    );
+}
+
+#[test]
+fn forward_new_unrenderable_text_has_one_issue_and_never_emits_reference_lines() {
+    for binding in ["missing", "stale", "exact"] {
+        for candidates in [true, false] {
+            let (mut f, mut p, mut old, mut r) = fixture();
+            anointment_column(&mut f, &mut p, &[]);
+            old.as_array_mut().unwrap().remove(1);
+            if candidates {
+                r["nodes"]["202"]["stats"] = json!([" Candidate one\r\n\n Candidate two ", ""]);
+            }
+            match binding {
+                "missing" => {
+                    p["compatibility_bindings"]
+                        .as_object_mut()
+                        .unwrap()
+                        .remove("Unknown");
+                }
+                "stale" => {
+                    p["compatibility_bindings"]["Unknown"]["stats_sha256"] = json!("0".repeat(64));
+                }
+                _ => {}
+            }
+            let strict = project(&mut f, &p, &old, &r).unwrap_err();
+            match binding {
+                "missing" => assert_eq!(strict, "Unknown: no whole-text compatibility binding"),
+                "stale" => assert_eq!(
+                    strict,
+                    "Unknown: target semantics changed; stale whole-text compatibility rejected"
+                ),
+                _ => assert!(
+                    strict.starts_with("Unknown: ")
+                        && strict.ends_with("; no complete compatibility text")
+                ),
+            }
+            let (tree, _, receipt) = forward_project(&mut f, &p, &old, &r);
+            assert_eq!(tree[1]["id"], "Unknown");
+            assert_eq!(tree[1]["stats"], json!([]));
+            assert!(tree[1].get("native_stats").is_none());
+            let issues = receipt["coverage"]["issues"].as_array().unwrap();
+            assert_eq!(issues.len(), 1);
+            assert_eq!(issues[0]["kind"], "text-unrenderable-new");
+            assert_eq!(issues[0]["entity"], "Unknown");
+            assert_eq!(issues[0]["action"], "emitted-with-gap");
+            assert_eq!(issues[0]["message"], strict);
+            assert_eq!(
+                issues[0]["observed"]["context_sha256"],
+                hash(&refresh::context(f.values("PassiveSkills", 1)).unwrap())
+            );
+            assert_eq!(
+                issues[0]["observed"]["stats_sha256"],
+                hash(&json!([["unknown_stat", -7]]))
+            );
+            if candidates {
+                assert_eq!(
+                    issues[0]["observed"]["candidate_lines"],
+                    json!(["Candidate one", "Candidate two"])
+                );
+            } else {
+                assert!(issues[0]["observed"].get("candidate_lines").is_none());
+            }
+        }
+    }
+}
+
+#[test]
+fn forward_render_context_change_keeps_target_text_without_a_native_packet() {
+    let (mut f, mut p, old, r) = fixture();
+    let bound = p["compatibility_bindings"]["maximum_resistances1"]["context_sha256"].clone();
+    f.values("PassiveSkills", 0)["Opaque"] = json!(99);
+    f.values("PassiveSkills", 0)["Stat1Value"] = json!(31);
+    p["base_policy"]["qualification"]["context_sha256"] = json!(hash(
+        &super::source::context(f.values("PassiveSkills", 0)).unwrap()
+    ));
+    assert_eq!(
+        project(&mut f, &p, &old, &r).unwrap_err(),
+        "maximum_resistances1: unsupported source context change or new conditional identity"
+    );
+    let (tree, _, receipt) = forward_project(&mut f, &p, &old, &r);
+    assert_eq!(tree[0]["stats"], json!(["+31% to Fire Resistance"]));
+    assert!(tree[0].get("native_stats").is_none());
+    assert_eq!(receipt["native_packets"], 0);
+    let issues = receipt["coverage"]["issues"].as_array().unwrap();
+    assert_eq!(issues.len(), 1);
+    assert_eq!(issues[0]["kind"], "render-context-changed");
+    assert_eq!(issues[0]["entity"], "maximum_resistances1");
+    assert_eq!(
+        issues[0]["observed"],
+        json!({
+            "render_context_sha256":hash(&refresh::context(f.values("PassiveSkills", 0)).unwrap()),
+            "bound_render_context_sha256":bound
+        })
+    );
+    // The original context error still wins over a later scalar error in strict.
+    f.values("PassiveSkills", 1)["Stat1Value"] = json!("malformed");
+    assert_eq!(
+        project(&mut f, &p, &old, &r).unwrap_err(),
+        "maximum_resistances1: unsupported source context change or new conditional identity"
+    );
+    let mut coverage = Coverage::new(AdapterMode::Forward, "passive-tree");
+    assert_eq!(
+        project_with_coverage(&mut f, &p, &old, &r, &mut coverage).unwrap_err(),
+        "Stat1Value: exact i32 required"
+    );
+}
+
+#[test]
+fn forward_preserves_reference_qualification_and_consumed_column_contracts() {
+    for defect in ["qualification", "type", "array", "reference"] {
+        let (mut f, mut p, old, r) = fixture();
+        match defect {
+            "qualification" => {
+                p["base_policy"]["qualification"]["context_sha256"] = json!("0".repeat(64));
+            }
+            "type" => {
+                f.documents.get_mut("tables/PassiveSkills.json").unwrap()["columns"][5]["schema"]
+                    ["type"] = json!("u32");
+            }
+            "array" => {
+                f.documents.get_mut("tables/PassiveSkills.json").unwrap()["columns"][4]["schema"]
+                    ["array"] = json!(false);
+            }
+            _ => {
+                f.documents.get_mut("tables/PassiveSkills.json").unwrap()["columns"][4]["schema"]
+                    ["references"]["table"] = json!("Characters");
+            }
+        }
+        let strict = project(&mut f, &p, &old, &r).unwrap_err();
+        if defect == "qualification" {
+            assert_eq!(strict, "reference context SHA256 mismatch");
+        }
+        let mut coverage = Coverage::new(AdapterMode::Forward, "passive-tree");
+        assert_eq!(
+            project_with_coverage(&mut f, &p, &old, &r, &mut coverage).unwrap_err(),
+            strict,
+            "{defect}"
+        );
+        let mut receipt = json!({});
+        coverage.finish(&mut receipt).unwrap();
+        assert_eq!(receipt["coverage"]["issues"], json!([]));
+    }
+}
+
+#[test]
+fn forward_render_and_variant_context_gaps_are_both_listed_and_variants_are_omitted() {
+    for context in ["missing", "changed"] {
+        let (mut f, mut p, mut old, r) = fixture();
+        f.values("ClassPassiveSkillOverrides", 0)["SkillToOverride"] = json!(0);
+        p["class_bindings"] = json!([{"base_id":"maximum_resistances1","class":"Witch"}]);
+        old[0]["variants"] =
+            json!([{"class":"Witch","variant_skill":606,"stats":["old complete variant"]}]);
+        let bound = p["compatibility_bindings"]["OverrideTarget"]["context_sha256"].clone();
+        if context == "missing" {
+            p["compatibility_bindings"]
+                .as_object_mut()
+                .unwrap()
+                .remove("OverrideTarget");
+        } else {
+            f.values("PassiveSkills", 5)["Opaque"] = json!(88);
+        }
+        let expected = if context == "missing" {
+            "OverrideTarget: missing variant context binding"
+        } else {
+            "OverrideTarget: changed variant context"
+        };
+        assert_eq!(project(&mut f, &p, &old, &r).unwrap_err(), expected);
+        f.values("PassiveSkills", 0)["Opaque"] = json!(99);
+        p["base_policy"]["qualification"]["context_sha256"] = json!(hash(
+            &super::source::context(f.values("PassiveSkills", 0)).unwrap()
+        ));
+        assert_eq!(
+            project(&mut f, &p, &old, &r).unwrap_err(),
+            "maximum_resistances1: unsupported source context change or new conditional identity"
+        );
+        let (tree, _, receipt) = forward_project(&mut f, &p, &old, &r);
+        assert_eq!(tree[0]["stats"], json!(["-7% to Fire Resistance"]));
+        assert!(tree[0].get("variants").is_none());
+        assert!(tree[0].get("native_stats").is_none());
+        let issues = receipt["coverage"]["issues"].as_array().unwrap();
+        assert_eq!(issues.len(), 2);
+        assert_eq!(issues[0]["kind"], "render-context-changed");
+        assert_eq!(issues[1]["kind"], format!("variant-context-{context}"));
+        assert_eq!(issues[1]["entity"], "maximum_resistances1/Witch");
+        assert_eq!(issues[1]["action"], "emitted-with-gap");
+        assert_eq!(issues[1]["observed"]["target_passive_id"], "OverrideTarget");
+        assert_eq!(issues[1]["observed"]["target_skill"], 606);
+        assert_eq!(
+            issues[1]["observed"]["render_context_sha256"],
+            hash(&refresh::context(f.values("PassiveSkills", 5)).unwrap())
+        );
+        if context == "changed" {
+            assert_eq!(issues[1]["observed"]["bound_render_context_sha256"], bound);
+        }
+    }
+}
+
+#[test]
+fn omitted_class_variants_still_validate_scalars_fks_and_duplicate_selectors() {
+    for defect in ["stat", "slot", "name", "flag", "duplicate"] {
+        let (mut f, mut p, old, r) = fixture();
+        f.values("ClassPassiveSkillOverrides", 0)["SkillToOverride"] = json!(0);
+        p["compatibility_bindings"]
+            .as_object_mut()
+            .unwrap()
+            .remove("OverrideTarget");
+        match defect {
+            "stat" => f.values("PassiveSkills", 5)["Stats"] = json!([999]),
+            "slot" => f.values("PassiveSkills", 5)["Stat2Value"] = json!("invalid"),
+            "name" => f.values("PassiveSkills", 5)["Name"] = json!(null),
+            "flag" => f.values("PassiveSkills", 5)["IsKeystone"] = json!(0),
+            _ => {
+                let d = f
+                    .documents
+                    .get_mut("tables/ClassPassiveSkillOverrides.json")
+                    .unwrap();
+                let mut row = d["rows"][0].clone();
+                row["_row"] = json!(1);
+                d["rows"].as_array_mut().unwrap().push(row);
+                d["validation"]["rows"] = json!(2);
+            }
+        }
+        assert_eq!(
+            project(&mut f, &p, &old, &r).unwrap_err(),
+            "OverrideTarget: missing variant context binding"
+        );
+        let mut coverage = Coverage::new(AdapterMode::Forward, "passive-tree");
+        let error = project_with_coverage(&mut f, &p, &old, &r, &mut coverage).unwrap_err();
+        let expected = match defect {
+            "stat" => "unresolved physical row Stats/999",
+            "slot" => "Stat2Value: exact i32 required",
+            "name" => "PassiveSkills/5.Name: string required",
+            "flag" => "IsKeystone: bool required",
+            _ => "maximum_resistances1: repeated replacement selector Witch",
+        };
+        assert_eq!(error, expected, "{defect}");
+    }
+}
+
+#[test]
+fn forward_retained_variant_guards_omit_only_the_unbound_variant() {
+    for defect in ["missing", "stale", "alias", "physical"] {
+        let (mut f, mut p, mut old, r) = fixture();
+        old[0]["variants"] =
+            json!([{"class":"Lich","variant_skill":606,"stats":["old complete variant"]}]);
+        match defect {
+            "missing" => {
+                p["compatibility_bindings"]
+                    .as_object_mut()
+                    .unwrap()
+                    .remove("OverrideTarget");
+            }
+            "stale" => f.values("PassiveSkills", 5)["Stat1Value"] = json!(33),
+            "alias" => {
+                old[0]["variants"][0]
+                    .as_object_mut()
+                    .unwrap()
+                    .remove("variant_skill");
+            }
+            _ => old[0]["variants"][0]["variant_skill"] = json!(65000),
+        }
+        let strict = project(&mut f, &p, &old, &r).unwrap_err();
+        let expected = match defect {
+            "missing" => "OverrideTarget: no whole-text compatibility binding",
+            "stale" => {
+                "OverrideTarget: target semantics changed; stale whole-text compatibility rejected"
+            }
+            "alias" => {
+                "maximum_resistances1: variant without a stable alias requires explicit binding"
+            }
+            _ => "variant 65000: ambiguous/missing physical identity",
+        };
+        assert_eq!(strict, expected);
+        if defect == "physical" {
+            let mut coverage = Coverage::new(AdapterMode::Forward, "passive-tree");
+            assert_eq!(
+                project_with_coverage(&mut f, &p, &old, &r, &mut coverage).unwrap_err(),
+                strict
+            );
+            continue;
+        }
+        let (tree, _, receipt) = forward_project(&mut f, &p, &old, &r);
+        assert!(tree[0].get("variants").is_none());
+        assert!(tree[0].get("native_stats").is_none());
+        let issues = receipt["coverage"]["issues"].as_array().unwrap();
+        assert_eq!(issues.len(), 1);
+        assert_eq!(issues[0]["entity"], "maximum_resistances1/Lich");
+        assert_eq!(issues[0]["action"], "emitted-with-gap");
+        assert_eq!(issues[0]["message"], strict);
+        assert_eq!(
+            issues[0]["kind"],
+            match defect {
+                "missing" => "variant-context-missing",
+                "stale" => "variant-context-changed",
+                _ => "variant-alias-missing",
+            }
+        );
+        if defect == "alias" {
+            assert_eq!(
+                issues[0]["observed"]["prepared_variant"],
+                old[0]["variants"][0]
+            );
+        }
+    }
+}
+
+#[test]
+fn forward_variant_text_gaps_use_the_replacement_policy_key_and_never_borrow_text() {
+    for same_target in [true, false] {
+        let (mut f, mut p, mut old, r) = fixture();
+        f.values("ClassPassiveSkillOverrides", 0)["SkillToOverride"] = json!(0);
+        f.values("PassiveSkills", 5)["Stats"] = json!([1]);
+        p["class_bindings"] = json!([{"base_id":"maximum_resistances1","class":"Witch"}]);
+        old[0]["variants"] = json!([{
+            "class":"Witch","variant_skill":if same_target {606}else{707},
+            "stats":["prepared variant text"],"extension":7
+        }]);
+        assert_eq!(
+            project(&mut f, &p, &old, &r).unwrap_err(),
+            "OverrideTarget: target semantics changed; stale whole-text compatibility rejected"
+        );
+        let (tree, _, receipt) = forward_project(&mut f, &p, &old, &r);
+        let variant = &tree[0]["variants"][0];
+        assert_eq!(variant["variant_skill"], 606);
+        assert_eq!(variant["extension"], 7);
+        assert_eq!(
+            variant["stats"],
+            if same_target {
+                json!(["prepared variant text"])
+            } else {
+                json!([])
+            }
+        );
+        assert!(tree[0].get("native_stats").is_none());
+        let issues = receipt["coverage"]["issues"].as_array().unwrap();
+        assert_eq!(issues.len(), 1);
+        assert_eq!(issues[0]["entity"], "OverrideTarget");
+        assert_eq!(
+            issues[0]["kind"],
+            if same_target {
+                "text-binding-stale"
+            } else {
+                "text-unrenderable-new"
+            }
+        );
+        assert_eq!(
+            issues[0]["observed"]["stats_sha256"],
+            hash(&json!([["unknown_stat", -7]]))
+        );
+    }
+}
+#[test]
+fn audit_text_and_variant_skips_reject_duplicate_stats() {
+    for (row, retained) in [(2, false), (5, false), (5, true)] {
+        let (mut f, mut p, mut old, r) = fixture();
+        let id = f.values("PassiveSkills", row)["Id"]
+            .as_str()
+            .unwrap()
+            .to_owned();
+        f.values("PassiveSkills", row)["Stats"] = json!([1, 1]);
+        if retained {
+            old[0]["variants"] =
+                json!([{"class":"Lich","variant_skill":606,"stats":["complete retained text"]}]);
+        } else if row == 5 {
+            f.values("ClassPassiveSkillOverrides", 0)["SkillToOverride"] = json!(0);
+        }
+        p["compatibility_bindings"]
+            .as_object_mut()
+            .unwrap()
+            .remove(&id);
+        assert_eq!(
+            project(&mut f, &p, &old, &r).unwrap_err(),
+            if row == 2 {
+                "Multi: no whole-text compatibility binding"
+            } else if retained {
+                "OverrideTarget: no whole-text compatibility binding"
+            } else {
+                "OverrideTarget: missing variant context binding"
+            }
+        );
+        let mut coverage = Coverage::new(AdapterMode::Forward, "passive-tree");
+        assert_eq!(
+            project_with_coverage(&mut f, &p, &old, &r, &mut coverage)
+                .err()
+                .as_deref(),
+            Some("duplicate source stat occurrence"),
+            "{row}"
+        );
+    }
+}
+
+#[test]
+fn audit_text_and_variant_skips_validate_flags_after_the_first_true_flag() {
+    for (row, retained) in [(2, false), (5, false), (5, true)] {
+        let (mut f, mut p, mut old, r) = fixture();
+        let id = f.values("PassiveSkills", row)["Id"]
+            .as_str()
+            .unwrap()
+            .to_owned();
+        f.values("PassiveSkills", row)["IsKeystone"] = json!(true);
+        f.values("PassiveSkills", row)["IsNotable"] = json!("bad later flag");
+        if row == 2 {
+            f.values("PassiveSkills", row)["Stats"] = json!([1]);
+        } else if retained {
+            old[0]["variants"] =
+                json!([{"class":"Lich","variant_skill":606,"stats":["complete retained text"]}]);
+        } else {
+            f.values("ClassPassiveSkillOverrides", 0)["SkillToOverride"] = json!(0);
+        }
+        p["compatibility_bindings"]
+            .as_object_mut()
+            .unwrap()
+            .remove(&id);
+        assert_eq!(
+            project(&mut f, &p, &old, &r).unwrap_err(),
+            if row == 2 {
+                "Multi: no whole-text compatibility binding"
+            } else if retained {
+                "OverrideTarget: no whole-text compatibility binding"
+            } else {
+                "OverrideTarget: missing variant context binding"
+            }
+        );
+        let mut coverage = Coverage::new(AdapterMode::Forward, "passive-tree");
+        assert_eq!(
+            project_with_coverage(&mut f, &p, &old, &r, &mut coverage)
+                .err()
+                .as_deref(),
+            Some("IsNotable: bool required"),
+            "{row}"
+        );
+    }
+}
+
+#[test]
+fn audit_nonzero_text_render_and_variant_receipt_keeps_mergeable_evidence() {
+    let (mut f, mut p, mut old, mut r) = fixture();
+    anointment_column(&mut f, &mut p, &[]);
+    old.as_array_mut().unwrap().remove(2);
+    old[0]["variants"] =
+        json!([{"class":"Lich","stats":["prepared aliasless text"],"extension":9}]);
+    f.values("PassiveSkills", 0)["Opaque"] = json!(99);
+    f.values("PassiveSkills", 0)["Stat1Value"] = json!(31);
+    p["base_policy"]["qualification"]["context_sha256"] = json!(hash(
+        &super::source::context(f.values("PassiveSkills", 0)).unwrap()
+    ));
+    f.values("PassiveSkills", 1)["Opaque"] = json!(88);
+    f.values("PassiveSkills", 2)["Stats"] = json!([1]);
+    f.values("ClassPassiveSkillOverrides", 0)["SkillToOverride"] = json!(0);
+    p["compatibility_bindings"]
+        .as_object_mut()
+        .unwrap()
+        .remove("OverrideTarget");
+    r["nodes"]["202"]["stats"] = json!([" Existing candidate\n Second existing "]);
+    r["nodes"]["303"]["stats"] = json!([" New candidate\n Second new "]);
+    assert_eq!(
+        project(&mut f, &p, &old, &r).unwrap_err(),
+        "maximum_resistances1: unsupported source context change or new conditional identity"
+    );
+    let (tree, _, receipt) = forward_project(&mut f, &p, &old, &r);
+    assert_eq!(tree[0]["stats"], json!(["+31% to Fire Resistance"]));
+    assert_eq!(tree[1]["stats"], old[1]["stats"]);
+    assert_eq!(tree[2]["stats"], json!([]));
+    assert!(tree[0].get("variants").is_none());
+    assert!(
+        tree.as_array()
+            .unwrap()
+            .iter()
+            .all(|node| node.get("native_stats").is_none())
+    );
+    let issues = receipt["coverage"]["issues"].as_array().unwrap();
+    assert_eq!(issues.len(), 6);
+    for issue in issues {
+        let entity = issue["entity"].as_str().unwrap();
+        if issue["kind"].as_str().unwrap().starts_with("text-") {
+            assert!(p["compatibility_bindings"].get(entity).is_some());
+            let render = issues.iter().find(|other| {
+                other["kind"] == "render-context-changed" && other["entity"] == entity
+            });
+            if let Some(render) = render {
+                assert_eq!(
+                    issue["observed"]["render_context_sha256"],
+                    render["observed"]["render_context_sha256"]
+                );
+            }
+        }
+    }
+    let replay = forward_project(&mut f, &p, &old, &r);
+    assert_eq!(replay.0, tree);
+    assert_eq!(replay.2, receipt);
+    // Keep an actual production projection/coverage receipt available to the
+    // offline Python policy-draft integration smoke check via --nocapture.
+    println!("P6_AUDIT_RECEIPT={receipt}");
+}
+
 #[test]
 fn topology_and_geometry_conflicts_are_explicit_errors() {
     let (mut f, p, old, r) = fixture();

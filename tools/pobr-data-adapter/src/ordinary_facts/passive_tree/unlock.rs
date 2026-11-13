@@ -112,7 +112,10 @@ pub(super) fn project(
     )
 }
 
-pub(super) fn validate_variant(raw: &Value) -> Result<(), String> {
+pub(super) fn validate_variant(
+    raw: &Value,
+    decide: &mut impl FnMut(String) -> Result<(), String>,
+) -> Result<bool, String> {
     let nodes = raw["UnlockedBy"]
         .as_array()
         .ok_or("variant UnlockedBy must be an array")?;
@@ -122,11 +125,10 @@ pub(super) fn validate_variant(raw: &Value) -> Result<(), String> {
     // PassiveNodeVariant has no unlock fields. Do not waive conditional context
     // merely because the containing graph node can represent these identities.
     if !nodes.is_empty() || !visibility.is_null() {
-        return Err(
-            "variant unlock context cannot be represented by the ordinary variant DTO".into(),
-        );
+        decide("variant unlock context cannot be represented by the ordinary variant DTO".into())?;
+        return Ok(false);
     }
-    Ok(())
+    Ok(true)
 }
 
 fn index(value: &Value) -> Result<usize, String> {

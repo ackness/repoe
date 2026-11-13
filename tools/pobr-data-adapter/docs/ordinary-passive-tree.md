@@ -57,10 +57,9 @@ observations, not compiled node IDs or a fixed output count.
 
 ### Forward mode
 
-`--mode forward` reports the following membership, geometry and class decisions
+`--mode forward` reports the following membership, geometry, text and class decisions
 through [ordinary coverage](ordinary-coverage.md). Strict mode keeps its original
 first error and output bytes; informational notes do not change strict receipts.
-Text, opaque context and replacement-variant checks retain their existing guards.
 
 | Decision site | Kind | Action | Entity |
 | --- | --- | --- | --- |
@@ -79,6 +78,14 @@ Text, opaque context and replacement-variant checks retain their existing guards
 | Unlock prerequisite node or visibility ascendancy was quarantined | `dependant-quarantined` | `quarantined`, repeated through node dependants to a fixed point | Target passive ID |
 | Numeric target/reference node membership differs | `reference-membership` | `listed` | `passive-tree` |
 | Target class name is absent from prepared metadata | `new-class` | `emitted-with-gap`; append target base attributes without prepared ascendancies | Class name |
+| Unrenderable prepared node has no whole-text binding | `text-binding-missing` | `emitted-with-gap`; keep prepared text | Target passive ID |
+| Unrenderable prepared node has a stale whole-text binding | `text-binding-stale` | `emitted-with-gap`; keep prepared text | Target passive ID |
+| Unrenderable target has no prepared text for its identity | `text-unrenderable-new` | `emitted-with-gap`; emit `stats: []` | Target passive ID |
+| Opaque render context differs from its binding | `render-context-changed` | `emitted-with-gap`; keep node and target text when renderable | Target passive ID |
+| Class or retained variant lacks a context binding | `variant-context-missing` | `emitted-with-gap`; omit variant | `<base passive ID>/<class>` |
+| Class or retained variant has a changed context binding | `variant-context-changed` | `emitted-with-gap`; omit variant | `<base passive ID>/<class>` |
+| Variant has valid unlock identities its DTO cannot represent | `variant-unlock-context` | `emitted-with-gap`; omit variant | `<base passive ID>/<class>` |
+| Prepared variant has no stable target alias | `variant-alias-missing` | `emitted-with-gap`; omit variant | `<base passive ID>/<class>` |
 
 Quarantine removes the node and incoming edges; each dropped dependant has its
 own issue. A changed ascendancy exclusion that remains a placeholder also omits
@@ -86,6 +93,34 @@ its nodes and replacement relationships, including dependants with a prepared
 v2 unlock owner. Dangling references and duplicate
 replacement owners still fail. A node with an open issue carries no
 `native_stats` packet.
+
+Text issue entities use the target `PassiveSkills.Id` that keys
+`compatibility_bindings`, including replacement targets. Their observations
+include the target context, complete stat-list and render-context hashes.
+Render-context issues carry both the target and bound render hashes.
+Variant issues identify the replacement passive ID and graph skill where known.
+Omitting a variant leaves its base node usable with an open issue and no packet.
+
+An unrenderable target without prepared text produces one
+`text-unrenderable-new` issue, even if its whole-text binding is missing or stale.
+The official reference's lines, when available, are split into trimmed nonempty
+lines under `observed.candidate_lines`. They are review evidence only and never
+enter emitted stats automatically. Existing unrenderable nodes can retain their
+prepared text with an explicit gap. A changed replacement cannot borrow the
+previous target's prepared text.
+
+Before a forward text or variant continuation can omit content, consumed scalar,
+stat-slot (including duplicate stats), grant-FK and physical unlock checks remain
+fatal. All classification flags and available grant-template text scalars are
+validated even after an earlier effect cannot render. Variant context
+omission also preserves duplicate replacement-selector rejection and physical
+identity validation. A missing or ambiguous physical target remains fatal;
+it cannot supply an identity for a compatibility binding.
+
+The reference qualification hash and current column contracts remain fatal in
+both modes. PassiveSkills column-change evidence, a table-level issue and
+reviewed context normalization are deferred together to P12a. Existing hashes
+do not reveal the old physical field list or removed values.
 
 Placement rebases produce one aggregate issue after projection, bound to the
 reference hash, prepared source hash and sorted moved-skill list hash/count.
@@ -156,8 +191,9 @@ only `UnlockedBy` and `VisibleForAscendancy` from v2's opaque-context guard;
 `Requirement`, quest conditions and every other unowned field remain guarded.
 `Requirement` references ClientStrings and is never used to create a predicate.
 The receipt retains each physical pointer, target row and resolved identity.
-Replacement variants have no unlock fields in their DTO, so v3 explicitly
-rejects any nonempty prerequisite list or visibility owner on a replacement;
+Replacement variants have no unlock fields in their DTO, so strict v3 explicitly
+rejects any nonempty prerequisite list or visibility owner on a replacement
+(forward mode omits the variant with `variant-unlock-context`);
 node ownership never waives an unrepresentable variant condition.
 v1/v2 policies keep their earlier behavior and original pins.
 
@@ -230,12 +266,12 @@ invented as zero. `no_description` is not an effectless law. v1/v2/v3 non-stat
 grants, and v4 effects outside the complete grant-text contract above, require
 complete compatibility text.
 
-A fallback requires exact hashes of both the target non-owned context and the
+Strict fallback requires exact hashes of both the target non-owned context and the
 complete ordered stat/value list. Class replacement fallback additionally requires
 the prepared variant alias to identify the current target. A changed target may
 use complete target rendering, but cannot borrow the previous target's text.
-A changed unsupported value is an error,
-never a silent old numeric line or partial native packet. A renderable value or
+A changed unsupported value is an error in strict mode and an explicit text gap
+in forward mode. Neither mode creates a partial native packet. A renderable value or
 name can change without passing an old-value equality gate. Unknown prepared
 node and variant fields retain their original JSON value/presence.
 

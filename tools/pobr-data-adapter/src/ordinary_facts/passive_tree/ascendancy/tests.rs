@@ -169,6 +169,53 @@ fn doc_rows(f: &Fixture) -> &[Value] {
 }
 
 #[test]
+fn new_unrenderable_ascendancy_notable_keeps_empty_stats_and_candidate_evidence() {
+    let (mut f, mut p, mut old, mut r, extra) = fixture();
+    refresh_tests::anointment_column(&mut f, &mut p, &[]);
+    old.as_array_mut().unwrap().remove(2);
+    old[0]["ascendancy_id"] = json!("Witch3");
+    f.values("PassiveSkills", 0)["Ascendancy"] = json!(0);
+    f.values("PassiveSkills", 2)["IsNotable"] = json!(true);
+    f.values("PassiveSkills", 2)["Stats"] = json!([1]);
+    for row in doc_rows(&f) {
+        let raw = &row["values"];
+        let mut context = refresh::context(raw).unwrap();
+        context.as_object_mut().unwrap().remove("Ascendancy");
+        p["compatibility_bindings"][raw["Id"].as_str().unwrap()]["context_sha256"] =
+            json!(sha256_hex(&reader::json_bytes(&context).unwrap()));
+    }
+    p["base_policy"]["qualification"]["context_sha256"] = json!(sha256_hex(
+        &reader::json_bytes(&super::super::source::context(f.values("PassiveSkills", 0)).unwrap())
+            .unwrap()
+    ));
+    p["compatibility_bindings"]
+        .as_object_mut()
+        .unwrap()
+        .remove("Multi");
+    r["nodes"]["303"]["stats"] = json!([" Official notable line\n Second line "]);
+    assert_eq!(
+        project(&mut f, &p, &old, &r, &extra).unwrap_err(),
+        "Multi: no whole-text compatibility binding"
+    );
+    let mut coverage = Coverage::new(AdapterMode::Forward, "passive-tree");
+    let (tree, _, mut receipt) =
+        project_with_coverage(&mut f, &p, &old, &r, &extra, &mut coverage).unwrap();
+    coverage.finish(&mut receipt).unwrap();
+    assert_eq!(tree[2]["kind"], "notable");
+    assert_eq!(tree[2]["ascendancy_id"], "Witch3");
+    assert_eq!(tree[2]["stats"], json!([]));
+    assert!(tree[2].get("native_stats").is_none());
+    let issues = receipt["coverage"]["issues"].as_array().unwrap();
+    assert_eq!(issues.len(), 1);
+    assert_eq!(issues[0]["kind"], "text-unrenderable-new");
+    assert_eq!(issues[0]["entity"], "Multi");
+    assert_eq!(
+        issues[0]["observed"]["candidate_lines"],
+        json!(["Official notable line", "Second line"])
+    );
+}
+
+#[test]
 fn moved_ascendancy_member_uses_the_prepared_start_offset() {
     let (mut f, mut p, mut old, mut r, extra) = fixture();
     old[2]["ascendancy_id"] = json!("Witch3");
@@ -1017,6 +1064,257 @@ fn source_unlock_ownership_never_waives_unrepresentable_variant_context() {
         );
     }
 }
+
+#[test]
+fn forward_unrepresentable_variants_are_omitted_after_physical_validation() {
+    for field in ["UnlockedBy", "VisibleForAscendancy"] {
+        let (mut f, p, mut old, r, extra) = unlock_fixture();
+        old[2]["ascendancy_id"] = json!("Witch3");
+        f.values("PassiveSkills", 5)[field] = if field == "UnlockedBy" {
+            json!([0])
+        } else {
+            json!(0)
+        };
+        assert_eq!(
+            project(&mut f, &p, &old, &r, &extra).unwrap_err(),
+            "variant unlock context cannot be represented by the ordinary variant DTO"
+        );
+        let mut coverage = Coverage::new(AdapterMode::Forward, "passive-tree");
+        let (tree, _, mut receipt) =
+            project_with_coverage(&mut f, &p, &old, &r, &extra, &mut coverage).unwrap();
+        coverage.finish(&mut receipt).unwrap();
+        assert!(tree[2].get("variants").is_none());
+        assert!(tree[2].get("native_stats").is_none());
+        assert_eq!(receipt["coverage"]["issues"].as_array().unwrap().len(), 1);
+        assert_eq!(
+            receipt["coverage"]["issues"][0]["kind"],
+            "variant-unlock-context"
+        );
+        assert_eq!(receipt["coverage"]["issues"][0]["entity"], "Multi/Lich");
+        assert_eq!(
+            receipt["coverage"]["issues"][0]["observed"]["target_passive_id"],
+            "OverrideTarget"
+        );
+    }
+    for retained in [false, true] {
+        for (field, value, expected) in [
+            ("UnlockedBy", json!(null), "UnlockedBy must be an array"),
+            (
+                "UnlockedBy",
+                json!(["bad"]),
+                "invalid unlock physical reference",
+            ),
+            (
+                "UnlockedBy",
+                json!([999]),
+                "unresolved physical row PassiveSkills/999",
+            ),
+            (
+                "VisibleForAscendancy",
+                json!("bad"),
+                "invalid unlock physical reference",
+            ),
+            (
+                "VisibleForAscendancy",
+                json!(999),
+                "unresolved physical row Ascendancy/999",
+            ),
+        ] {
+            let (mut f, mut p, mut old, r, extra) = unlock_fixture();
+            if retained {
+                old[2].as_object_mut().unwrap().remove("variants");
+                old[0]["variants"] =
+                    json!([{"class":"Warrior","variant_skill":606,"stats":["complete old text"]}]);
+            }
+            p["compatibility_bindings"]
+                .as_object_mut()
+                .unwrap()
+                .remove("OverrideTarget");
+            f.values("PassiveSkills", 5)[field] = value;
+            let strict = project(&mut f, &p, &old, &r, &extra).unwrap_err();
+            if field == "UnlockedBy" && f.values("PassiveSkills", 5)[field].is_null() {
+                assert_eq!(strict, "variant UnlockedBy must be an array");
+            } else {
+                assert_eq!(
+                    strict,
+                    "variant unlock context cannot be represented by the ordinary variant DTO"
+                );
+            }
+            let mut coverage = Coverage::new(AdapterMode::Forward, "passive-tree");
+            assert_eq!(
+                project_with_coverage(&mut f, &p, &old, &r, &extra, &mut coverage).unwrap_err(),
+                expected
+            );
+        }
+    }
+}
+
+#[test]
+fn forward_text_and_variant_gaps_never_hide_malformed_nonstat_fields_or_grant_fks() {
+    for row in [2, 5] {
+        for defect in [
+            "buffs",
+            "buff-ref",
+            "points",
+            "grant-type",
+            "grant-fk",
+            "base-fk",
+        ] {
+            let (mut f, mut p, old, r, mut extra) = text_fixture();
+            let id = f.values("PassiveSkills", row)["Id"]
+                .as_str()
+                .unwrap()
+                .to_owned();
+            p["compatibility_bindings"]
+                .as_object_mut()
+                .unwrap()
+                .remove(&id);
+            let expected = match defect {
+                "buffs" => {
+                    f.values("PassiveSkills", row)["PassiveSkillBuffs"] = json!(null);
+                    "PassiveSkillBuffs must be an array"
+                }
+                "points" => {
+                    f.values("PassiveSkills", row)["SkillPointsGranted"] = json!("bad");
+                    "SkillPointsGranted: exact i32 required"
+                }
+                "buff-ref" => {
+                    f.values("PassiveSkills", row)["PassiveSkillBuffs"] = json!(["bad"]);
+                    "required physical FK must be usize"
+                }
+                "grant-type" => {
+                    f.values("PassiveSkills", row)["GrantedSkill"] = json!("bad");
+                    "required physical FK must be usize"
+                }
+                "grant-fk" => {
+                    f.values("PassiveSkills", row)["GrantedSkill"] = json!(99);
+                    "unresolved physical row SkillGems/99"
+                }
+                _ => {
+                    f.values("PassiveSkills", row)["GrantedSkill"] = json!(0);
+                    value(&mut extra, "SkillGems", 0)["BaseItemType"] = json!(99);
+                    "unresolved physical row BaseItemTypes/99"
+                }
+            };
+            assert!(project(&mut f, &p, &old, &r, &extra).is_err());
+            let mut coverage = Coverage::new(AdapterMode::Forward, "passive-tree");
+            assert_eq!(
+                project_with_coverage(&mut f, &p, &old, &r, &extra, &mut coverage).unwrap_err(),
+                expected,
+                "{row}/{defect}"
+            );
+        }
+    }
+}
+
+#[test]
+fn audit_nonstat_content_skips_validate_later_template_scalars() {
+    for (row, retained) in [(2, false), (5, false), (5, true)] {
+        for earlier in [
+            "buff",
+            "buff-index",
+            "negative",
+            "missing-template",
+            "unsupported-template",
+        ] {
+            let (mut f, mut p, mut old, r, mut extra) = text_fixture();
+            old[2]["ascendancy_id"] = json!("Witch3");
+            if retained {
+                old[2].as_object_mut().unwrap().remove("variants");
+                old[0]["variants"] = json!([{"class":"Warrior","variant_skill":606,"stats":["complete retained text"]}]);
+            }
+            f.values("PassiveSkills", row)["SkillPointsGranted"] = json!(1);
+            f.values("PassiveSkills", row)["WeaponPointsGranted"] = json!(1);
+            match earlier {
+                "buff" => f.values("PassiveSkills", row)["PassiveSkillBuffs"] = json!([0]),
+                "buff-index" => {
+                    f.values("PassiveSkills", row)["PassiveSkillBuffs"] = json!([0, "bad"]);
+                }
+                "negative" => f.values("PassiveSkills", row)["SkillPointsGranted"] = json!(-1),
+                "missing-template" => {
+                    value(&mut extra, "ClientStrings", 0)["Id"] = json!("OtherTemplate");
+                }
+                _ => value(&mut extra, "ClientStrings", 0)["Text"] = json!("{unsupported}"),
+            }
+            value(&mut extra, "ClientStrings", 2)["Text"] = json!(null);
+            let id = f.values("PassiveSkills", row)["Id"]
+                .as_str()
+                .unwrap()
+                .to_owned();
+            p["compatibility_bindings"]
+                .as_object_mut()
+                .unwrap()
+                .remove(&id);
+            assert_eq!(
+                project(&mut f, &p, &old, &r, &extra).unwrap_err(),
+                if row == 2 && earlier.starts_with("buff") {
+                    "Multi: unsupported source context change or new conditional identity"
+                } else if row == 2 {
+                    "Multi: no whole-text compatibility binding"
+                } else if retained {
+                    "OverrideTarget: no whole-text compatibility binding"
+                } else {
+                    "OverrideTarget: missing variant context binding"
+                }
+            );
+            let mut coverage = Coverage::new(AdapterMode::Forward, "passive-tree");
+            assert_eq!(
+                project_with_coverage(&mut f, &p, &old, &r, &extra, &mut coverage)
+                    .err()
+                    .as_deref(),
+                Some(if earlier == "buff-index" {
+                    "required physical FK must be usize"
+                } else {
+                    "expected string"
+                }),
+                "{row}/{earlier}"
+            );
+        }
+    }
+}
+
+#[test]
+fn audit_text_gaps_and_variant_unlocks_keep_quarantined_physical_targets_valid() {
+    for variant in [false, true] {
+        let (mut f, mut p, mut old, mut r, mut extra) = unlock_fixture();
+        old[2]["ascendancy_id"] = json!("Witch3");
+        r["nodes"].as_object_mut().unwrap().remove("303");
+        f.values("PassiveSkills", 1)["UnlockedBy"] = json!([2]);
+        p["compatibility_bindings"]
+            .as_object_mut()
+            .unwrap()
+            .remove("Unknown");
+        if variant {
+            value(&mut extra, "AscendancyPassiveSkillOverrides", 0)["SkillToOverride"] = json!(0);
+            f.values("PassiveSkills", 5)["UnlockedBy"] = json!([2]);
+        }
+        let mut coverage = Coverage::new(AdapterMode::Forward, "passive-tree");
+        let (tree, _, mut receipt) =
+            project_with_coverage(&mut f, &p, &old, &r, &extra, &mut coverage).unwrap();
+        coverage.finish(&mut receipt).unwrap();
+        assert_eq!(tree.as_array().unwrap().len(), 1);
+        assert_eq!(tree[0]["id"], "maximum_resistances1");
+        assert_eq!(tree[0]["connections"], json!([]));
+        let issues = receipt["coverage"]["issues"].as_array().unwrap();
+        assert!(issues.iter().any(|issue| {
+            issue["kind"] == "text-binding-missing" && issue["entity"] == "Unknown"
+        }));
+        assert!(issues.iter().any(|issue| {
+            issue["kind"] == "dependant-quarantined"
+                && issue["entity"] == "Unknown"
+                && issue["observed"]["quarantined_prerequisites"] == json!([303])
+        }));
+        if variant {
+            assert!(tree[0].get("variants").is_none());
+            assert!(tree[0].get("native_stats").is_none());
+            assert!(issues.iter().any(|issue| {
+                issue["kind"] == "variant-unlock-context"
+                    && issue["entity"] == "maximum_resistances1/Lich"
+            }));
+        }
+    }
+}
+
 #[test]
 fn source_names_parent_node_and_override_values_propagate() {
     let (mut f, p, old, r, mut extra) = fixture();
