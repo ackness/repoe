@@ -77,6 +77,8 @@ pub(super) struct Supplement<'a> {
 struct Effects<'a> {
     ascendancy: Option<&'a ascendancy::Source>,
     nonstat: Option<nonstat::Source<'a>>,
+    reference: &'a Value,
+    supplement: Option<&'a reader::selected::Input>,
 }
 
 pub(super) fn convert(
@@ -296,20 +298,44 @@ fn exact_compatibility(
     id: &str,
     raw: &Value,
     stats: &[(String, i64)],
-) -> Result<(), String> {
-    let binding = policy
-        .compatibility_bindings
-        .get(id)
-        .ok_or_else(|| format!("{id}: no whole-text compatibility binding"))?;
+    decide: &mut impl FnMut(&'static str, String) -> Result<(), String>,
+) -> Result<bool, String> {
+    let Some(binding) = policy.compatibility_bindings.get(id) else {
+        decide(
+            "text-binding-missing",
+            format!("{id}: no whole-text compatibility binding"),
+        )?;
+        return Ok(false);
+    };
     if binding.context_sha256 != hash(&policy_context(policy, raw)?)?
         || binding.stats_sha256 != hash(&stats)?
     {
-        return Err(format!(
-            "{id}: target semantics changed; stale whole-text compatibility rejected"
-        ));
+        decide(
+            "text-binding-stale",
+            format!("{id}: target semantics changed; stale whole-text compatibility rejected"),
+        )?;
+        return Ok(false);
     }
-    Ok(())
+    Ok(true)
 }
+fn candidate_lines(reference: &Value, raw: &Value) -> Result<Option<Vec<String>>, String> {
+    let skill = super::source::graph_id(raw)?;
+    let Some(stats) = reference["nodes"][skill.to_string()].get("stats") else {
+        return Ok(None);
+    };
+    let mut lines = Vec::new();
+    for value in stats.as_array().ok_or("invalid reference stats")? {
+        let text = value.as_str().ok_or("invalid reference stat line")?;
+        lines.extend(
+            text.lines()
+                .map(str::trim)
+                .filter(|line| !line.is_empty())
+                .map(str::to_owned),
+        );
+    }
+    Ok(Some(lines))
+}
+#[allow(clippy::too_many_arguments)]
 fn text(
     input: &VerifiedFacts,
     facts: &Facts<'_>,
@@ -317,11 +343,18 @@ fn text(
     policy: &Policy,
     renderer: &Renderer<'_>,
     legacy: Option<&[String]>,
-    nonstat: Option<&nonstat::Source<'_>>,
-) -> Result<(Vec<String>, Value), String> {
+    effects: &Effects<'_>,
+    coverage: &mut Coverage,
+) -> Result<(Vec<String>, Value, bool), String> {
     let raw = facts.tables.row("PassiveSkills", row)?;
     let id = raw["Id"].as_str().ok_or("missing passive Id")?;
     let stats = raw_stats(input, facts, row)?;
+    if coverage.is_forward() {
+        Renderer::stat_values(&stats)?;
+        if let Some(source) = &effects.nonstat {
+            source.validate_physical(raw)?;
+        }
+    }
     // Non-stat grants cannot be inferred from the fact that all stat IDs render.
     let extra_effect = !raw["GrantedSkill"].is_null()
         || raw["SkillPointsGranted"].as_i64().is_some_and(|n| n != 0)
@@ -331,7 +364,7 @@ fn text(
             .is_some_and(|v| !v.is_empty())
         || (stats.is_empty() && legacy.is_some_and(|v| !v.is_empty()));
     let mut non_stat_evidence = Vec::new();
-    let result = if let Some(source) = nonstat {
+    let result = if let Some(source) = &effects.nonstat {
         source.render(raw).and_then(|(extra_lines, evidence)| {
             if stats.is_empty() && extra_lines.is_empty() && legacy.is_some_and(|v| !v.is_empty()) {
                 return Err("source has no effect text for nonempty prepared node".into());
@@ -351,15 +384,36 @@ fn text(
             lines,
             json!({"owner":if non_stat_evidence.is_empty(){"target-csd"}else{"target-csd-and-client-strings"},
                 "complete_stats":stats,"descriptions":evidence,"non_stat":non_stat_evidence}),
+            false,
         )),
         Err(reason) => {
-            exact_compatibility(policy, id, raw, &stats)?;
-            let lines =
-                legacy.ok_or_else(|| format!("{id}: {reason}; no complete compatibility text"))?;
+            let mut decide = |kind, message| {
+                let kind = if legacy.is_none() && coverage.is_forward() {
+                    "text-unrenderable-new"
+                } else {
+                    kind
+                };
+                let mut issue = Issue::new(kind, id, Action::EmittedWithGap, message);
+                if coverage.is_forward()
+                    && let Some(lines) = candidate_lines(effects.reference, raw)?
+                {
+                    issue = issue.observed("candidate_lines", json!(lines));
+                }
+                decide_node(coverage, issue, input, facts, policy, row)
+            };
+            let compatible = exact_compatibility(policy, id, raw, &stats, &mut decide)?;
+            if legacy.is_none() && compatible {
+                decide(
+                    "text-unrenderable-new",
+                    format!("{id}: {reason}; no complete compatibility text"),
+                )?;
+            }
+            let lines = legacy.unwrap_or_default();
             Ok((
                 lines.to_vec(),
-                json!({"owner":"prepared-whole-text","reason":reason,"complete_stats":stats,
+                json!({"owner":if legacy.is_some(){"prepared-whole-text"}else{"unrenderable"},"reason":reason,"complete_stats":stats,
                 "stats_sha256":hash(&stats)?,"target_applicability":"unknown; fixed transition text, no partial target packet"}),
+                !compatible || legacy.is_none(),
             ))
         }
     }
@@ -379,6 +433,8 @@ pub(super) fn project(
 ) -> Result<(Value, Value, Value), String> {
     let effects = Effects {
         ascendancy: supplement.as_ref().map(|s| s.ascendancy),
+        reference,
+        supplement: supplement.as_ref().map(|s| s.input),
         nonstat: if policy.owns_nonstat_text() {
             let extra = supplement
                 .as_ref()
@@ -553,12 +609,21 @@ pub(super) fn project(
                 policy,
                 facts.tables.row("PassiveSkills", facts.reference_row)?,
             )?)?);
-        if expected_context != hash(&render_context(policy, raw)?)? {
-            return Err(format!(
-                "{id}: unsupported source context change or new conditional identity"
-            ));
+        let target_context = hash(&render_context(policy, raw)?)?;
+        if expected_context != target_context {
+            coverage.decide(
+                Issue::new(
+                    "render-context-changed",
+                    id,
+                    Action::EmittedWithGap,
+                    format!("{id}: unsupported source context change or new conditional identity"),
+                )
+                .observed("render_context_sha256", target_context)
+                .observed("bound_render_context_sha256", expected_context),
+            )?;
+            has_open_issue = true;
         }
-        let mut quarantine = |issue: Issue| {
+        let mut quarantine = |coverage: &mut Coverage, issue: Issue| {
             has_open_issue = true;
             decide_node(
                 coverage,
@@ -575,12 +640,15 @@ pub(super) fn project(
                     b.legacy_id == old.id && b.target_passive_id == id && b.skill == skill
                 });
             if old.id != id && alias.is_none() {
-                quarantine(Issue::new(
-                    "identity-collision",
-                    id,
-                    Action::Quarantined,
-                    format!("{id}: prepared identity collision at {skill}"),
-                ))?;
+                quarantine(
+                    coverage,
+                    Issue::new(
+                        "identity-collision",
+                        id,
+                        Action::Quarantined,
+                        format!("{id}: prepared identity collision at {skill}"),
+                    ),
+                )?;
                 quarantined.insert(instance.graph_id);
                 continue;
             }
@@ -588,24 +656,30 @@ pub(super) fn project(
                 && (alias.source_entry_sha256 != hash(&legacy[old_index])?
                     || old.name.as_deref() != Some(alias.expected_name.as_str()))
             {
-                quarantine(Issue::new(
-                    "stale-alias",
-                    id,
-                    Action::Quarantined,
-                    format!("{id}: stale prepared identity alias"),
-                ))?;
+                quarantine(
+                    coverage,
+                    Issue::new(
+                        "stale-alias",
+                        id,
+                        Action::Quarantined,
+                        format!("{id}: stale prepared identity alias"),
+                    ),
+                )?;
                 quarantined.insert(instance.graph_id);
                 continue;
             }
         }
         let name = raw["Name"].as_str().ok_or("missing target Name")?;
         if name.is_empty() || name.starts_with("[DNT") {
-            quarantine(Issue::new(
-                "unclassified-name",
-                id,
-                Action::Quarantined,
-                format!("{id}: unclassified layout/unreleased definition"),
-            ))?;
+            quarantine(
+                coverage,
+                Issue::new(
+                    "unclassified-name",
+                    id,
+                    Action::Quarantined,
+                    format!("{id}: unclassified layout/unreleased definition"),
+                ),
+            )?;
             quarantined.insert(instance.graph_id);
             continue;
         }
@@ -625,6 +699,7 @@ pub(super) fn project(
         };
         if let Some(owner) = quarantined_owner {
             quarantine(
+                coverage,
                 Issue::new(
                     "dependant-quarantined",
                     id,
@@ -636,14 +711,15 @@ pub(super) fn project(
             quarantined.insert(instance.graph_id);
             continue;
         }
-        let (lines, text_record) = text(
+        let (lines, text_record, text_gap) = text(
             input,
             facts,
             row,
             policy,
             renderer,
             previous.map(|(_, n)| n.stats.as_slice()),
-            effects.nonstat.as_ref(),
+            &effects,
+            coverage,
         )?;
         if matches!(
             text_record["owner"].as_str(),
@@ -654,7 +730,7 @@ pub(super) fn project(
                 multi_count += 1;
             }
         }
-        let kind = classify(raw)?;
+        let kind = classify(raw, forward)?;
         let mut entry = previous
             .map(|(i, _)| legacy[i].clone())
             .unwrap_or_else(|| json!({}));
@@ -712,7 +788,7 @@ pub(super) fn project(
                 },
             },
             object,
-            &mut quarantine,
+            &mut |issue| quarantine(coverage, issue),
         )?
         else {
             quarantined.insert(instance.graph_id);
@@ -721,11 +797,11 @@ pub(super) fn project(
         if rebased {
             moved_skills.insert(instance.graph_id);
         }
-        has_open_issue |= rebased || new_ascendancy;
+        has_open_issue |= text_gap || rebased || new_ascendancy;
         if new_ascendancy && let Some(id) = ascendancy_id {
             new_ascendancies.insert(id);
         }
-        let variant_records = variants(
+        let (variant_records, variant_gap) = variants(
             input,
             facts,
             policy,
@@ -733,7 +809,9 @@ pub(super) fn project(
             previous.map(|(_, n)| n),
             object,
             &effects,
+            coverage,
         )?;
+        has_open_issue |= variant_gap;
         // Every complete single-stat whole-context node carries its native
         // packet, whatever PoBR maps today: the consumer decides per packet
         // (an unknown stat keeps the text path). Multi-stat nodes use the
@@ -1005,7 +1083,8 @@ pub(super) fn project(
     ))
 }
 
-fn classify(raw: &Value) -> Result<PassiveNodeKind, String> {
+fn classify(raw: &Value, validate_all: bool) -> Result<PassiveNodeKind, String> {
+    let mut selected = PassiveNodeKind::Normal;
     for (field, kind) in [
         ("IsKeystone", PassiveNodeKind::Keystone),
         ("IsNotable", PassiveNodeKind::Notable),
@@ -1013,16 +1092,19 @@ fn classify(raw: &Value) -> Result<PassiveNodeKind, String> {
         ("IsJewelSocket", PassiveNodeKind::JewelSocket),
         ("IsAscendancyStartingNode", PassiveNodeKind::AscendancyStart),
     ] {
-        if raw[field]
+        let enabled = raw[field]
             .as_bool()
-            .ok_or_else(|| format!("{field}: bool required"))?
-        {
-            return Ok(kind);
+            .ok_or_else(|| format!("{field}: bool required"))?;
+        if enabled && selected == PassiveNodeKind::Normal {
+            selected = kind;
+            if !validate_all {
+                return Ok(kind);
+            }
         }
     }
     // MasteryGroup is shared by ordinary notables and icon-only records; it is
     // not a node category. IsJustIcon supplies the non-allocatable mastery icon.
-    Ok(PassiveNodeKind::Normal)
+    Ok(selected)
 }
 
 struct Placement<'a> {
@@ -1215,6 +1297,7 @@ fn round_group(value: f64) -> Result<f64, String> {
     }
 }
 
+#[allow(clippy::too_many_arguments)]
 fn variants(
     input: &VerifiedFacts,
     facts: &Facts<'_>,
@@ -1223,7 +1306,8 @@ fn variants(
     previous: Option<&PassiveNodeDef>,
     out: &mut serde_json::Map<String, Value>,
     effects: &Effects<'_>,
-) -> Result<Vec<Value>, String> {
+    coverage: &mut Coverage,
+) -> Result<(Vec<Value>, bool), String> {
     let ascendancy = effects.ascendancy;
     let id = out["id"]
         .as_str()
@@ -1259,7 +1343,9 @@ fn variants(
             && !ascendancy.is_some_and(|a| a.previous_selectors.contains(selector))
     });
     let mut records = Vec::new();
-    for v in &variants {
+    let mut gapped = false;
+    for v in std::mem::take(&mut variants) {
+        let class = v["class"].as_str().ok_or("invalid variant class")?;
         if let Some(skill) = v["variant_skill"].as_u64() {
             let rows: Vec<_> = facts
                 .passives
@@ -1278,17 +1364,56 @@ fn variants(
                 ));
             };
             let raw = facts.tables.row("PassiveSkills", *row)?;
-            if policy.owns_unlocks() {
-                unlock::validate_variant(raw)?;
+            if coverage.is_forward() {
+                validate_variant_physical(input, facts, policy, *row, effects)?;
+            }
+            let mut decide = |kind, message| {
+                decide_variant(
+                    coverage, kind, message, &id, class, input, facts, policy, *row,
+                )
+            };
+            if policy.owns_unlocks()
+                && !unlock::validate_variant(raw, &mut |message| {
+                    decide("variant-unlock-context", message)
+                })?
+            {
+                gapped = true;
+                continue;
             }
             let variant_id = raw["Id"].as_str().ok_or("invalid variant Id")?;
-            exact_compatibility(policy, variant_id, raw, &raw_stats(input, facts, *row)?)?;
+            if !exact_compatibility(
+                policy,
+                variant_id,
+                raw,
+                &raw_stats(input, facts, *row)?,
+                &mut |kind, message| {
+                    decide(
+                        if kind == "text-binding-missing" {
+                            "variant-context-missing"
+                        } else {
+                            "variant-context-changed"
+                        },
+                        message,
+                    )
+                },
+            )? {
+                gapped = true;
+                continue;
+            }
             records.push(json!({"class":v["class"],"target":variant_id,"source_row":row,
                 "owner":"prepared-whole-variant","reason":"non-class replacement law remains compatibility; changed source is rejected"}));
+            variants.push(v);
         } else {
-            return Err(format!(
-                "{id}: variant without a stable alias requires explicit binding"
-            ));
+            coverage.decide(
+                Issue::new(
+                    "variant-alias-missing",
+                    format!("{id}/{class}"),
+                    Action::EmittedWithGap,
+                    format!("{id}: variant without a stable alias requires explicit binding"),
+                )
+                .observed("prepared_variant", v.clone()),
+            )?;
+            gapped = true;
         }
     }
     let mut relations = Vec::new();
@@ -1324,21 +1449,46 @@ fn variants(
             return Err(format!("{id}: repeated replacement selector {class}"));
         }
         let raw = facts.tables.row("PassiveSkills", row)?;
-        if policy.owns_unlocks() {
-            unlock::validate_variant(raw)?;
+        if coverage.is_forward() {
+            validate_variant_physical(input, facts, policy, row, effects)?;
+        }
+        let mut decide = |kind, message| {
+            decide_variant(
+                coverage, kind, message, &id, class, input, facts, policy, row,
+            )
+        };
+        if policy.owns_unlocks()
+            && !unlock::validate_variant(raw, &mut |message| {
+                decide("variant-unlock-context", message)
+            })?
+        {
+            variants.retain(|v| v["class"] != class);
+            gapped = true;
+            continue;
         }
         let target = raw["Id"].as_str().ok_or("invalid replacement id")?;
-        let binding = policy
-            .compatibility_bindings
-            .get(target)
-            .ok_or_else(|| format!("{target}: missing variant context binding"))?;
+        let Some(binding) = policy.compatibility_bindings.get(target) else {
+            decide(
+                "variant-context-missing",
+                format!("{target}: missing variant context binding"),
+            )?;
+            variants.retain(|v| v["class"] != class);
+            gapped = true;
+            continue;
+        };
         if binding
             .render_context_sha256
             .as_ref()
             .unwrap_or(&binding.context_sha256)
             != &hash(&render_context(policy, raw)?)?
         {
-            return Err(format!("{target}: changed variant context"));
+            decide(
+                "variant-context-changed",
+                format!("{target}: changed variant context"),
+            )?;
+            variants.retain(|v| v["class"] != class);
+            gapped = true;
+            continue;
         }
         let old_variant = previous.and_then(|n| {
             n.variants
@@ -1351,15 +1501,17 @@ fn variants(
         let compatible_text = old_variant
             .filter(|v| v.variant_skill == Some(target_skill))
             .map(|v| v.stats.as_slice());
-        let (stats, evidence) = text(
+        let (stats, evidence, text_gap) = text(
             input,
             facts,
             row,
             policy,
             renderer,
             compatible_text,
-            effects.nonstat.as_ref(),
+            effects,
+            coverage,
         )?;
+        gapped |= text_gap;
         let mut replacement = old_by_class
             .get(old_selector.unwrap_or(class))
             .cloned()
@@ -1377,5 +1529,64 @@ fn variants(
     } else {
         out.insert("variants".into(), json!(variants));
     }
-    Ok(records)
+    Ok((records, gapped))
+}
+
+fn validate_variant_physical(
+    input: &VerifiedFacts,
+    facts: &Facts<'_>,
+    policy: &Policy,
+    row: usize,
+    effects: &Effects<'_>,
+) -> Result<(), String> {
+    Renderer::stat_values(&raw_stats(input, facts, row)?)?;
+    let raw = facts.tables.row("PassiveSkills", row)?;
+    classify(raw, true)?;
+    if policy.owns_unlocks() {
+        let extra = effects
+            .supplement
+            .ok_or("source unlocks require target ascendancy identities")?;
+        unlock::validate_physical(facts, &extra.tables(&["Ascendancy"])?, row)?;
+    }
+    if let Some(source) = &effects.nonstat {
+        source.validate_physical(raw)?;
+    }
+    Ok(())
+}
+
+#[allow(clippy::too_many_arguments)]
+fn decide_variant(
+    coverage: &mut Coverage,
+    kind: &'static str,
+    message: String,
+    base: &str,
+    class: &str,
+    input: &VerifiedFacts,
+    facts: &Facts<'_>,
+    policy: &Policy,
+    row: usize,
+) -> Result<(), String> {
+    let raw = facts.tables.row("PassiveSkills", row)?;
+    let mut issue = Issue::new(
+        kind,
+        format!("{base}/{class}"),
+        Action::EmittedWithGap,
+        message,
+    )
+    .observed("target_passive_id", raw["Id"].clone())
+    .observed("target_skill", raw["PassiveSkillGraphId"].clone());
+    if let Some(binding) = raw["Id"]
+        .as_str()
+        .and_then(|id| policy.compatibility_bindings.get(id))
+    {
+        issue = issue.observed(
+            "bound_render_context_sha256",
+            binding
+                .render_context_sha256
+                .as_ref()
+                .unwrap_or(&binding.context_sha256)
+                .clone(),
+        );
+    }
+    decide_node(coverage, issue, input, facts, policy, row)
 }

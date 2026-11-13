@@ -262,12 +262,14 @@ pub(super) fn graph_id(raw: &Value) -> Result<u32, String> {
         .ok_or("PassiveSkillGraphId: exact u16 required".into())
 }
 fn reference(tables: &Tables<'_>, table: &str, v: &Value) -> Result<usize, String> {
-    let row = v
-        .as_u64()
-        .and_then(|n| usize::try_from(n).ok())
-        .ok_or("required physical FK must be usize")?;
+    let row = physical_index(v)?;
     tables.row(table, row)?;
     Ok(row)
+}
+pub(super) fn physical_index(v: &Value) -> Result<usize, String> {
+    v.as_u64()
+        .and_then(|n| usize::try_from(n).ok())
+        .ok_or("required physical FK must be usize".into())
 }
 pub(super) fn context(raw: &Value) -> Result<Value, String> {
     let mut out = raw.as_object().ok_or("invalid raw context")?.clone();

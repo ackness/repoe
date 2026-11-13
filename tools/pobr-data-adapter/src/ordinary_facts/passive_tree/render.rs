@@ -180,11 +180,16 @@ impl<'a> Renderer<'a> {
         })
     }
 
-    pub fn render(&self, stats: &[(String, i64)]) -> Result<(Vec<String>, Vec<Value>), String> {
+    pub(super) fn stat_values(stats: &[(String, i64)]) -> Result<BTreeMap<&str, i64>, String> {
         let values: BTreeMap<_, _> = stats.iter().map(|(id, v)| (id.as_str(), *v)).collect();
         if values.len() != stats.len() {
             return Err("duplicate source stat occurrence".into());
         }
+        Ok(values)
+    }
+
+    pub fn render(&self, stats: &[(String, i64)]) -> Result<(Vec<String>, Vec<Value>), String> {
+        let values = Self::stat_values(stats)?;
         let mut consumed = BTreeSet::new();
         let mut lines = Vec::new();
         let mut evidence = Vec::new();

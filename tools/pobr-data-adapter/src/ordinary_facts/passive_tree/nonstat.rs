@@ -10,6 +10,25 @@ use std::collections::BTreeMap;
 pub(super) const OWNED_FIELDS: [&str; 3] =
     ["GrantedSkill", "SkillPointsGranted", "WeaponPointsGranted"];
 const TABLES: [&str; 3] = ["ClientStrings", "SkillGems", "BaseItemTypes"];
+const POINTS: [(&str, &str, &str); 2] = [
+    (
+        "SkillPointsGranted",
+        "PassiveNodeGrantsPassivePoint",
+        "PassiveNodeGrantsPassivePoints",
+    ),
+    (
+        "WeaponPointsGranted",
+        "PassiveNodeGrantsSpecialisationPoint",
+        "PassiveNodeGrantsSpecialisationPoints",
+    ),
+];
+
+struct Grant<'a> {
+    skill_row: usize,
+    base_row: usize,
+    base: &'a Value,
+    name: &'a str,
+}
 
 pub(super) struct Source<'a> {
     tables: Tables<'a>,
@@ -81,48 +100,54 @@ impl<'a> Source<'a> {
         })
     }
 
+    /// Physical integrity is independent of which effect can supply output text.
+    pub fn validate_physical(&self, raw: &Value) -> Result<(), String> {
+        for buff in buffs(raw)? {
+            // BuffTemplates are not selected; validate the index without
+            // interpreting an unavailable buff effect.
+            source::physical_index(buff)?;
+        }
+        for point in points(raw) {
+            let (_, value, template) = point?;
+            if value > 0 {
+                self.template_source(template)?;
+            }
+        }
+        if let Some(grant) = self.grant(raw, source::physical_index)?
+            && !grant.name.is_empty()
+        {
+            self.template_source("ItemDisplayGrantedSkillNoScaling")?;
+        }
+        Ok(())
+    }
+
     pub fn render(&self, raw: &Value) -> Result<(Vec<String>, Vec<Value>), String> {
-        let buffs = raw["PassiveSkillBuffs"]
-            .as_array()
-            .ok_or("PassiveSkillBuffs must be an array")?;
-        if !buffs.is_empty() {
+        if !buffs(raw)?.is_empty() {
             return Err("passive buff effects require complete compatibility text".into());
         }
         let mut lines = Vec::new();
         let mut records = Vec::new();
-        for (field, singular, plural) in [
-            (
-                "SkillPointsGranted",
-                "PassiveNodeGrantsPassivePoint",
-                "PassiveNodeGrantsPassivePoints",
-            ),
-            (
-                "WeaponPointsGranted",
-                "PassiveNodeGrantsSpecialisationPoint",
-                "PassiveNodeGrantsSpecialisationPoints",
-            ),
-        ] {
-            let value = source::integer(&raw[field], field)?;
+        for point in points(raw) {
+            let (field, value, template) = point?;
             if value < 0 {
                 return Err(format!("negative {field} has no proven grant template"));
             }
             if value != 0 {
                 let argument = value.to_string();
-                let (line, mut evidence) =
-                    self.template(if value == 1 { singular } else { plural }, &[&argument])?;
+                let (line, mut evidence) = self.template(template, &[&argument])?;
                 evidence["source_field"] = json!(field);
                 evidence["raw_value"] = json!(value);
                 lines.push(line);
                 records.push(evidence);
             }
         }
-        let grant = raw.get("GrantedSkill").ok_or("missing GrantedSkill")?;
-        if !grant.is_null() {
-            let skill_row = index(grant)?;
-            let gem = self.tables.row("SkillGems", skill_row)?;
-            let base_row = index(&gem["BaseItemType"])?;
-            let base = self.tables.row("BaseItemTypes", base_row)?;
-            let name = convert::text(&base["Name"])?;
+        if let Some(Grant {
+            skill_row,
+            base_row,
+            base,
+            name,
+        }) = self.grant(raw, index)?
+        {
             if name.is_empty() {
                 return Err("granted skill has no source name".into());
             }
@@ -139,13 +164,42 @@ impl<'a> Source<'a> {
         Ok((lines, records))
     }
 
-    fn template(&self, id: &str, args: &[&str]) -> Result<(String, Value), String> {
-        let row = *self
-            .strings
-            .get(id)
-            .ok_or_else(|| format!("missing ClientStrings template {id}"))?;
+    fn grant(
+        &self,
+        raw: &Value,
+        parse_index: fn(&Value) -> Result<usize, String>,
+    ) -> Result<Option<Grant<'_>>, String> {
+        let grant = raw.get("GrantedSkill").ok_or("missing GrantedSkill")?;
+        if grant.is_null() {
+            return Ok(None);
+        }
+        // The renderer keeps its original diagnostic; preflight keeps the
+        // physical-index diagnostic. Both traverse the same grant chain.
+        let skill_row = parse_index(grant)?;
+        let gem = self.tables.row("SkillGems", skill_row)?;
+        let base_row = parse_index(&gem["BaseItemType"])?;
+        let base = self.tables.row("BaseItemTypes", base_row)?;
+        let name = convert::text(&base["Name"])?;
+        Ok(Some(Grant {
+            skill_row,
+            base_row,
+            base,
+            name,
+        }))
+    }
+
+    fn template_source(&self, id: &str) -> Result<Option<(usize, &Value, &str)>, String> {
+        let Some(&row) = self.strings.get(id) else {
+            return Ok(None);
+        };
         let raw = self.tables.row("ClientStrings", row)?;
-        let template = convert::text(&raw["Text"])?;
+        Ok(Some((row, raw, convert::text(&raw["Text"])?)))
+    }
+
+    fn template(&self, id: &str, args: &[&str]) -> Result<(String, Value), String> {
+        let (row, raw, template) = self
+            .template_source(id)?
+            .ok_or_else(|| format!("missing ClientStrings template {id}"))?;
         let text = render::format_template(template, args)?;
         if text.is_empty() {
             return Err(format!("empty ClientStrings template output {id}"));
@@ -159,9 +213,20 @@ impl<'a> Source<'a> {
     }
 }
 
+fn buffs(raw: &Value) -> Result<&[Value], String> {
+    raw["PassiveSkillBuffs"]
+        .as_array()
+        .map(Vec::as_slice)
+        .ok_or("PassiveSkillBuffs must be an array".into())
+}
+
+fn points(raw: &Value) -> impl Iterator<Item = Result<(&'static str, i32, &'static str), String>> {
+    POINTS.into_iter().map(|(field, singular, plural)| {
+        let value = source::integer(&raw[field], field)?;
+        Ok((field, value, if value == 1 { singular } else { plural }))
+    })
+}
+
 fn index(value: &Value) -> Result<usize, String> {
-    value
-        .as_u64()
-        .and_then(|v| usize::try_from(v).ok())
-        .ok_or("invalid granted-skill physical reference".into())
+    source::physical_index(value).map_err(|_| "invalid granted-skill physical reference".into())
 }
