@@ -39,7 +39,11 @@ FAKE_ADAPTER = textwrap.dedent(
     out = Path(values["--out"])
     out.mkdir()
     files = {}
-    for flag, paired in (("--codec-source", "--codec-source-sha256"), ("--codec-policy", "--codec-policy-sha256")):
+    for flag, paired in (
+        ("--codec-source", "--codec-source-sha256"),
+        ("--codec-policy", "--codec-policy-sha256"),
+        ("--tree-context-baseline", "--tree-context-baseline-sha256"),
+    ):
         if flag in values:
             raw = Path(values[flag]).read_bytes()
             assert hashlib.sha256(raw).hexdigest() == values[paired], flag
@@ -317,6 +321,30 @@ class ReleaseBuildTest(unittest.TestCase):
                 else:
                     with self.assertRaisesRegex(ValueError, "adapter_mode"):
                         build.load_config(config)
+
+    def test_tree_context_baseline_resolves_a_pinned_package_member_and_tracks_the_pair(self):
+        baseline = encoded({"table": "PassiveSkills", "physical_fields": ["Id"], "rows": []})
+        member = "baseline/PassiveSkills.json"
+        ref = "inputs:" + member
+        config = self.fixture(extra_inputs={member: baseline})
+        out, absent, _ = self.run_build(config)
+        original_command = json.loads((out / "work/logs/a/command.json").read_text())["command"]
+        self.assertNotIn("--tree-context-baseline", original_command)
+        self.assertNotIn("--tree-context-baseline-sha256", original_command)
+        self.assertNotIn(ref, absent["inputs"]["files"])
+        path = config / "domains.json"
+        domains = json.loads(path.read_text())
+        domains["jobs"][0]["options"]["--tree-context-baseline"] = ref
+        path.write_bytes(runtime(domains))
+        out, receipt, _ = self.run_build(config)
+        command = json.loads((out / "work/logs/a/command.json").read_text())["command"]
+        start = command.index("--tree-context-baseline")
+        self.assertEqual(command[start + 2 : start + 4], ["--tree-context-baseline-sha256", pin(baseline)["sha256"]])
+        resolved = Path(command[start + 1])
+        self.assertEqual(resolved.read_bytes(), baseline)
+        self.assertEqual(command[:start] + command[start + 4 :], original_command)
+        self.assertEqual(receipt["inputs"]["files"][ref], pin(baseline))
+        self.assertEqual(receipt["inputs"]["packages"]["inputs"], absent["inputs"]["packages"]["inputs"])
 
     def test_forward_zero_coverage_preserves_members_and_strict_command(self):
         config = self.forward_config(self.fixture())

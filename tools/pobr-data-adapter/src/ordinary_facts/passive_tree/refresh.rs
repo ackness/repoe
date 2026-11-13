@@ -2,7 +2,10 @@
 
 use super::super::stat_set_codec::read_pinned;
 use super::{
-    Converted, ascendancy, nonstat, policy, prepared, render::Renderer, source::Facts, unlock,
+    Converted, ascendancy, nonstat, policy, prepared,
+    render::Renderer,
+    source::{ContextBaseline, Facts},
+    unlock,
 };
 use crate::facts::reader::{self, VerifiedFacts};
 use crate::ordinary_facts::coverage::{Action, Coverage, Issue};
@@ -17,6 +20,12 @@ use std::path::PathBuf;
 pub(in crate::ordinary_facts) struct Args {
     pub reference: PathBuf,
     pub descriptions: PathBuf,
+    pub context_baseline: Option<ContextBaselineArgs>,
+}
+
+pub(in crate::ordinary_facts) struct ContextBaselineArgs {
+    pub path: PathBuf,
+    pub sha256: String,
 }
 
 #[derive(Deserialize)]
@@ -35,6 +44,100 @@ pub(super) struct Policy {
     pub ascendancy: Option<ascendancy::Policy>,
     #[serde(default)]
     pub non_stat_manifest_sha256: Option<String>,
+    #[serde(default, deserialize_with = "present")]
+    pub placement_rebase: Option<PlacementRebase>,
+    #[serde(default)]
+    pub ascendancy_frames: BTreeMap<String, AscendancyFrame>,
+    #[serde(default, deserialize_with = "present")]
+    pub context_baseline: Option<ContextBaselinePolicy>,
+    #[serde(default, deserialize_with = "present")]
+    pub context_columns: Option<ContextColumns>,
+}
+
+#[derive(Deserialize)]
+#[serde(deny_unknown_fields)]
+pub(super) struct ContextColumns {
+    pub bound_fields_sha256: String,
+    pub target_fields_sha256: String,
+    pub added: Vec<AddedColumn>,
+    pub removed: Vec<RemovedColumn>,
+    pub review: Review,
+    pub reason: String,
+}
+#[derive(Deserialize)]
+#[serde(deny_unknown_fields)]
+pub(super) struct AddedColumn {
+    pub field: String,
+    #[serde(deserialize_with = "explicit_value")]
+    pub neutral_value: Value,
+    pub review: Review,
+    pub reason: String,
+}
+#[derive(Deserialize)]
+#[serde(deny_unknown_fields)]
+pub(super) struct RemovedColumn {
+    pub field: String,
+    #[serde(deserialize_with = "explicit_value")]
+    pub constant_value: Value,
+    pub review: Review,
+    pub reason: String,
+}
+// Unlike Value's missing-field behavior, a reviewed null must be written out.
+fn explicit_value<'de, D: serde::Deserializer<'de>>(d: D) -> Result<Value, D::Error> {
+    Value::deserialize(d)
+}
+impl ContextColumns {
+    pub(super) fn validate(&self) -> Result<(), String> {
+        let Review::Reviewed = self.review;
+        for digest in [&self.bound_fields_sha256, &self.target_fields_sha256] {
+            super::super::stat_set_codec::policy::hex(digest, 64, "tree context fields SHA256")?;
+        }
+        if self.reason.trim().is_empty() || (self.added.is_empty() && self.removed.is_empty()) {
+            return Err("context_columns needs a reviewed reason and changed fields".into());
+        }
+        let mut fields = BTreeSet::new();
+        for (field, review, reason) in self
+            .added
+            .iter()
+            .map(|c| (&c.field, &c.review, &c.reason))
+            .chain(
+                self.removed
+                    .iter()
+                    .map(|c| (&c.field, &c.review, &c.reason)),
+            )
+        {
+            let Review::Reviewed = review;
+            if field.trim().is_empty() || reason.trim().is_empty() || !fields.insert(field) {
+                return Err(
+                    "context_columns has invalid, duplicate or overlapping reviewed fields".into(),
+                );
+            }
+        }
+        Ok(())
+    }
+}
+
+#[derive(Deserialize)]
+#[serde(deny_unknown_fields)]
+pub(super) struct ContextBaselinePolicy {
+    pub sha256: String,
+    pub review: Review,
+    pub reason: String,
+}
+
+impl ContextBaselinePolicy {
+    fn validate(&self) -> Result<(), String> {
+        let Review::Reviewed = self.review;
+        super::super::stat_set_codec::policy::hex(
+            &self.sha256,
+            64,
+            "tree context baseline SHA256",
+        )?;
+        if self.reason.trim().is_empty() {
+            return Err("tree context baseline needs a reviewed reason".into());
+        }
+        Ok(())
+    }
 }
 #[derive(Deserialize)]
 #[serde(deny_unknown_fields)]
@@ -43,6 +146,68 @@ pub(super) struct Binding {
     pub stats_sha256: String,
     #[serde(default)]
     pub render_context_sha256: Option<String>,
+    #[serde(default, deserialize_with = "present")]
+    pub lines: Option<Vec<String>>,
+    #[serde(default, deserialize_with = "present")]
+    pub origin: Option<TextOrigin>,
+    #[serde(default, deserialize_with = "present")]
+    pub review: Option<Review>,
+    #[serde(default, deserialize_with = "present")]
+    pub reason: Option<String>,
+}
+// Missing optional fields preserve historical policies; explicit null is never
+// a completed closing entry.
+fn present<'de, D, T>(deserializer: D) -> Result<Option<T>, D::Error>
+where
+    D: serde::Deserializer<'de>,
+    T: Deserialize<'de>,
+{
+    T::deserialize(deserializer).map(Some)
+}
+#[derive(Deserialize)]
+#[serde(rename_all = "kebab-case")]
+pub(super) enum Review {
+    Reviewed,
+}
+#[derive(Deserialize)]
+#[serde(rename_all = "kebab-case")]
+pub(super) enum TextOrigin {
+    OfficialReference,
+    Manual,
+}
+#[derive(Deserialize)]
+#[serde(deny_unknown_fields)]
+pub(super) struct PlacementRebase {
+    pub reference_sha256: String,
+    pub legacy_source_sha256: String,
+    pub moved_skills_sha256: String,
+    pub moved_count: usize,
+    pub review: Review,
+    pub reason: String,
+}
+#[derive(Deserialize)]
+#[serde(deny_unknown_fields)]
+pub(super) struct AscendancyFrame {
+    pub start_skill: u64,
+    pub dx: f64,
+    pub dy: f64,
+    pub reference_start_node_sha256: String,
+    pub member_skills_sha256: String,
+    pub review: Review,
+    pub reason: String,
+}
+impl PlacementRebase {
+    fn matches(
+        &self,
+        reference_sha256: &str,
+        source_sha256: &str,
+        moved: &BTreeSet<u64>,
+    ) -> Result<bool, String> {
+        Ok(self.reference_sha256 == reference_sha256
+            && self.legacy_source_sha256 == source_sha256
+            && self.moved_count == moved.len()
+            && self.moved_skills_sha256 == hash(&moved.iter().copied().collect::<Vec<_>>())?)
+    }
 }
 #[derive(Deserialize)]
 #[serde(deny_unknown_fields)]
@@ -58,6 +223,74 @@ pub(super) struct ClassBinding {
 }
 
 impl Policy {
+    fn validate_closing_entries(&self) -> Result<(), String> {
+        if let Some(entry) = &self.context_baseline {
+            entry.validate()?;
+        }
+        if let Some(entry) = &self.context_columns {
+            entry.validate()?;
+            if self.context_baseline.is_none() {
+                return Err("context_columns requires a verified context baseline".into());
+            }
+        }
+        let digest = |value: &str| {
+            value.len() == 64
+                && value
+                    .bytes()
+                    .all(|byte| byte.is_ascii_hexdigit() && !byte.is_ascii_uppercase())
+        };
+        if let Some(entry) = &self.placement_rebase {
+            let Review::Reviewed = entry.review;
+            if entry.reason.trim().is_empty()
+                || !digest(&entry.reference_sha256)
+                || !digest(&entry.legacy_source_sha256)
+                || !digest(&entry.moved_skills_sha256)
+                || entry.moved_count == 0
+            {
+                return Err("invalid reviewed placement_rebase entry".into());
+            }
+        }
+        for (id, entry) in &self.ascendancy_frames {
+            let Review::Reviewed = entry.review;
+            if id.trim().is_empty()
+                || entry.reason.trim().is_empty()
+                || !entry.dx.is_finite()
+                || !entry.dy.is_finite()
+                || !digest(&entry.reference_start_node_sha256)
+                || !digest(&entry.member_skills_sha256)
+            {
+                return Err(format!("{id}: invalid reviewed ascendancy frame"));
+            }
+        }
+        for (id, binding) in &self.compatibility_bindings {
+            if binding.lines.is_none()
+                && binding.origin.is_none()
+                && binding.review.is_none()
+                && binding.reason.is_none()
+            {
+                continue;
+            }
+            if !matches!(binding.review, Some(Review::Reviewed))
+                || binding
+                    .reason
+                    .as_ref()
+                    .is_none_or(|reason| reason.trim().is_empty())
+                || binding.origin.is_none()
+                || binding.lines.as_ref().is_none_or(|lines| {
+                    lines.is_empty() || lines.iter().any(|line| line.trim().is_empty())
+                })
+                || !digest(&binding.context_sha256)
+                || !digest(&binding.stats_sha256)
+                || binding
+                    .render_context_sha256
+                    .as_ref()
+                    .is_some_and(|value| !digest(value))
+            {
+                return Err(format!("{id}: incomplete reviewed whole-text binding"));
+            }
+        }
+        Ok(())
+    }
     pub(super) fn owns_unlocks(&self) -> bool {
         matches!(
             self.schema.as_str(),
@@ -81,6 +314,25 @@ struct Effects<'a> {
     supplement: Option<&'a reader::selected::Input>,
 }
 
+/// Read only the explicitly authorized historical table, before target qualification.
+pub(super) fn read_context_baseline(
+    policy: &Policy,
+    input: Option<&ContextBaselineArgs>,
+) -> Result<Option<(ContextBaseline, PathBuf)>, String> {
+    let (entry, input) = match (&policy.context_baseline, input) {
+        (None, None) => return Ok(None),
+        (Some(entry), Some(input)) => (entry, input),
+        _ => return Err("tree context baseline policy/input must be paired".into()),
+    };
+    entry.validate()?;
+    if entry.sha256 != input.sha256 {
+        return Err("tree context baseline CLI/policy SHA256 mismatch".into());
+    }
+    let pinned = read_pinned(&input.path, &input.sha256, "tree context baseline")?;
+    let table = ContextBaseline::read(pinned.document, &policy.base_policy.qualification)?;
+    Ok(Some((table, pinned.parent)))
+}
+
 pub(super) fn convert(
     input: &VerifiedFacts,
     args: &super::super::CodecArgs,
@@ -90,6 +342,7 @@ pub(super) fn convert(
 ) -> Result<Converted, String> {
     let pinned = read_pinned(&args.policy, &args.policy_sha256, "target tree policy")?;
     let policy: Policy = serde_json::from_value(pinned.document).map_err(|e| e.to_string())?;
+    policy.validate_closing_entries()?;
     if !matches!(
         policy.schema.as_str(),
         "pobr-ordinary-target-tree-policy/v1"
@@ -114,6 +367,7 @@ pub(super) fn convert(
         return Err("target tree render-context policy scope mismatch".into());
     }
     policy.base_policy.validate(input)?;
+    let baseline = read_context_baseline(&policy, extra.context_baseline.as_ref())?;
     if args.source_sha256 != policy.base_policy.source.sha256 {
         return Err("prepared tree policy pin mismatch".into());
     }
@@ -146,7 +400,13 @@ pub(super) fn convert(
     {
         return Err("CSD manifest/payload/patch mismatch".into());
     }
-    let facts = Facts::read(input, &policy.base_policy)?;
+    let facts = Facts::read_with_context(
+        input,
+        &policy.base_policy,
+        baseline.as_ref().map(|(table, _)| table),
+        policy.context_columns.as_ref(),
+        coverage.is_forward(),
+    )?;
     let renderer = Renderer::new(&descriptions.document)?;
     let ascendancy = policy
         .ascendancy
@@ -177,6 +437,30 @@ pub(super) fn convert(
         &args.source_sha256,
         coverage,
     )?;
+    let mut protected_parents = vec![
+        legacy.parent,
+        pinned.parent,
+        reference.parent,
+        descriptions.parent,
+        desc_manifest.parent,
+    ];
+    if let Some((_, parent)) = &baseline {
+        protected_parents.push(parent.clone());
+    }
+    let mut conversion = json!({"projection":receipt,"legacy_source":{"sha256":args.source_sha256,"declaration":policy.base_policy.source},
+        "codec_policy":{"sha256":args.policy_sha256},"reference":{"sha256":policy.reference_sha256,"patch":"unknown","role":"fixed coordinate offsets and canonical identity corroboration, not numeric target source"},
+        "descriptions":{"sha256":policy.descriptions_sha256,"manifest_sha256":policy.descriptions_manifest_sha256,"source_identity":desc_manifest.document["source_identity"]},
+        "target_fields":{"facts_manifest_sha256":sha256_hex(&input.manifest_bytes),"source_identity":input.manifest["source_identity"]},
+        "compatibility_statement":policy.statement,"status":"source draft; candidate only; CURRENT unchanged"});
+    if let Some(((table, _), entry)) = baseline.as_ref().zip(policy.context_baseline.as_ref()) {
+        conversion["context_baseline"] = json!({
+            "sha256":entry.sha256,"review":"reviewed","reason":entry.reason,
+            "reference_passive_id":policy.base_policy.qualification.reference_passive_id,
+            "reference_context_sha256":policy.base_policy.qualification.context_sha256,
+            "physical_field_count":table.fields.len(),"row_count":table.rows.len(),
+            "role":"digest-pinned historical PassiveSkills context evidence; not current target facts"
+        });
+    }
     Ok(Converted {
         base: BTreeMap::from([
             (
@@ -188,20 +472,10 @@ pub(super) fn convert(
                 super::super::pretty_bytes(&metadata)?,
             ),
         ]),
-        receipt: json!({"projection":receipt,"legacy_source":{"sha256":args.source_sha256,"declaration":policy.base_policy.source},
-            "codec_policy":{"sha256":args.policy_sha256},"reference":{"sha256":policy.reference_sha256,"patch":"unknown","role":"fixed coordinate offsets and canonical identity corroboration, not numeric target source"},
-            "descriptions":{"sha256":policy.descriptions_sha256,"manifest_sha256":policy.descriptions_manifest_sha256,"source_identity":desc_manifest.document["source_identity"]},
-            "target_fields":{"facts_manifest_sha256":sha256_hex(&input.manifest_bytes),"source_identity":input.manifest["source_identity"]},
-            "compatibility_statement":policy.statement,"status":"source draft; candidate only; CURRENT unchanged"}),
+        receipt: conversion,
         source_bytes: legacy.bytes,
         policy_bytes: pinned.bytes,
-        protected_parents: vec![
-            legacy.parent,
-            pinned.parent,
-            reference.parent,
-            descriptions.parent,
-            desc_manifest.parent,
-        ],
+        protected_parents,
     })
 }
 
@@ -249,7 +523,21 @@ fn render_context(policy: &Policy, raw: &Value) -> Result<Value, String> {
     }
     Ok(context)
 }
-fn hash(value: &impl serde::Serialize) -> Result<String, String> {
+fn bound_context(
+    facts: &Facts<'_>,
+    policy: &Policy,
+    raw: &Value,
+    render: bool,
+) -> Result<Value, String> {
+    facts.context.project(raw, |raw| {
+        if render {
+            render_context(policy, raw)
+        } else {
+            policy_context(policy, raw)
+        }
+    })
+}
+pub(super) fn hash(value: &impl serde::Serialize) -> Result<String, String> {
     Ok(sha256_hex(&reader::json_bytes(value)?))
 }
 fn raw_stats(
@@ -272,11 +560,17 @@ fn observe_node(
 ) -> Result<Issue, String> {
     let raw = facts.tables.row("PassiveSkills", row)?;
     Ok(issue
-        .observed("definition_sha256", hash(raw)?)
-        .observed("context_sha256", hash(&policy_context(policy, raw)?)?)
+        .observed(
+            "definition_sha256",
+            hash(&facts.context.project(raw, |raw| Ok(raw.clone()))?)?,
+        )
+        .observed(
+            "context_sha256",
+            hash(&bound_context(facts, policy, raw, false)?)?,
+        )
         .observed(
             "render_context_sha256",
-            hash(&render_context(policy, raw)?)?,
+            hash(&bound_context(facts, policy, raw, true)?)?,
         )
         .observed("stats_sha256", hash(&raw_stats(input, facts, row)?)?))
 }
@@ -294,6 +588,7 @@ fn decide_node(
     observed.map(|_| ())
 }
 fn exact_compatibility(
+    facts: &Facts<'_>,
     policy: &Policy,
     id: &str,
     raw: &Value,
@@ -307,7 +602,7 @@ fn exact_compatibility(
         )?;
         return Ok(false);
     };
-    if binding.context_sha256 != hash(&policy_context(policy, raw)?)?
+    if binding.context_sha256 != hash(&bound_context(facts, policy, raw, false)?)?
         || binding.stats_sha256 != hash(&stats)?
     {
         decide(
@@ -323,17 +618,24 @@ fn candidate_lines(reference: &Value, raw: &Value) -> Result<Option<Vec<String>>
     let Some(stats) = reference["nodes"][skill.to_string()].get("stats") else {
         return Ok(None);
     };
-    let mut lines = Vec::new();
-    for value in stats.as_array().ok_or("invalid reference stats")? {
-        let text = value.as_str().ok_or("invalid reference stat line")?;
-        lines.extend(
+    let lines = stats
+        .as_array()
+        .ok_or("invalid reference stats")?
+        .iter()
+        .map(|value| value.as_str().ok_or("invalid reference stat line"))
+        .collect::<Result<Vec<_>, _>>()?;
+    Ok(Some(normalized_lines(lines)))
+}
+fn normalized_lines<'a>(lines: impl IntoIterator<Item = &'a str>) -> Vec<String> {
+    lines
+        .into_iter()
+        .flat_map(|text| {
             text.lines()
                 .map(str::trim)
                 .filter(|line| !line.is_empty())
-                .map(str::to_owned),
-        );
-    }
-    Ok(Some(lines))
+                .map(str::to_owned)
+        })
+        .collect()
 }
 #[allow(clippy::too_many_arguments)]
 fn text(
@@ -349,8 +651,13 @@ fn text(
     let raw = facts.tables.row("PassiveSkills", row)?;
     let id = raw["Id"].as_str().ok_or("missing passive Id")?;
     let stats = raw_stats(input, facts, row)?;
-    if coverage.is_forward() {
+    let binding = policy.compatibility_bindings.get(id);
+    let approved_lines = binding.and_then(|binding| binding.lines.as_deref());
+    if coverage.is_forward() || approved_lines.is_some() {
         Renderer::stat_values(&stats)?;
+        if approved_lines.is_some() {
+            classify(raw, true)?;
+        }
         if let Some(source) = &effects.nonstat {
             source.validate_physical(raw)?;
         }
@@ -401,7 +708,48 @@ fn text(
                 }
                 decide_node(coverage, issue, input, facts, policy, row)
             };
-            let compatible = exact_compatibility(policy, id, raw, &stats, &mut decide)?;
+            let mut compatible = exact_compatibility(facts, policy, id, raw, &stats, &mut decide)?;
+            if compatible
+                && legacy.is_none()
+                && let Some(lines) = approved_lines
+            {
+                let binding = binding.ok_or("missing reviewed text binding")?;
+                if binding
+                    .render_context_sha256
+                    .as_ref()
+                    .unwrap_or(&binding.context_sha256)
+                    != &hash(&bound_context(facts, policy, raw, true)?)?
+                {
+                    decide(
+                        "text-binding-stale",
+                        format!("{id}: stale reviewed whole-text render context"),
+                    )?;
+                    compatible = false;
+                } else if candidate_lines(effects.reference, raw)?.is_some_and(|candidate| {
+                    candidate != normalized_lines(lines.iter().map(String::as_str))
+                }) {
+                    decide(
+                        "text-binding-stale",
+                        format!("{id}: reviewed whole text differs from reference candidate lines"),
+                    )?;
+                    compatible = false;
+                } else {
+                    return Ok((
+                        lines.to_vec(),
+                        json!({
+                            "owner":"reviewed-whole-text","reason":reason,"complete_stats":stats,
+                            "stats_sha256":hash(&stats)?,"origin":match binding.origin {
+                                Some(TextOrigin::OfficialReference) => "official-reference",
+                                Some(TextOrigin::Manual) => "manual",
+                                None => return Err("missing reviewed text origin".into())
+                            },
+                            "review":"reviewed","review_reason":binding.reason,
+                            "target_applicability":"whole-text compatibility; no native packet"
+                        }),
+                        false,
+                    ));
+                }
+            }
             if legacy.is_none() && compatible {
                 decide(
                     "text-unrenderable-new",
@@ -431,6 +779,10 @@ pub(super) fn project(
     source_sha256: &str,
     coverage: &mut Coverage,
 ) -> Result<(Value, Value, Value), String> {
+    policy.validate_closing_entries()?;
+    if policy.context_baseline.is_some() != facts.context.baseline.is_some() {
+        return Err("tree context projection requires the verified baseline input".into());
+    }
     let effects = Effects {
         ascendancy: supplement.as_ref().map(|s| s.ascendancy),
         reference,
@@ -472,6 +824,27 @@ pub(super) fn project(
         serde_json::from_value(policy.base_policy.legacy_metadata.value.clone())
             .map_err(|e| e.to_string())?;
     prepared::validate(&old_nodes, &meta)?;
+    for (id, binding) in &policy.compatibility_bindings {
+        if binding.lines.is_none() {
+            continue;
+        }
+        let row = *facts
+            .passives
+            .get(id)
+            .ok_or_else(|| format!("{id}: unknown reviewed text identity"))?;
+        let skill = super::source::graph_id(facts.tables.row("PassiveSkills", row)?)?;
+        if old_nodes.iter().any(|node| {
+            node.skill == skill
+                || node
+                    .variants
+                    .iter()
+                    .any(|variant| variant.variant_skill == Some(skill))
+        }) {
+            return Err(format!(
+                "{id}: reviewed lines cannot replace existing prepared text"
+            ));
+        }
+    }
     if reference["tree"] != "Default" {
         return Err("reference is not Default tree".into());
     }
@@ -482,16 +855,8 @@ pub(super) fn project(
         .collect();
     let (graph, instances) = reader::tree(input)?;
     let forward = coverage.is_forward();
-    if forward && policy.owns_unlocks() {
-        let owners = supplement
-            .as_ref()
-            .ok_or("source unlocks require target ascendancy identities")?
-            .input
-            .tables(&["Ascendancy"])?;
-        // Quarantine changes output availability, never physical FK validity.
-        for instance in &instances {
-            unlock::validate_physical(facts, &owners, instance.definition.row)?;
-        }
+    if forward || facts.context.change.is_some() {
+        validate_consumed_physical(input, facts, policy, &instances, &old, &effects)?;
     }
     if forward
         && instances
@@ -506,6 +871,57 @@ pub(super) fn project(
             false,
             None,
         )?;
+        for instance in &instances {
+            if !old.contains_key(&(instance.graph_id as u32)) {
+                anointment_only(facts.tables.row("PassiveSkills", instance.definition.row)?)?;
+            }
+        }
+    }
+    if facts.context.diagnostic {
+        let mut issue = Issue::new(
+            "context-columns-changed",
+            "PassiveSkills",
+            Action::EmittedWithGap,
+            "verified historical and target PassiveSkills physical fields differ; column review required",
+        );
+        let change = facts
+            .context
+            .change
+            .as_ref()
+            .ok_or("missing column evidence")?;
+        issue = issue
+            .observed("bound_fields_sha256", change.bound_fields_sha256.clone())
+            .observed("target_fields_sha256", change.target_fields_sha256.clone())
+            .observed("added", json!(change.added))
+            .observed("removed", json!(change.removed));
+        let baseline = facts.context.baseline.ok_or("missing verified baseline")?;
+        let affected: Vec<_> = facts.passives.keys().collect();
+        let absent: Vec<_> = facts
+            .passives
+            .keys()
+            .filter(|id| !baseline.rows.contains_key(*id))
+            .collect();
+        issue = issue
+            .observed(
+                "context_baseline_sha256",
+                policy
+                    .context_baseline
+                    .as_ref()
+                    .ok_or("missing baseline policy")?
+                    .sha256
+                    .clone(),
+            )
+            .observed(
+                "reference_passive_id",
+                policy
+                    .base_policy
+                    .qualification
+                    .reference_passive_id
+                    .clone(),
+            )
+            .observed("affected_ids", json!(affected))
+            .observed("ids_without_old_evidence", json!(absent));
+        coverage.note(issue);
     }
     let mut excluded = BTreeSet::new();
     let mut excluded_records = Vec::new();
@@ -524,7 +940,10 @@ pub(super) fn project(
             continue;
         }
         if let Some(exclusion) = policy.excluded.get(&instance.definition.id) {
-            if exclusion.definition_sha256 != hash(raw)? || exclusion.reason.trim().is_empty() {
+            if exclusion.definition_sha256
+                != hash(&facts.context.project(raw, |raw| Ok(raw.clone()))?)?
+                || exclusion.reason.trim().is_empty()
+            {
                 decide_node(
                     coverage,
                     Issue::new(
@@ -579,6 +998,43 @@ pub(super) fn project(
                 "source_row":instance.definition.row,"reason":exclusion.reason,"definition_sha256":exclusion.definition_sha256}));
         }
     }
+    // Only reviewed rebases need lookahead. Reuse the quarantine and placement
+    // predicates, without moving any strict decision ahead of its original node.
+    let rebase_approved = if let Some(entry) = &policy.placement_rebase {
+        let moved = instances
+            .iter()
+            .filter(|instance| {
+                !excluded.contains(&instance.graph_id) && !quarantined.contains(&instance.graph_id)
+            })
+            .filter_map(|instance| {
+                let skill = u32::try_from(instance.graph_id).ok()?;
+                let previous = old.get(&skill).copied()?;
+                let raw = facts
+                    .tables
+                    .row("PassiveSkills", instance.definition.row)
+                    .ok()?;
+                if !node_quarantine(
+                    policy,
+                    legacy,
+                    Some(previous),
+                    &instance.definition.id,
+                    skill,
+                    raw,
+                    ascendancy,
+                )
+                .is_ok_and(|issue| issue.is_none())
+                {
+                    return None;
+                }
+                let node = &reference["nodes"][instance.graph_id.to_string()];
+                (reference_slot_matches(node, instance) && placement_moved(previous.1, node))
+                    .then_some(instance.graph_id)
+            })
+            .collect();
+        entry.matches(&policy.reference_sha256, source_sha256, &moved)?
+    } else {
+        false
+    };
     let mut output = Vec::new();
     let mut records = Vec::new();
     let mut native_count = 0;
@@ -595,7 +1051,7 @@ pub(super) fn project(
         let raw = facts.tables.row("PassiveSkills", row)?;
         let id = instance.definition.id.as_str();
         let previous = old.get(&skill).copied();
-        let mut has_open_issue = gapped.contains(&instance.graph_id);
+        let mut has_open_issue = gapped.contains(&instance.graph_id) || facts.context.diagnostic;
         let expected_context = policy
             .compatibility_bindings
             .get(id)
@@ -605,11 +1061,13 @@ pub(super) fn project(
                     .unwrap_or(&b.context_sha256)
                     .clone()
             })
-            .unwrap_or(hash(&render_context(
+            .unwrap_or(hash(&bound_context(
+                facts,
                 policy,
                 facts.tables.row("PassiveSkills", facts.reference_row)?,
+                true,
             )?)?);
-        let target_context = hash(&render_context(policy, raw)?)?;
+        let target_context = hash(&bound_context(facts, policy, raw, true)?)?;
         if expected_context != target_context {
             coverage.decide(
                 Issue::new(
@@ -634,83 +1092,13 @@ pub(super) fn project(
                 row,
             )
         };
-        if let Some((old_index, old)) = previous {
-            let alias =
-                policy.base_policy.legacy_id_bindings.iter().find(|b| {
-                    b.legacy_id == old.id && b.target_passive_id == id && b.skill == skill
-                });
-            if old.id != id && alias.is_none() {
-                quarantine(
-                    coverage,
-                    Issue::new(
-                        "identity-collision",
-                        id,
-                        Action::Quarantined,
-                        format!("{id}: prepared identity collision at {skill}"),
-                    ),
-                )?;
-                quarantined.insert(instance.graph_id);
-                continue;
-            }
-            if let Some(alias) = alias
-                && (alias.source_entry_sha256 != hash(&legacy[old_index])?
-                    || old.name.as_deref() != Some(alias.expected_name.as_str()))
-            {
-                quarantine(
-                    coverage,
-                    Issue::new(
-                        "stale-alias",
-                        id,
-                        Action::Quarantined,
-                        format!("{id}: stale prepared identity alias"),
-                    ),
-                )?;
-                quarantined.insert(instance.graph_id);
-                continue;
-            }
+        if let Some(issue) = node_quarantine(policy, legacy, previous, id, skill, raw, ascendancy)?
+        {
+            quarantine(coverage, issue)?;
+            quarantined.insert(instance.graph_id);
+            continue;
         }
         let name = raw["Name"].as_str().ok_or("missing target Name")?;
-        if name.is_empty() || name.starts_with("[DNT") {
-            quarantine(
-                coverage,
-                Issue::new(
-                    "unclassified-name",
-                    id,
-                    Action::Quarantined,
-                    format!("{id}: unclassified layout/unreleased definition"),
-                ),
-            )?;
-            quarantined.insert(instance.graph_id);
-            continue;
-        }
-        let quarantined_owner = if policy.owns_unlocks() {
-            raw["VisibleForAscendancy"]
-                .as_u64()
-                .and_then(|row| usize::try_from(row).ok())
-                .and_then(|row| ascendancy?.quarantined.get(&row))
-        } else {
-            previous
-                .and_then(|(_, node)| node.unlock_constraint.as_ref())
-                .and_then(|unlock| unlock.ascendancy.as_ref())
-                .filter(|id| {
-                    ascendancy
-                        .is_some_and(|source| source.quarantined.values().any(|owner| owner == *id))
-                })
-        };
-        if let Some(owner) = quarantined_owner {
-            quarantine(
-                coverage,
-                Issue::new(
-                    "dependant-quarantined",
-                    id,
-                    Action::Quarantined,
-                    format!("{id}: prerequisite ascendancy quarantined"),
-                )
-                .observed("quarantined_ascendancy", owner.clone()),
-            )?;
-            quarantined.insert(instance.graph_id);
-            continue;
-        }
         let (lines, text_record, text_gap) = text(
             input,
             facts,
@@ -763,12 +1151,12 @@ pub(super) fn project(
         } else {
             previous.and_then(|(_, node)| node.ascendancy_id.as_deref())
         };
-        let new_ascendancy = forward
-            && ascendancy_id.is_some_and(|id| {
-                !old_nodes
+        let new_ascendancy = ascendancy_id.is_some_and(|id| {
+            (forward || policy.ascendancy_frames.contains_key(id))
+                && !old_nodes
                     .iter()
                     .any(|node| node.ascendancy_id.as_deref() == Some(id))
-            });
+        });
         let Some((geometry, rebased)) = geometry(
             reference,
             &graph,
@@ -778,11 +1166,10 @@ pub(super) fn project(
                 prepared: &old_nodes,
                 ascendancy_id,
                 forward,
+                rebase_approved,
                 new_ascendancy,
                 anointment_only: if forward && previous.is_none() {
-                    raw["IsAnointmentOnly"]
-                        .as_bool()
-                        .ok_or("IsAnointmentOnly: bool required")?
+                    anointment_only(raw)?
                 } else {
                     false
                 },
@@ -797,7 +1184,7 @@ pub(super) fn project(
         if rebased {
             moved_skills.insert(instance.graph_id);
         }
-        has_open_issue |= text_gap || rebased || new_ascendancy;
+        has_open_issue |= text_gap || (rebased && !rebase_approved) || new_ascendancy;
         if new_ascendancy && let Some(id) = ascendancy_id {
             new_ascendancies.insert(id);
         }
@@ -867,10 +1254,13 @@ pub(super) fn project(
             "unlock":unlock_record,
             "source_connections":instance.connections,"excluded_connections":instance.connections.iter().filter(|id|excluded.contains(id)).collect::<Vec<_>>(),
             "compatibility_fields":if policy.owns_unlocks(){vec!["apply_to_armour","unknown prepared extension fields"]}else if ascendancy.is_some(){vec!["unlock_constraint","apply_to_armour","unknown prepared extension fields"]}else{vec!["ascendancy_id","unlock_constraint","apply_to_armour","unknown prepared extension fields"]},
-            "context_sha256":hash(&policy_context(policy, raw)?)?,"output_entry_sha256":hash(&entry)?}));
+            "context_sha256":hash(&bound_context(facts, policy, raw, false)?)?,"output_entry_sha256":hash(&entry)?}));
         output.push(entry);
     }
-    if !moved_skills.is_empty() {
+    if policy.placement_rebase.is_some() && moved_skills.is_empty() {
+        return Err("unused placement_rebase entry".into());
+    }
+    if !moved_skills.is_empty() && !rebase_approved {
         coverage.decide(
             Issue::new(
                 "placement-rebase",
@@ -975,7 +1365,10 @@ pub(super) fn project(
             })
             .count();
     }
-    if forward && let Some(source) = ascendancy {
+    let mut used_frames = BTreeSet::new();
+    if (forward || !policy.ascendancy_frames.is_empty())
+        && let Some(source) = ascendancy
+    {
         for entry in source.entries.values() {
             if !new_ascendancies.contains(entry.id.as_str()) {
                 continue;
@@ -997,24 +1390,101 @@ pub(super) fn project(
                 }
             }
             let start_skill = start_skill.ok_or("new ascendancy lacks a target start node")?;
-            coverage.note(
-                Issue::new(
-                    "ascendancy-frame",
-                    &entry.id,
-                    Action::EmittedWithGap,
-                    format!("{}: no prepared ascendancy coordinate frame", entry.id),
-                )
-                .observed("start_skill", start_skill)
-                .observed(
-                    "reference_start_node_sha256",
-                    hash(&reference["nodes"][start_skill.to_string()])?,
-                )
-                .observed(
-                    "member_skills_sha256",
-                    hash(&member_skills.iter().copied().collect::<Vec<_>>())?,
-                ),
-            );
+            let reference_start = &reference["nodes"][start_skill.to_string()];
+            let reference_start_node_sha256 = hash(reference_start)?;
+            let member_skills_sha256 = hash(&member_skills.iter().copied().collect::<Vec<_>>())?;
+            let frame = policy.ascendancy_frames.get(&entry.id);
+            let issue = Issue::new(
+                "ascendancy-frame",
+                &entry.id,
+                Action::EmittedWithGap,
+                if frame.is_some() {
+                    format!("{}: stale or unusable reviewed ascendancy frame", entry.id)
+                } else {
+                    format!("{}: no prepared ascendancy coordinate frame", entry.id)
+                },
+            )
+            .observed("start_skill", start_skill)
+            .observed(
+                "reference_start_node_sha256",
+                reference_start_node_sha256.clone(),
+            )
+            .observed("member_skills_sha256", member_skills_sha256.clone());
+            let Some(frame) = frame else {
+                coverage.note(issue);
+                continue;
+            };
+            used_frames.insert(entry.id.clone());
+            let usable_start = output.iter().any(|node| {
+                node["skill"] == start_skill
+                    && node["ascendancy_id"] == entry.id
+                    && ["x", "y"].iter().all(|key| {
+                        node[key].as_f64().is_some_and(f64::is_finite)
+                            && reference_start[key].as_f64().is_some_and(f64::is_finite)
+                    })
+            });
+            if frame.start_skill != start_skill
+                || frame.reference_start_node_sha256 != reference_start_node_sha256
+                || frame.member_skills_sha256 != member_skills_sha256
+                || !usable_start
+            {
+                coverage.decide(issue)?;
+                continue;
+            }
+            for (node, record) in output.iter_mut().zip(&mut records) {
+                if node["ascendancy_id"] != entry.id {
+                    continue;
+                }
+                for (key, offset) in [("x", frame.dx), ("y", frame.dy)] {
+                    if let Some(coordinate) = node.get(key).and_then(Value::as_f64) {
+                        let value = coordinate + offset;
+                        if !value.is_finite() {
+                            return Err("non-finite projected ascendancy frame coordinate".into());
+                        }
+                        node[key] = json!(value);
+                    }
+                }
+                record["geometry"]["reviewed_frame"] = json!({
+                    "ascendancy_id":entry.id,"start_skill":start_skill,"dx":frame.dx,"dy":frame.dy,
+                    "reference_start_node_sha256":reference_start_node_sha256,
+                    "member_skills_sha256":member_skills_sha256,"review":"reviewed","reason":frame.reason
+                });
+                record["output_entry_sha256"] = json!(hash(node)?);
+            }
         }
+    }
+    for id in policy.ascendancy_frames.keys() {
+        if !used_frames.contains(id) {
+            return Err(format!("{id}: unknown or unused reviewed ascendancy frame"));
+        }
+    }
+    for (id, binding) in &policy.compatibility_bindings {
+        if binding.lines.is_some()
+            && !records.iter().any(|record| {
+                record["id"] == *id
+                    || record["variants"]
+                        .as_array()
+                        .into_iter()
+                        .flatten()
+                        .any(|variant| variant["target"] == *id)
+            })
+        {
+            return Err(format!("{id}: unused reviewed whole-text binding"));
+        }
+    }
+    if !forward
+        && facts.context.change.is_none()
+        && (policy.placement_rebase.is_some()
+            || !policy.ascendancy_frames.is_empty()
+            || policy
+                .compatibility_bindings
+                .values()
+                .any(|b| b.lines.is_some()))
+    {
+        // New review cannot turn a physical error into successful strict output.
+        // Keep this after the original strict decisions so a stale placement
+        // still reports its original first error before defects on later nodes.
+        validate_consumed_physical(input, facts, policy, &instances, &old, &effects)?;
     }
     output.sort_by_key(|n| n["skill"].as_u64());
     let typed: Vec<PassiveNodeDef> =
@@ -1107,13 +1577,103 @@ fn classify(raw: &Value, validate_all: bool) -> Result<PassiveNodeKind, String> 
     Ok(selected)
 }
 
+fn node_quarantine(
+    policy: &Policy,
+    legacy: &Value,
+    previous: Option<(usize, &PassiveNodeDef)>,
+    id: &str,
+    skill: u32,
+    raw: &Value,
+    ascendancy: Option<&ascendancy::Source>,
+) -> Result<Option<Issue>, String> {
+    if let Some((old_index, old)) = previous {
+        let alias = policy
+            .base_policy
+            .legacy_id_bindings
+            .iter()
+            .find(|b| b.legacy_id == old.id && b.target_passive_id == id && b.skill == skill);
+        if old.id != id && alias.is_none() {
+            return Ok(Some(Issue::new(
+                "identity-collision",
+                id,
+                Action::Quarantined,
+                format!("{id}: prepared identity collision at {skill}"),
+            )));
+        }
+        if let Some(alias) = alias
+            && (alias.source_entry_sha256 != hash(&legacy[old_index])?
+                || old.name.as_deref() != Some(alias.expected_name.as_str()))
+        {
+            return Ok(Some(Issue::new(
+                "stale-alias",
+                id,
+                Action::Quarantined,
+                format!("{id}: stale prepared identity alias"),
+            )));
+        }
+    }
+    let name = raw["Name"].as_str().ok_or("missing target Name")?;
+    if name.is_empty() || name.starts_with("[DNT") {
+        return Ok(Some(Issue::new(
+            "unclassified-name",
+            id,
+            Action::Quarantined,
+            format!("{id}: unclassified layout/unreleased definition"),
+        )));
+    }
+    let quarantined_owner = if policy.owns_unlocks() {
+        raw["VisibleForAscendancy"]
+            .as_u64()
+            .and_then(|row| usize::try_from(row).ok())
+            .and_then(|row| ascendancy?.quarantined.get(&row))
+    } else {
+        previous
+            .and_then(|(_, node)| node.unlock_constraint.as_ref())
+            .and_then(|unlock| unlock.ascendancy.as_ref())
+            .filter(|id| {
+                ascendancy
+                    .is_some_and(|source| source.quarantined.values().any(|owner| owner == *id))
+            })
+    };
+    if let Some(owner) = quarantined_owner {
+        return Ok(Some(
+            Issue::new(
+                "dependant-quarantined",
+                id,
+                Action::Quarantined,
+                format!("{id}: prerequisite ascendancy quarantined"),
+            )
+            .observed("quarantined_ascendancy", owner.clone()),
+        ));
+    }
+    Ok(None)
+}
+
 struct Placement<'a> {
     previous: Option<&'a PassiveNodeDef>,
     prepared: &'a [PassiveNodeDef],
     ascendancy_id: Option<&'a str>,
     forward: bool,
+    rebase_approved: bool,
     new_ascendancy: bool,
     anointment_only: bool,
+}
+
+fn anointment_only(raw: &Value) -> Result<bool, String> {
+    raw["IsAnointmentOnly"]
+        .as_bool()
+        .ok_or("IsAnointmentOnly: bool required".into())
+}
+
+fn reference_slot_matches(node: &Value, instance: &reader::InstanceInput) -> bool {
+    node["skill"] == instance.graph_id
+        && node["orbit"] == instance.radius
+        && node["orbitIndex"] == instance.position
+}
+fn placement_moved(previous: &PassiveNodeDef, node: &Value) -> bool {
+    previous.group.map(u64::from) != node["group"].as_u64()
+        || previous.orbit.map(u64::from) != node["orbit"].as_u64()
+        || previous.orbit_index.map(u64::from) != node["orbitIndex"].as_u64()
 }
 
 fn geometry(
@@ -1148,10 +1708,7 @@ fn geometry(
         ).observed("reference_node", node.clone()))?;
         return Ok(None);
     }
-    if node["skill"] != instance.graph_id
-        || node["orbit"] != instance.radius
-        || node["orbitIndex"] != instance.position
-    {
+    if !reference_slot_matches(node, instance) {
         quarantine(
             Issue::new(
                 "reference-slot-changed",
@@ -1195,12 +1752,8 @@ fn geometry(
             false,
         )));
     }
-    let rebased = previous.is_some_and(|old| {
-        old.group.map(u64::from) != node["group"].as_u64()
-            || old.orbit.map(u64::from) != node["orbit"].as_u64()
-            || old.orbit_index.map(u64::from) != node["orbitIndex"].as_u64()
-    });
-    if rebased && !placement.forward {
+    let rebased = previous.is_some_and(|old| placement_moved(old, node));
+    if rebased && !placement.forward && !placement.rebase_approved {
         quarantine(Issue::new(
             "placement-rebase",
             "passive-tree",
@@ -1211,7 +1764,7 @@ fn geometry(
     let use_reference = previous.is_none() || rebased || placement.new_ascendancy;
     let start = placement
         .ascendancy_id
-        .filter(|_| placement.forward && use_reference)
+        .filter(|_| (placement.forward || placement.rebase_approved) && use_reference)
         .and_then(|id| {
             placement.prepared.iter().find(|node| {
                 node.kind == PassiveNodeKind::AscendancyStart
@@ -1318,12 +1871,6 @@ fn variants(
         .and_then(Value::as_array)
         .cloned()
         .unwrap_or_default();
-    let previous_classes: BTreeSet<_> = policy
-        .class_bindings
-        .iter()
-        .filter(|b| b.base_id == id)
-        .map(|b| b.class.as_str())
-        .collect();
     let old_by_class: BTreeMap<_, _> = variants
         .iter()
         .cloned()
@@ -1339,37 +1886,21 @@ fn variants(
     // these entries; remaining ascendancy variants stay complete compatibility.
     variants.retain(|v| {
         let selector = v["class"].as_str().unwrap_or("");
-        !previous_classes.contains(selector)
-            && !ascendancy.is_some_and(|a| a.previous_selectors.contains(selector))
+        retains_variant(policy, ascendancy, &id, selector)
     });
     let mut records = Vec::new();
-    let mut gapped = false;
+    let mut gapped = facts.context.diagnostic;
     for v in std::mem::take(&mut variants) {
         let class = v["class"].as_str().ok_or("invalid variant class")?;
         if let Some(skill) = v["variant_skill"].as_u64() {
-            let rows: Vec<_> = facts
-                .passives
-                .values()
-                .copied()
-                .filter(|row| {
-                    facts
-                        .tables
-                        .row("PassiveSkills", *row)
-                        .is_ok_and(|r| r["PassiveSkillGraphId"] == skill)
-                })
-                .collect();
-            let [row] = rows.as_slice() else {
-                return Err(format!(
-                    "variant {skill}: ambiguous/missing physical identity"
-                ));
-            };
-            let raw = facts.tables.row("PassiveSkills", *row)?;
+            let row = variant_row(facts, skill)?;
+            let raw = facts.tables.row("PassiveSkills", row)?;
             if coverage.is_forward() {
-                validate_variant_physical(input, facts, policy, *row, effects)?;
+                validate_variant_physical(input, facts, policy, row, effects)?;
             }
             let mut decide = |kind, message| {
                 decide_variant(
-                    coverage, kind, message, &id, class, input, facts, policy, *row,
+                    coverage, kind, message, &id, class, input, facts, policy, row,
                 )
             };
             if policy.owns_unlocks()
@@ -1382,10 +1913,11 @@ fn variants(
             }
             let variant_id = raw["Id"].as_str().ok_or("invalid variant Id")?;
             if !exact_compatibility(
+                facts,
                 policy,
                 variant_id,
                 raw,
-                &raw_stats(input, facts, *row)?,
+                &raw_stats(input, facts, row)?,
                 &mut |kind, message| {
                     decide(
                         if kind == "text-binding-missing" {
@@ -1416,38 +1948,10 @@ fn variants(
             gapped = true;
         }
     }
-    let mut relations = Vec::new();
-    for relation in &facts.relations {
-        if relation["definitions"][0]["id"] == id {
-            let class = relation["character"]["name"]
-                .as_str()
-                .ok_or("invalid class relation")?;
-            let row = relation["definitions"][1]["source_row"]
-                .as_u64()
-                .ok_or("invalid replacement row")? as usize;
-            relations.push((
-                class,
-                row,
-                Some(class),
-                json!({"table":"ClassPassiveSkillOverrides","source_row":relation["source_row"]}),
-            ));
-        }
-    }
-    if let Some(source) = ascendancy {
-        for link in source.links.get(&id).into_iter().flatten() {
-            relations.push((
-                link.selector.as_str(),
-                link.target,
-                link.previous_selector.as_deref(),
-                json!({"table":"AscendancyPassiveSkillOverrides","source_row":link.row}),
-            ));
-        }
-    }
+    let relations = replacement_relations(facts, &id, effects)?;
     let mut classes = BTreeSet::new();
     for (class, row, old_selector, relationship) in relations {
-        if !classes.insert(class) {
-            return Err(format!("{id}: repeated replacement selector {class}"));
-        }
+        replacement_selector(&id, &mut classes, class)?;
         let raw = facts.tables.row("PassiveSkills", row)?;
         if coverage.is_forward() {
             validate_variant_physical(input, facts, policy, row, effects)?;
@@ -1480,7 +1984,7 @@ fn variants(
             .render_context_sha256
             .as_ref()
             .unwrap_or(&binding.context_sha256)
-            != &hash(&render_context(policy, raw)?)?
+            != &hash(&bound_context(facts, policy, raw, true)?)?
         {
             decide(
                 "variant-context-changed",
@@ -1532,6 +2036,135 @@ fn variants(
     Ok((records, gapped))
 }
 
+fn retains_variant(
+    policy: &Policy,
+    ascendancy: Option<&ascendancy::Source>,
+    base: &str,
+    class: &str,
+) -> bool {
+    !policy
+        .class_bindings
+        .iter()
+        .any(|b| b.base_id == base && b.class == class)
+        && !ascendancy.is_some_and(|a| a.previous_selectors.contains(class))
+}
+
+fn variant_row(facts: &Facts<'_>, skill: u64) -> Result<usize, String> {
+    let rows: Vec<_> = facts
+        .passives
+        .values()
+        .copied()
+        .filter(|row| {
+            facts
+                .tables
+                .row("PassiveSkills", *row)
+                .is_ok_and(|raw| raw["PassiveSkillGraphId"] == skill)
+        })
+        .collect();
+    let [row] = rows.as_slice() else {
+        return Err(format!(
+            "variant {skill}: ambiguous/missing physical identity"
+        ));
+    };
+    Ok(*row)
+}
+
+type Replacement<'a> = (&'a str, usize, Option<&'a str>, Value);
+
+fn replacement_relations<'a>(
+    facts: &'a Facts<'_>,
+    id: &str,
+    effects: &'a Effects<'_>,
+) -> Result<Vec<Replacement<'a>>, String> {
+    let mut relations = Vec::new();
+    for relation in &facts.relations {
+        if relation["definitions"][0]["id"] == id {
+            let class = relation["character"]["name"]
+                .as_str()
+                .ok_or("invalid class relation")?;
+            let row = relation["definitions"][1]["source_row"]
+                .as_u64()
+                .ok_or("invalid replacement row")? as usize;
+            relations.push((
+                class,
+                row,
+                Some(class),
+                json!({"table":"ClassPassiveSkillOverrides","source_row":relation["source_row"]}),
+            ));
+        }
+    }
+    if let Some(source) = effects.ascendancy {
+        for link in source.links.get(id).into_iter().flatten() {
+            relations.push((
+                link.selector.as_str(),
+                link.target,
+                link.previous_selector.as_deref(),
+                json!({"table":"AscendancyPassiveSkillOverrides","source_row":link.row}),
+            ));
+        }
+    }
+    Ok(relations)
+}
+
+fn replacement_selector<'a>(
+    id: &str,
+    classes: &mut BTreeSet<&'a str>,
+    class: &'a str,
+) -> Result<(), String> {
+    if !classes.insert(class) {
+        return Err(format!("{id}: repeated replacement selector {class}"));
+    }
+    Ok(())
+}
+
+fn validate_consumed_physical(
+    input: &VerifiedFacts,
+    facts: &Facts<'_>,
+    policy: &Policy,
+    instances: &[reader::InstanceInput],
+    old: &BTreeMap<u32, (usize, &PassiveNodeDef)>,
+    effects: &Effects<'_>,
+) -> Result<(), String> {
+    let graph_rows: BTreeSet<_> = instances.iter().map(|i| i.definition.row).collect();
+    let mut consumed = graph_rows.clone();
+    if let Some(extra) = effects.supplement {
+        let tables = extra.tables(&["AscendancyPassiveSkillOverrides"])?;
+        // Quarantined owners do not enter Source::links, but their physical
+        // replacement targets were still consumed from this relationship table.
+        for row in 0..tables.len("AscendancyPassiveSkillOverrides") {
+            let raw = tables.row("AscendancyPassiveSkillOverrides", row)?;
+            if graph_rows.contains(&super::source::physical_index(&raw["SkillToOverride"])?) {
+                consumed.insert(super::source::physical_index(&raw["Override"])?);
+            }
+        }
+    }
+    for instance in instances {
+        let skill = u32::try_from(instance.graph_id).map_err(|e| e.to_string())?;
+        if let Some((_, previous)) = old.get(&skill) {
+            for variant in &previous.variants {
+                if retains_variant(
+                    policy,
+                    effects.ascendancy,
+                    &instance.definition.id,
+                    &variant.class,
+                ) && let Some(skill) = variant.variant_skill
+                {
+                    consumed.insert(variant_row(facts, u64::from(skill))?);
+                }
+            }
+        }
+        let mut classes = BTreeSet::new();
+        for (class, row, _, _) in replacement_relations(facts, &instance.definition.id, effects)? {
+            replacement_selector(&instance.definition.id, &mut classes, class)?;
+            consumed.insert(row);
+        }
+    }
+    for row in consumed {
+        validate_variant_physical(input, facts, policy, row, effects)?;
+    }
+    Ok(())
+}
+
 fn validate_variant_physical(
     input: &VerifiedFacts,
     facts: &Facts<'_>,
@@ -1542,11 +2175,20 @@ fn validate_variant_physical(
     Renderer::stat_values(&raw_stats(input, facts, row)?)?;
     let raw = facts.tables.row("PassiveSkills", row)?;
     classify(raw, true)?;
-    if policy.owns_unlocks() {
+    if effects.ascendancy.is_some() {
         let extra = effects
             .supplement
-            .ok_or("source unlocks require target ascendancy identities")?;
-        unlock::validate_physical(facts, &extra.tables(&["Ascendancy"])?, row)?;
+            .ok_or("source ownership requires target ascendancy identities")?;
+        let owners = extra.tables(&["Ascendancy"])?;
+        if !raw["Ascendancy"].is_null() {
+            owners.row(
+                "Ascendancy",
+                super::source::physical_index(&raw["Ascendancy"])?,
+            )?;
+        }
+        if policy.owns_unlocks() {
+            unlock::validate_physical(facts, &owners, row)?;
+        }
     }
     if let Some(source) = &effects.nonstat {
         source.validate_physical(raw)?;

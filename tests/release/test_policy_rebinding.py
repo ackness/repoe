@@ -215,6 +215,91 @@ class PolicyRebindingTest(unittest.TestCase):
         )
         self.assertIn("[ordinary:text/descriptions.json]", text)
 
+    def test_tree_context_evidence_and_review_markers_survive_real_rebinding(self):
+        old_payload = pin(self.old_files["text/descriptions.json"])["sha256"]
+        old_manifest = self.lock["facts"]["identities"]["original"]
+        self.policy.update(
+            schema="pobr-ordinary-target-tree-policy/v4",
+            base_policy={"target": copy.deepcopy(self.policy["target"])},
+            context_baseline={
+                "sha256": old_payload,
+                "review": "reviewed",
+                "reason": "Keep this explicitly selected old table identity",
+            },
+            context_columns={
+                "bound_fields_sha256": old_manifest,
+                "target_fields_sha256": pin(self.old_files["text/manifest.json"])["sha256"],
+                "review": "reviewed",
+                "reason": "Historical field change decision",
+                "added": [
+                    {
+                        "field": "Opaque",
+                        "neutral_value": old_payload,
+                        "review": "unreviewed",
+                        "reason": "",
+                    }
+                ],
+                "removed": [],
+            },
+        )
+        self.policy_path.write_bytes(encoded(self.policy))
+        before = copy.deepcopy(self.policy)
+        reports = self.run_rebind()
+        policy = decode((self.policies / "text/0.6-policy.json").read_bytes())
+        for key in ("context_baseline", "context_columns"):
+            self.assertEqual(policy[key], before[key])
+        self.assertNotEqual(old_payload, pin(self.new_files["text/descriptions.json"])["sha256"])
+        self.assertNotEqual(old_manifest, pin(self.new_files["facts/manifest.json"])["sha256"])
+        self.assertEqual(policy["payload"], pin(self.new_files["text/descriptions.json"]))
+        self.assertEqual(policy["descriptions_manifest_sha256"], pin(self.new_files["text/manifest.json"])["sha256"])
+        for target in (policy["target"], policy["base_policy"]["target"]):
+            self.assertEqual(target["game_patch"], "0.6")
+            self.assertEqual(target["facts_manifest_sha256"], pin(self.new_files["facts/manifest.json"])["sha256"])
+        self.assertFalse(
+            any(item["path"][0] in {"context_baseline", "context_columns"} for item in reports["text/0.6-policy.json"])
+        )
+        self.assertEqual(decode(self.policy_path.read_bytes()), before)
+
+    def test_context_preservation_is_scoped_to_root_tree_policy_metadata(self):
+        old_pin, new_pin = pin(b"old"), pin(b"new target")
+        identities = rebinding.Identities(
+            {"ordinary": SimpleNamespace(members={"table.json": old_pin})},
+            {"ordinary": SimpleNamespace(members={"table.json": new_pin})},
+            {"roots": {}},
+            {"roots": {}},
+        )
+        for schema in (
+            None,
+            "pobr-ordinary-text-policy/v1",
+            *(f"pobr-ordinary-target-tree-policy/v{version}" for version in range(1, 5)),
+        ):
+            with self.subTest(schema=schema):
+                document = {
+                    "schema": schema,
+                    "context_baseline": {**old_pin, "review": "unreviewed", "reason": ""},
+                    "context_columns": {"bound_fields_sha256": old_pin["sha256"], "review": "unreviewed"},
+                    "elsewhere": {"context_baseline": old_pin, "context_columns": old_pin},
+                    "source_sha256": old_pin["sha256"],
+                }
+                rebound, _ = rebinding.rebind_document(document, identities, "0.5", "0.6", "policy:fixture")
+                is_tree = schema and schema.startswith("pobr-ordinary-target-tree-policy/")
+                self.assertEqual(
+                    rebound["context_baseline"]["sha256"], old_pin["sha256"] if is_tree else new_pin["sha256"]
+                )
+                self.assertEqual(
+                    rebound["context_baseline"]["bytes"], old_pin["bytes"] if is_tree else new_pin["bytes"]
+                )
+                self.assertEqual(
+                    rebound["context_columns"]["bound_fields_sha256"],
+                    old_pin["sha256"] if is_tree else new_pin["sha256"],
+                )
+                self.assertEqual(rebound["context_baseline"]["review"], "unreviewed")
+                self.assertEqual(rebound["elsewhere"], {"context_baseline": new_pin, "context_columns": new_pin})
+                self.assertEqual(rebound["source_sha256"], new_pin["sha256"])
+                document["source_sha256"] = "malformed"
+                with self.assertRaisesRegex(ValueError, "unknown-identity"):
+                    rebinding.rebind_document(document, identities, "0.5", "0.6", "policy:fixture")
+
     def test_missing_payload_unknown_manifest_and_wrong_target_refuse_before_writing(self):
         for case in ("missing", "unknown", "target"):
             with self.subTest(case=case):

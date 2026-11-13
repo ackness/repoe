@@ -190,6 +190,33 @@ input batch of a patch needs a new commit. Package members are named by the
 directory layout: a job option `ordinary:passive-tree/supplement` reads
 `passive-tree/supplement/` of the `ordinary` package.
 
+A future passive-tree refresh job can select an explicitly pinned historical
+PassiveSkills table through an ordinary package member:
+
+```json
+{
+  "options": {
+    "--tree-context-baseline": "old_context:tables/PassiveSkills.json"
+  }
+}
+```
+
+Declare `old_context` in `inputs.lock.json` with the usual archive and manifest
+pins; its manifest pins that exact member. The runner resolves and tracks this
+file and appends `--tree-context-baseline-sha256` from its verified bytes.
+There is no bare filesystem-path option in a declaration. The new refresh
+policy also needs `context_baseline` with the same SHA-256, `review: "reviewed"`
+and a nonblank reason. Keep that old member unchanged when staging new target
+facts; a new member digest cannot silently replace the policy's baseline.
+The adapter validates the native table and its original qualification reference,
+and records the consumed digest/reason under conversion. No old client decoding
+or old manifest/producer verification is implied by the table input alone.
+See the [tree input contract](tools/pobr-data-adapter/docs/ordinary-passive-tree.md)
+for the exact checks and separate reviewed column allowance. The baseline alone
+grants no normalization approval and never waives target physical contracts.
+Existing declarations and commands omit
+the option and remain unchanged.
+
 Before staging succeeds, every facts, supplement, descriptions and tables
 manifest must declare the requested `--patch`, `--realm` (default
 `international`) and `--game` (default `poe2`). This includes the facts
