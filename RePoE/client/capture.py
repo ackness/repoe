@@ -5,7 +5,8 @@ The owner copies the China (Tencent) client's index and bundles with the committ
 ``SHA256SUMS``, locates explicit game paths in the captured index, and extracts them with
 the same bundle, index and decoder code as ``client:source`` (a local byte source replaces
 HTTP ranges). Patch and realm are owner declarations. Raw bytes stay under ``.cache/``;
-only candidates derived from them are ever published.
+only candidates derived from them are ever published. Explicit ``--preflight`` and
+``--observe`` modes need no target and write diagnostic observations only.
 """
 
 import argparse
@@ -36,6 +37,9 @@ RECEIPT = "capture-receipt.json"
 LOCK = "source-lock.json"
 REQUEST_COPY = "request.json"
 RAW = "raw"
+OBSERVATION_SCHEMA = "repoe-client-capture-observation/v1"
+MANIFEST = "manifest.json"
+PRIVATE_RAW = ".raw"
 REALMS = {"china"}
 LANGUAGES = ("Simplified Chinese", "Traditional Chinese")
 MAX_FILES = 4096
@@ -332,136 +336,249 @@ def decoder_receipt(decoder):
     }
 
 
-def capture(capture_root, expected_capture_sha256, request_path, game_patch, output, python, decoder_lock):
-    capture_root, request_path = client.safe_path(capture_root), client.safe_path(request_path)
-    output = client.safe_path(output)
-    if output.exists():
-        raise FileExistsError(f"Refusing to reuse existing output: {output}")
-    cache = ROOT.resolve() / ".cache"
-    if output == cache or not output.is_relative_to(cache):
-        raise ValueError("Capture output must be beneath this checkout's .cache/ (raw client bytes stay local)")
-    inputs = [capture_root, request_path, client.safe_path(decoder_lock)]
-    if any(output == p or output.is_relative_to(p) or p.is_relative_to(output) for p in inputs):
-        raise ValueError("Output must be separate from the capture, request and decoder inputs")
-    if not re.fullmatch(r"[0-9]+(?:\.[0-9]+){2,5}", draft.text(game_patch, "game patch", 64)):
-        raise ValueError("Expected an explicit numeric game patch")
-    paths, groups, request_raw = load_request(request_path)
-    summary, observed, capture_raw, sums_raw = load_capture(capture_root, expected_capture_sha256)
-    files = summary["files"]
-    verify_files(capture_root, files)
-    identity = tools()
-    decoder = client.ExternalDecoder(python, decoder_lock, {"decoder": DECODER})
+class _Capture:
+    """Verified local inputs shared by strict capture and explicit diagnostics."""
 
-    ranges = LocalRanges()
+    def __init__(self, capture_root, expected_capture_sha256, request_path, output, python, decoder_lock):
+        self.root, self.request_path = client.safe_path(capture_root), client.safe_path(request_path)
+        self.output = client.safe_path(output)
+        if self.output.exists():
+            raise FileExistsError(f"Refusing to reuse existing output: {self.output}")
+        cache = ROOT.resolve() / ".cache"
+        if self.output == cache or not self.output.is_relative_to(cache):
+            raise ValueError("Capture output must be beneath this checkout's .cache/ (raw client bytes stay local)")
+        inputs = [self.root, self.request_path, client.safe_path(decoder_lock)]
+        if any(self.output == p or self.output.is_relative_to(p) or p.is_relative_to(self.output) for p in inputs):
+            raise ValueError("Output must be separate from the capture, request and decoder inputs")
+        self.paths, self.groups, self.request_raw = load_request(self.request_path)
+        self.summary, self.observed, self.capture_raw, self.sums_raw = load_capture(self.root, expected_capture_sha256)
+        self.files = self.summary["files"]
+        verify_files(self.root, self.files)
+        self.identity = tools()
+        self.decoder = client.ExternalDecoder(python, decoder_lock, {"decoder": DECODER})
+        self.ranges = LocalRanges()
+        index_url = self.opened(INDEX)
+        try:
+            bundle = client.Bundle(index_url, self.ranges, self.decoder)
+            self.matched, self.missing, framing = client_index.inspect_locations(bundle, self.paths)
+            chunks = framing.pop("decoded_chunks")
+            framing.update(
+                decoded_chunk_count=len(chunks),
+                decoded_chunks_sha256=client.sha256(client.encoded(chunks)),
+                index_raw_bytes=bundle.size,
+            )
+        finally:
+            self.ranges.files.pop(index_url)
+        self.index = {"file": INDEX, **self.files[INDEX], "framing": framing}
+        self.by_bundle = {}
+        for name in self.paths:
+            if name in self.matched:
+                bundle_name = self.matched[name]["bundle_name"]
+                capture_path(bundle_name + ".bundle.bin")
+                self.by_bundle.setdefault(bundle_name, []).append(name)
 
-    def opened(name):
+    def opened(self, name):
         url = f"capture:{BUNDLES}/{name}"
-        if url not in ranges.files:
-            raw = client.read_file(capture_root / BUNDLES / name, MAX_FILE)
-            if {"bytes": len(raw), "sha256": client.sha256(raw)} != files[name]:
+        if url not in self.ranges.files:
+            raw = client.read_file(self.root / BUNDLES / name, MAX_FILE)
+            if {"bytes": len(raw), "sha256": client.sha256(raw)} != self.files[name]:
                 raise ValueError(f"Capture file changed after verification: {name}")
-            ranges.add(url, raw)
+            self.ranges.add(url, raw)
         return url
 
-    index_url = opened(INDEX)
-    index_bundle = client.Bundle(index_url, ranges, decoder)
-    matched, missing, framing = client_index.inspect_locations(index_bundle, paths)
-    if missing:
-        raise ValueError("Paths not found in the captured index: " + ", ".join(missing))
-    chunks = framing.pop("decoded_chunks")
-    framing.update(
-        decoded_chunk_count=len(chunks),
-        decoded_chunks_sha256=client.sha256(client.encoded(chunks)),
-        index_raw_bytes=index_bundle.size,
-    )
-    del index_bundle
-    ranges.files.pop(index_url)
-    by_bundle = {}
-    for name in paths:
-        by_bundle.setdefault(matched[name]["bundle_name"], []).append(name)
-    bundles, resources, extracted = {}, {}, {}
-    for bundle_name, names in by_bundle.items():
-        file = bundle_name + ".bundle.bin"
-        if file not in files:
-            raise ValueError(
-                f"{names[0]}: the index places it in {file}, which the capture lacks; "
-                f"rerun capture-sc.ps1 with -Extra '{file}'"
-            )
-        url = opened(file)
-        bundle = client.Bundle(url, ranges, decoder)
-        try:
-            bundles[bundle_name] = {
-                "file": file,
-                **files[file],
-                "raw_bytes": bundle.size,
-                "chunk_size": bundle.chunk_size,
-                "chunks": len(bundle.sizes),
-            }
+    def coverage(self):
+        missing_bundles, locations = [], {}
+        for bundle_name, names in sorted(self.by_bundle.items()):
+            file = bundle_name + ".bundle.bin"
+            present = file in self.files
+            if not present:
+                missing_bundles.append({"file": file, "resources": sorted(names)})
             for name in names:
-                record = matched[name]
-                if bundle.size != record["bundle_raw_bytes"]:
-                    raise ValueError(
-                        f"{file}: raw size {bundle.size} differs from the index {record['bundle_raw_bytes']}"
-                    )
-                raw = bundle.read(record["offset"], record["length"])
-                if len(raw) != record["length"]:
-                    raise ValueError(f"{name}: extracted {len(raw)} bytes, the index says {record['length']}")
-                extracted[name] = raw
-                resources[name] = {
-                    "sha256": client.sha256(raw),
-                    "bytes": len(raw),
-                    "bundle": bundle_name,
-                    "uncompressed_offset": record["offset"],
-                    "uncompressed_length": record["length"],
+                locations[name] = {**self.matched[name], "capture_file": file, "bundle_captured": present}
+        missing_bundles.sort(key=lambda entry: entry["file"])
+        return {
+            "requested_count": len(self.paths),
+            "matched_count": len(self.matched),
+            "available_bundle_count": len(self.by_bundle) - len(missing_bundles),
+            "required_bundle_count": len(self.by_bundle),
+            "extraction_ready": not self.missing and not missing_bundles,
+            "missing_paths": sorted(self.missing),
+            "missing_bundles": missing_bundles,
+            "locations": dict(sorted(locations.items())),
+        }
+
+    def extract(self):
+        bundles, resources, extracted = {}, {}, {}
+        for bundle_name, names in self.by_bundle.items():
+            file = bundle_name + ".bundle.bin"
+            if file not in self.files:
+                raise ValueError(
+                    f"{names[0]}: the index places it in {file}, which the capture lacks; "
+                    f"rerun capture-sc.ps1 with -Extra '{file}'"
+                )
+            url = self.opened(file)
+            try:
+                bundle = client.Bundle(url, self.ranges, self.decoder)
+                bundles[bundle_name] = {
+                    "file": file,
+                    **self.files[file],
+                    "raw_bytes": bundle.size,
+                    "chunk_size": bundle.chunk_size,
+                    "chunks": len(bundle.sizes),
                 }
-        finally:
-            ranges.files.pop(url)
-            del bundle
+                for name in names:
+                    record = self.matched[name]
+                    if bundle.size != record["bundle_raw_bytes"]:
+                        raise ValueError(
+                            f"{file}: raw size {bundle.size} differs from the index {record['bundle_raw_bytes']}"
+                        )
+                    raw = bundle.read(record["offset"], record["length"])
+                    if len(raw) != record["length"]:
+                        raise ValueError(f"{name}: extracted {len(raw)} bytes, the index says {record['length']}")
+                    extracted[name] = raw
+                    resources[name] = {
+                        "sha256": client.sha256(raw),
+                        "bytes": len(raw),
+                        "bundle": bundle_name,
+                        "uncompressed_offset": record["offset"],
+                        "uncompressed_length": record["length"],
+                    }
+                del bundle
+            finally:
+                self.ranges.files.pop(url)
+        return dict(sorted(bundles.items())), dict(sorted(resources.items())), extracted
+
+    def write_output(self, extracted, raw_directory, copies, marker, marker_raw):
+        self.output.parent.mkdir(parents=True, exist_ok=True)
+        client.safe_path(self.output)
+        self.output.mkdir(mode=0o700)
+        if raw_directory:
+            (self.output / raw_directory).mkdir(mode=0o700)
+        for name, raw in extracted.items():
+            client.write_new(self.output / raw_directory / client.relative(name), raw)
+        for name, raw in copies.items():
+            client.write_new(self.output / name, raw)
+        for name, raw in extracted.items():
+            if client.read_file(self.output / raw_directory / name, client.MAX_RESOURCE) != raw:
+                raise ValueError(f"Raw output changed before completion: {name}")
+        for name, raw in copies.items():
+            if client.read_file(self.output / name, len(raw)) != raw:
+                raise ValueError(f"Copied output changed before completion: {name}")
+        if (
+            client.read_file(self.root / CAPTURE_JSON, 4 * client.MIB) != self.capture_raw
+            or client.read_file(self.root / SUMS, client.MIB) != self.sums_raw
+            or client.read_file(self.request_path, client.MIB) != self.request_raw
+            or tools() != self.identity
+            or client.read_file(self.decoder.lock_path, 2 * client.MIB) != self.decoder.lock_bytes
+            or client.decode(self.decoder.run([], b"", 65536)) != self.decoder.identity
+        ):
+            raise ValueError("Capture, request, tools or decoder changed before completion")
+        verify_files(self.root, self.files)
+        client.write_new(self.output / marker, marker_raw)  # completion marker, last
+
+
+def capture(capture_root, expected_capture_sha256, request_path, game_patch, output, python, decoder_lock):
+    if not re.fullmatch(r"[0-9]+(?:\.[0-9]+){2,5}", draft.text(game_patch, "game patch", 64)):
+        raise ValueError("Expected an explicit numeric game patch")
+    run = _Capture(capture_root, expected_capture_sha256, request_path, output, python, decoder_lock)
+    if run.missing:
+        raise ValueError("Paths not found in the captured index: " + ", ".join(run.missing))
+    bundles, resources, extracted = run.extract()
     receipt = {
         "schema": RECEIPT_SCHEMA,
         "status": STATUS,
         "production_ready": False,
         "game": "poe2",
         "game_patch": game_patch,
-        "realm": summary["realm_declared"],
+        "realm": run.summary["realm_declared"],
         "declared_not_verified": ["game_patch", "realm"],
-        "capture": summary,
-        "observed_client": observed,
-        "request": {"bytes": len(request_raw), "sha256": client.sha256(request_raw), "resources": len(paths)},
-        "index": {"file": INDEX, **files[INDEX], "framing": framing},
-        "bundles": dict(sorted(bundles.items())),
-        "resources": dict(sorted(resources.items())),
-        "decoder": decoder_receipt(decoder),
-        "tools": identity,
+        "capture": run.summary,
+        "observed_client": run.observed,
+        "request": {
+            "bytes": len(run.request_raw),
+            "sha256": client.sha256(run.request_raw),
+            "resources": len(run.paths),
+        },
+        "index": run.index,
+        "bundles": bundles,
+        "resources": resources,
+        "decoder": decoder_receipt(run.decoder),
+        "tools": run.identity,
         "limits": LIMITS,
     }
     receipt_raw = client.encoded(receipt)
-    lock_raw = client.encoded(source_lock(client.sha256(receipt_raw), summary, observed, game_patch, groups, resources))
-
-    output.parent.mkdir(parents=True, exist_ok=True)
-    client.safe_path(output)
-    output.mkdir()
-    for name, raw in extracted.items():
-        client.write_new(output / RAW / client.relative(name), raw)
-    # Recheck the inputs and the written bytes before the completion files.
-    for name, raw in extracted.items():
-        if client.read_file(output / RAW / name, client.MAX_RESOURCE) != raw:
-            raise ValueError(f"Raw output changed before completion: {name}")
-    if (
-        client.read_file(capture_root / CAPTURE_JSON, 4 * client.MIB) != capture_raw
-        or client.read_file(capture_root / SUMS, client.MIB) != sums_raw
-        or client.read_file(request_path, client.MIB) != request_raw
-        or tools() != identity
-        or client.read_file(decoder.lock_path, 2 * client.MIB) != decoder.lock_bytes
-        or client.decode(decoder.run([], b"", 65536)) != decoder.identity
-    ):
-        raise ValueError("Capture, request, tools or decoder changed before completion")
-    client.write_new(output / REQUEST_COPY, request_raw)
-    client.write_new(output / SUMS, sums_raw)
-    client.write_new(output / RECEIPT, receipt_raw)
-    verify_files(capture_root, files)
-    client.write_new(output / LOCK, lock_raw)  # completion marker, last
+    lock_raw = client.encoded(
+        source_lock(client.sha256(receipt_raw), run.summary, run.observed, game_patch, run.groups, resources)
+    )
+    run.write_output(
+        extracted, RAW, {REQUEST_COPY: run.request_raw, SUMS: run.sums_raw, RECEIPT: receipt_raw}, LOCK, lock_raw
+    )
     return receipt, receipt_raw, lock_raw
+
+
+class CoverageError(ValueError):
+    """The capture is valid, but not all requested resources can be extracted."""
+
+    def __init__(self, coverage):
+        super().__init__("Requested paths or required bundles are missing; run --preflight for a saved report")
+        self.coverage = coverage
+
+
+def _diagnostic(capture_root, expected_capture_sha256, request_path, output, python, decoder_lock, mode):
+    run = _Capture(capture_root, expected_capture_sha256, request_path, output, python, decoder_lock)
+    coverage = run.coverage()
+    report = {
+        "schema": OBSERVATION_SCHEMA,
+        "mode": mode,
+        "status": "diagnostic-only",
+        "production_ready": False,
+        "complete": True,
+        "source_identity": {
+            "kind": "diagnostic-client-capture-observation",
+            "game": "poe2",
+            "game_patch": None,
+            "realm": None,
+        },
+        "patch_certified": False,
+        "realm_certified": False,
+        "capture": run.summary,
+        "observed_client": {**run.observed, "game_patch": None, "realm": None},
+        "request": {"bytes": len(run.request_raw), "sha256": client.sha256(run.request_raw), "resources": run.paths},
+        "index": run.index,
+        "decoder": decoder_receipt(run.decoder),
+        "decoder_declaration": DECODER,
+        "tools": run.identity,
+        "coverage": coverage,
+        "extra_bundles": [entry["file"] for entry in coverage["missing_bundles"]],
+        "limits": [
+            *LIMITS[1:4],
+            "Source patch and realm remain unknown; executable versions and declared realm are observations only.",
+            "Raw pins are acquisition observations, not trusted source pins or DAT/schema certification.",
+            "Private diagnostic output only; no target binding, numerical equivalence or publication admission.",
+        ],
+    }
+    extracted, copies = {}, {}
+    if mode == "raw":
+        if not coverage["extraction_ready"]:
+            raise CoverageError(coverage)
+        bundles, resources, extracted = run.extract()
+        report["bundles"] = bundles
+        report["resources"] = {name: {**pin, "file": f"{PRIVATE_RAW}/{name}"} for name, pin in resources.items()}
+        copies = {REQUEST_COPY: run.request_raw, SUMS: run.sums_raw}
+        report["files"] = {name: {"bytes": len(raw), "sha256": client.sha256(raw)} for name, raw in copies.items()}
+    raw = client.encoded(report)
+    run.write_output(extracted, PRIVATE_RAW if mode == "raw" else None, copies, MANIFEST, raw)
+    return report, raw
+
+
+def preflight(capture_root, expected_capture_sha256, request_path, output, python, decoder_lock):
+    """Inspect all requested paths and required bundles without a target or resource extraction."""
+    return _diagnostic(capture_root, expected_capture_sha256, request_path, output, python, decoder_lock, "preflight")
+
+
+def observe(capture_root, expected_capture_sha256, request_path, output, python, decoder_lock):
+    """Extract pinned local raw observations without creating a source lock or candidate."""
+    return _diagnostic(capture_root, expected_capture_sha256, request_path, output, python, decoder_lock, "raw")
 
 
 def main(argv=None):
@@ -469,12 +586,29 @@ def main(argv=None):
     parser.add_argument("--capture", required=True, type=Path, help="capture-sc.ps1 output directory")
     parser.add_argument("--expect-capture-sha256", required=True, help="SHA-256 of capture.json the owner states")
     parser.add_argument("--request", required=True, type=Path, help=f"{REQUEST_SCHEMA} path list")
-    parser.add_argument("--game-patch", required=True, help="declared target patch, e.g. 0.5.5.5")
+    modes = parser.add_mutually_exclusive_group()
+    modes.add_argument("--preflight", action="store_true", help="diagnostic path/bundle coverage only; no target")
+    modes.add_argument("--observe", action="store_true", help="diagnostic raw extraction only; no target")
+    parser.add_argument("--game-patch", help="required in strict mode: declared target patch, e.g. 0.5.5.5")
     parser.add_argument("--out", required=True, type=Path, help="new directory beneath .cache/")
     parser.add_argument("--decoder-python", required=True, type=Path)
     parser.add_argument("--decoder-lock", required=True, type=Path, help="External environment's uv.lock")
     args = parser.parse_args(argv)
+    diagnostic = args.preflight or args.observe
+    if diagnostic and args.game_patch is not None:
+        parser.error("--game-patch cannot be combined with --preflight or --observe")
+    if not diagnostic and args.game_patch is None:
+        parser.error("--game-patch is required in strict capture mode")
     try:
+        if diagnostic:
+            api = preflight if args.preflight else observe
+            report, raw = api(
+                args.capture, args.expect_capture_sha256, args.request, args.out, args.decoder_python, args.decoder_lock
+            )
+            print(raw.decode(), end="")
+            if args.preflight and not report["coverage"]["extraction_ready"]:
+                parser.exit(2)
+            return
         receipt, receipt_raw, lock_raw = capture(
             args.capture,
             args.expect_capture_sha256,
@@ -484,6 +618,18 @@ def main(argv=None):
             args.decoder_python,
             args.decoder_lock,
         )
+    except CoverageError as error:
+        print(
+            client.encoded(
+                {
+                    "status": "incomplete-coverage",
+                    "coverage": error.coverage,
+                    "extra_bundles": [entry["file"] for entry in error.coverage["missing_bundles"]],
+                }
+            ).decode(),
+            end="",
+        )
+        parser.exit(1, f"client_capture: {error}\n")
     except (ValueError, OSError, KeyError, TypeError, struct.error, UnicodeError, subprocess.SubprocessError) as error:
         parser.exit(1, f"client_capture: {error}\n")
     lock = json.loads(lock_raw)

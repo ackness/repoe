@@ -7,6 +7,7 @@ import tempfile
 import unittest
 from unittest.mock import patch
 
+from RePoE.client import capture
 from RePoE.native import decoded_tables as ingest
 from RePoE.native import descriptions as env
 from RePoE.native import facts
@@ -186,6 +187,14 @@ class DecodedIngestTests(unittest.TestCase):
 
     def test_target_payload_pin_and_receipt_schema_mismatch_reject(self):
         self.prepare()
+        receipt = self.transfer.receipt()
+        del receipt["format"]
+        receipt["schema"] = capture.OBSERVATION_SCHEMA
+        self.receipt.write_bytes(env._json(receipt))
+        # Valid transfer parts, numeric fields and target isolate the diagnostic-schema boundary.
+        with self.assertRaisesRegex(ValueError, "Unsupported decoded transfer"):
+            self.create()
+        self.receipt.write_bytes(env._json(self.transfer.receipt()))
         package = self.root / "target/tables.json"
         package.write_bytes(package.read_bytes() + b" ")
         with self.assertRaisesRegex(ValueError, "external pin"):

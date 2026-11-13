@@ -21,6 +21,9 @@ bundles with `Bundle` and the external decoder from
 [strict acquisition](client-sources.md), unchanged; only the byte source
 differs: verified local files instead of HTTP ranges.
 
+The strict mode below requires an explicit target patch. For a capture whose
+patch is unknown, use the explicit [diagnostic modes](#diagnostic-modes).
+
 ## 1. Owner: capture on Windows
 
 Close the game and the launcher (an update rewrites the index and bundles), then:
@@ -134,6 +137,85 @@ released after its resources are extracted. Immediately before writing the
 completion lock, the complete capture inventory is checked again: paths,
 sizes, SHA-256, plain files and directories, with no extra or missing entries
 or symlinks. This includes bundles that the request never reads.
+
+## Diagnostic modes
+
+`--preflight` checks all requested index paths and required captured bundles;
+`--observe` extracts raw observations. Both use the strict mode's validators,
+index reader, local bundle reader and fingerprinted external decompressor.
+They require the same capture pin, request, decoder and fresh `.cache/` output
+arguments, omit `--game-patch`, and reject a supplied patch. Omitting that
+argument without selecting a diagnostic mode remains an error.
+
+```sh
+mise run client:capture -- --preflight \
+  --capture <capture-folder> --expect-capture-sha256 <capture-json-sha256> \
+  --request RePoE/client/china-text-request-2.json \
+  --out .cache/china-preflight \
+  --decoder-python "$PWD/.venv/bin/python" --decoder-lock uv.lock
+```
+
+Run both requests separately. Preflight writes only `manifest.json` and prints
+the same JSON. `coverage` includes all `missing_paths`, all `missing_bundles`
+with their affected requested paths, matched locations and path/bundle counts.
+`extra_bundles` lists unique sorted missing files relative to `Bundles2/`,
+bounded by the request's 128 paths. Paths still pass the existing request
+validator. A captured file missing from disk or differing from its recorded
+hash is corruption and fails validation, rather than becoming a coverage result.
+
+Preflight exits 0 for complete coverage or 2 for incomplete coverage.
+`complete: true` means the diagnostic report finished; inspect
+`coverage.extraction_ready` for availability. It does not establish successful
+resource decompression, DAT compatibility or publication readiness. Only index
+chunks are decompressed. Malformed framing, collisions, hash failures and
+resource limits remain fatal (exit 1); CLI usage errors exit 2.
+
+Retain the original capture. A new owner copy can pass the listed files to the
+unchanged pinned script. Invoke it inside PowerShell with a quoted string array:
+
+```powershell
+& .\capture-sc.ps1 -ClientRoot '<install dir>' -OutRoot '<fresh out dir>' -Extra @('Folders/metadata/particles.bundle.bin')
+```
+
+Its fixed default extras are always retained and the supplied array is appended.
+For multiple extras, quote each relative path separately inside `@('a', 'b')`;
+never execute report contents as a command or edit the pinned script's bytes.
+
+Select `--observe` instead, with another fresh output, to extract resources.
+Missing coverage prints the complete coverage/extra-bundle JSON and exits 1
+without creating output. Successful observation writes:
+
+| Path | Contents |
+| --- | --- |
+| `.raw/<requested game path>` | Private raw resource observations |
+| `request.json`, `SHA256SUMS` | Exact copies of the request and captured checksums |
+| `manifest.json` | `repoe-client-capture-observation/v1`; completion marker, written last |
+
+The manifest has `mode: preflight` or `raw`, `status: diagnostic-only`,
+`production_ready: false`, false patch/realm certification, and null source
+patch/realm. Sanitized executable versions and the capture's declared realm
+remain separate observations. It pins capture/index/request bytes, locations,
+actual decompressor identity and tool sources. Raw mode also records compressed
+bundle pins/framing and every raw resource's output path, size, SHA-256,
+bundle, uncompressed offset and length. These are newly observed raw pins,
+not pre-existing trusted source pins or a claim about physical DAT layouts.
+Requested path spelling is retained; index hash matching does not recover
+the original pathname spelling.
+
+Output is exclusive and private. All emitted raw bytes and copied request and
+checksum bytes are reread, inputs/tools/decoder are rechecked, and the complete
+capture is reverified before the final manifest. A failed write removes a
+partial completion marker; an interrupted output is never reused.
+
+The diagnostic layout has no source lock, capture receipt, export receipt or
+target binding. Current native lock readers reject its schema. Current input
+packaging rejects normal complete and interrupted raw roots because of `.raw/`;
+root diagnostic manifests and nested null-source manifests also meet existing
+reserved-manifest or target checks. These checks cover the normal artifact
+layout: choosing `.raw/` itself as the package root, or deliberately stripping
+and repacking files, is outside this guarantee. No anti-repackaging rule is added.
+Local [ItemClasses decoding](../native/decoded_locale_tables.md#local-capture-diagnostic)
+can inspect separately pinned buffers; target-bound ingestion is a later operation.
 
 ## Output
 

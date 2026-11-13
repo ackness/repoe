@@ -32,6 +32,45 @@ decimal strings in the receiver's `wire-observations.json`; receipt integers mus
 be safe exact integers. Schema metadata retains its original localized flags;
 those flags do not define this version's explicit text policy.
 
+## Local capture diagnostic
+
+[`client:capture --observe`](../client/client-capture.md#diagnostic-modes)
+can extract raw resources from a pinned local capture without declaring a target.
+This is a local diagnostic step before the target-bound transfer/ingestion
+described below. Its completion manifest is a distinct diagnostic schema,
+not a decoded transfer receipt or a native source lock.
+
+For ItemClasses, verify the completed observation manifest and record the
+actual extracted default and Simplified Chinese buffers' lengths/SHA-256 in a
+separate pin record. Verify those observations agree with the manifest's
+resource pins, then use the unchanged memory decoder:
+
+```python
+from RePoE.native import locale_probe as probe
+
+default = probe.decode_table(
+    "ItemClasses",
+    default_raw,
+    expected_bytes=default_pin["bytes"],
+    expected_sha256=default_pin["sha256"],
+)
+localized = probe.decode_table(
+    "ItemClasses",
+    localized_raw,
+    expected_bytes=localized_pin["bytes"],
+    expected_sha256=localized_pin["sha256"],
+)
+comparison = probe.compare_pair(default, localized)
+```
+
+Run from trusted code outside capture/raw directories. Retain the complete
+tables/comparison privately, together with raw, observation-manifest, index,
+schema, probe-source and runtime pins. Report framing/schema failures without
+changing the pinned decoder to accommodate them. Source patch/realm remain null
+and certification stays false. This comparison concerns the two observed tables;
+it certifies no numerical equality to an international target. It creates no
+target binding, candidate or publication-admissible export.
+
 ## Windows memory interface and bounded text transfer
 
 Inject the reviewed source string into the existing process. Do not install,
