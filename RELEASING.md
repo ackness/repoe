@@ -546,8 +546,12 @@ mise run release:publish -- --fetch
 This builds the declaration, compares it with `expect`, checks the sequence
 number and stages the assets in one run; on a branch it also refuses with
 "HEAD … is not on origin/master", which is expected there. Explain every
-`*-different` member by the new facts, not by an unintended policy change,
-then write the printed zip pin into `inputs.lock.json` `expect.package` and
+`*-different` member using the
+[content comparison report](RePoE/docs/release/content-diff.md), including
+preserved policy metadata, resolved retargets and unresolved references.
+Cross-patch byte classes map the authenticated reference prefix; identity-only
+differences and proven row shifts remain visible separately in the receipt.
+Then write the printed zip pin into `inputs.lock.json` `expect.package` and
 rerun: the only refusals left must be the branch ones. Open the declaration
 PR; `release-build.yml` rebuilds it.
 

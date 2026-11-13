@@ -11,6 +11,7 @@ on:
       - .github/workflows/release-build.yml
       - RePoE/__init__.py
       - RePoE/release/**
+      - RePoE/release/content_diff.py
       - RePoE/client/__init__.py
       - RePoE/client/export_receipt.py
       - RePoE/client/source_io.py

@@ -1,6 +1,7 @@
 """Synthetic end-to-end tests for RePoE.release.build (no real packages or Rust adapter)."""
 
 import ast
+import copy
 import functools
 import hashlib
 import http.server
@@ -166,15 +167,21 @@ class ReleaseBuildTest(unittest.TestCase):
         snapshot_passthrough=True,
         snapshot_fields=None,
         extra_inputs=None,
+        reference_patch=None,
     ):
         """Commit an input and a reference package; write a release declaration."""
         inputs = {"codec/a.json": self.codec, **(extra_inputs or {})}
         inputs_raw = zip_bytes({**inputs, "manifest.json": encoded({"files": {k: pin(v) for k, v in inputs.items()}})})
         published_a = self.derived if published_a is None else published_a
-        members = {"data/9.9/overlay/a.json": published_a, "data/9.9/overlay/frozen.json": self.frozen}
+        reference_patch = reference_patch or TARGET["game_patch"]
+        reference_prefix = f"data/{reference_patch}/"
+        members = {
+            reference_prefix + "overlay/a.json": published_a,
+            reference_prefix + "overlay/frozen.json": self.frozen,
+        }
         snapshot = {
             "schema_version": 3,
-            "poe_version": "9.9",
+            "poe_version": reference_patch,
             "domains": {"overlay": ["a", "frozen"]},
             "files": {
                 "overlay/a.json": hashlib.sha256(published_a).hexdigest(),
@@ -183,11 +190,11 @@ class ReleaseBuildTest(unittest.TestCase):
             },
             **(snapshot_fields or {}),
         }
-        members["data/9.9/manifest.json"] = runtime(snapshot)
+        members[reference_prefix + "manifest.json"] = runtime(snapshot)
         manifest = {
             "schema": build.PART_SCHEMA,
             "kind": "game",
-            "target": TARGET,
+            "target": {**TARGET, "game_patch": reference_patch},
             "history": "retained",
             "files": {k: pin(v) for k, v in sorted(members.items())},
         }
@@ -222,7 +229,7 @@ class ReleaseBuildTest(unittest.TestCase):
             {
                 "id": "snapshot",
                 "kind": "snapshot-manifest",
-                "template": "previous:data/9.9/manifest.json",
+                "template": "previous:" + reference_prefix + "manifest.json",
                 "external": ["i18n/"],
                 "member": "data/9.9/manifest.json",
                 **({"passthrough": "template fields"} if snapshot_passthrough else {}),
@@ -613,6 +620,8 @@ class ReleaseBuildTest(unittest.TestCase):
         self.assertEqual(outcome["manifest"]["class"], "retained-reference-manifest")
         self.assertTrue(outcome["package"]["identical_to_reference"])
         self.assertEqual((out / "game-build-part.zip").read_bytes(), self.previous_raw)
+        self.assertEqual(receipt["reference"]["reference_patch"], "9.9")
+        self.assertFalse(receipt["reference"]["prefix_mapped"])
         self.assertEqual(json.loads((out / "receipt.json").read_bytes()), receipt)
         self.assertEqual(json.loads((out / "package.json").read_bytes()), outcome)
         self.assertEqual(outcome["receipt"], {"path": "receipt.json", **build.file_pin(out / "receipt.json")})
@@ -628,6 +637,52 @@ class ReleaseBuildTest(unittest.TestCase):
         self.assertNotIn(str(self.root), json.dumps(receipt["jobs"]))
         policy = out / "work" / "policies" / "a" / "p.json"
         self.assertEqual(json.loads(policy.read_bytes())["target"]["facts_manifest_sha256"], REBOUND)
+
+    def test_cross_patch_reference_maps_paths_without_changing_byte_check(self):
+        out, receipt, outcome = self.run_build(self.fixture(reference_patch="9.8"))
+        self.assertEqual(receipt["reference"]["reference_patch"], "9.8")
+        self.assertTrue(receipt["reference"]["prefix_mapped"])
+        self.assertEqual(receipt["summary"], {"frozen": 1, "generated-identical": 1, "passthrough-different": 1})
+        self.assertFalse(receipt["reference"]["members_identical"])
+        self.assertEqual(outcome["manifest"]["class"], "fresh-manifest")
+        self.assertIsNotNone(build.check_failure(outcome))
+        content = receipt["content_diff"]
+        snapshot = content["members"][0]
+        self.assertEqual(snapshot["reference_member"], "data/9.8/manifest.json")
+        self.assertEqual(snapshot["status"], "identity-only")
+        with zipfile.ZipFile(out / "game-build-part.zip") as archive:
+            self.assertNotIn("data/9.8/overlay/a.json", archive.namelist())
+            self.assertEqual(archive.read("data/9.9/overlay/a.json"), self.derived)
+
+    def test_missing_conflicting_or_unmapped_reference_identity_refuses(self):
+        config = self.fixture()
+        lock = json.loads((config / "inputs.lock.json").read_text())
+        package = build.open_package(self.repo, "reference", lock["packages"]["previous"], self.root / "inputs", False)
+        original = json.loads(package.read("manifest.json"))
+        for mutate, message in (
+            (lambda doc: doc.pop("target"), "no target.game_patch"),
+            (lambda doc: doc["target"].update(game_patch="../9.9"), "Unsafe member path"),
+            (lambda doc: doc["target"].update(game_patch="9.8"), "ambiguous reference patch prefix"),
+            (
+                lambda doc: doc["files"].update({"data/9.8/overlay/a.json": pin(self.derived)}),
+                "ambiguous reference patch prefix",
+            ),
+        ):
+            document = copy.deepcopy(original)
+            mutate(document)
+            raw = encoded(document)
+            (package.root / "manifest.json").write_bytes(raw)
+            package.members["manifest.json"] = pin(raw)
+            with self.subTest(message=message), self.assertRaisesRegex(ValueError, message):
+                build.classify({}, package, TARGET)
+        (package.root / "manifest.json").write_bytes(encoded(original))
+        package.members["manifest.json"] = pin(encoded(original))
+        snapshot = "data/9.9/manifest.json"
+        raw = runtime({"poe_version": "9.8"})
+        (package.root / snapshot).write_bytes(raw)
+        package.members[snapshot] = pin(raw)
+        with self.assertRaisesRegex(ValueError, "conflicting reference snapshot"):
+            build.classify({}, package, TARGET)
 
     def test_differing_output_is_classified_and_gets_a_fresh_manifest(self):
         published = runtime({"_meta": {"generator": "old"}, "value": 0})
@@ -1203,10 +1258,12 @@ class ReleaseBuildTest(unittest.TestCase):
                         pending.append(name)
         # Equality, not a subset: a stale CODE path or a walker that misses an import fails here.
         self.assertEqual(imported | {"RePoE/release/build.py"}, {name for name in build.CODE if name.endswith(".py")})
+        self.assertIn("RePoE/release/content_diff.py", imported)
         # Every package the build imports from runs its __init__.py, so the paths filter must cover those too.
         packages = {str(PurePosixPath(name).parent / "__init__.py") for name in imported}
         workflow = (root / ".github/workflows/release-build.yml").read_text()
         patterns = re.findall(r"^ +- ([^\s:]+)$", workflow.split("pull_request:")[0], re.MULTILINE)
+        self.assertIn("RePoE/release/content_diff.py", patterns)
         for name in sorted(set(build.CODE) | packages):
             covered = any(name == p or (p.endswith("/**") and name.startswith(p[:-2])) for p in patterns)
             self.assertTrue(covered, f"{name} is not in the release workflow's paths filter")
