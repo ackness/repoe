@@ -9,6 +9,7 @@ import unittest
 from unittest.mock import patch
 
 from RePoE.native import crafting_facts as crafting
+from tests.client.test_export_receipt import DIRTY, check_exporter, checkout
 
 
 def fixture():
@@ -100,6 +101,7 @@ def fixture():
 
 class CraftingFactsTests(unittest.TestCase):
     def setUp(self):
+        checkout(self)
         cache = crafting.ROOT / ".cache"
         cache.mkdir(exist_ok=True)
         temporary = tempfile.TemporaryDirectory(prefix="crafting-test-", dir=cache)
@@ -151,8 +153,23 @@ class CraftingFactsTests(unittest.TestCase):
         (self.input / "manifest.json").write_bytes(raw)
         self.expected = crafting.env._sha(raw)
 
-    def create(self, name="candidate"):
-        return crafting.create_candidate(facts=self.input, expected_manifest_sha256=self.expected, out=self.root / name)
+    def create(self, name="candidate", **options):
+        return crafting.create_candidate(
+            facts=self.input, expected_manifest_sha256=self.expected, out=self.root / name, **options
+        )
+
+    def test_export_receipt_identifies_the_checkout_and_rehearsal(self):
+        def export(name, **options):
+            self.create(name, **options)
+            return self.root / name
+
+        check_exporter(self, export, "RePoE.native.crafting_facts")
+
+    def test_dirty_production_export_refuses_before_reading_inputs_or_producer_files(self):
+        checkout(self, dirty_paths=DIRTY)
+        with patch.object(crafting, "_read", side_effect=AssertionError("read before dirty refusal")):
+            with self.assertRaisesRegex(ValueError, "dirty checkout"):
+                self.create()
 
     def test_eight_slots_raw_null_zero_hardmode_duplicates_and_distinct_relations(self):
         before = deepcopy(self.tables)
@@ -317,6 +334,7 @@ class CraftingFactsTests(unittest.TestCase):
             "-B",
             "-m",
             "RePoE.native.crafting_facts",
+            "--rehearsal",
             "--facts",
             str(self.input),
             "--expected-manifest-sha256",

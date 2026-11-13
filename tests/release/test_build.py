@@ -23,6 +23,7 @@ from RePoE.client import export_receipt
 from RePoE.release.pins import encoded, pin
 from RePoE.release import build
 from tests.client.test_export_receipt import DIRTY, candidate, receipt_for
+from tests.release.test_crafting_catalog import crafting_package, fixture as crafting_fixture
 
 TARGET = {"game": "poe2", "game_patch": "9.9", "realm": "international"}
 ORIGINAL = "a" * 64
@@ -751,6 +752,72 @@ class ReleaseBuildTest(unittest.TestCase):
         self.assertEqual(outcome["manifest"]["class"], "fresh-manifest")
         self.assertTrue(receipt["reference"]["members_identical"])
         self.assertFalse(outcome["package"]["identical_to_reference"])
+
+    def test_crafting_receipt_is_checked_even_when_renamed_and_no_crafting_job_is_scheduled(self):
+        from RePoE.release import crafting_catalog
+
+        config = self.fixture()
+        lock_path, domains_path = config / "inputs.lock.json", config / "domains.json"
+        lock, domains = json.loads(lock_path.read_text()), json.loads(domains_path.read_text())
+        original_jobs = domains["jobs"]
+
+        def declare(**options):
+            spec, raw = crafting_package(
+                crafting_fixture(), target=TARGET, producers=crafting_catalog.CURRENT_PRODUCERS, **options
+            )
+            del spec["path"]
+            spec.update(tag="inputs/9.9-1", asset="crafting.zip", **pin(raw))
+            path = self.root / "cache/inputs/downloads" / spec["sha256"]
+            path.parent.mkdir(parents=True, exist_ok=True)
+            path.write_bytes(raw)
+            lock["packages"]["renamed"] = spec
+            return spec
+
+        entry = declare(receipted=True)
+        lock_path.write_text(json.dumps(lock))
+        domains["jobs"] = [
+            {
+                "id": "craft",
+                "kind": "crafting-catalog",
+                "package": "renamed",
+                "outputs": {"overlay/a.json": "data/9.9/overlay/a.json"},
+            },
+            original_jobs[-1],
+        ]
+        domains_path.write_text(json.dumps(domains))
+        out, receipt, _ = self.run_build(config)
+        self.assertEqual(receipt["inputs"]["exports"], {"renamed:export_receipt": "c" * 40})
+        self.assertEqual(receipt["inputs"]["packages"]["renamed"]["export_receipt"], entry["export_receipt"])
+        with zipfile.ZipFile(out / "game-build-part.zip") as archive:
+            catalog = json.loads(archive.read("data/9.9/overlay/a.json"))
+        self.assertEqual(catalog["_meta"]["source_manifest_sha256"], entry["manifest"]["sha256"])
+
+        # Valid outer ZIP/manifest pins, renamed input, and only the original non-crafting jobs.
+        domains["jobs"] = original_jobs
+        domains_path.write_text(json.dumps(domains))
+        for case, message in (
+            ("missing", "requires its export_receipt"),
+            ("mismatched", "receipt pins another manifest"),
+            ("stripped", "lacks producer_receipt"),
+            ("rehearsal", "is a rehearsal; it cannot be built"),
+            ("dirty", "is a rehearsal; it cannot be built"),
+        ):
+            with self.subTest(case=case):
+                entry = declare(
+                    receipted=case != "stripped",
+                    rehearsal=case in ("rehearsal", "dirty"),
+                    dirty_paths=DIRTY if case == "dirty" else (),
+                )
+                if case == "missing":
+                    del entry["export_receipt"]
+                elif case == "mismatched":
+                    entry["export_receipt"]["manifest"]["sha256"] = "0" * 64
+                lock_path.write_text(json.dumps(lock))
+                with (
+                    mock.patch.object(build, "run_job", side_effect=AssertionError("job ran before receipt refusal")),
+                    self.assertRaisesRegex(ValueError, f"renamed:.*{message}"),
+                ):
+                    self.run_build(config)
 
     def test_build_requires_receipts_for_every_export_format_and_checks_nested_receipts(self):
         for format_ in sorted(export_receipt.FORMATS):

@@ -35,8 +35,8 @@ the class of every member and the pin of the zip and its root manifest;
 vendor tree or a checkout's data directories. An input candidate that carries
 `producer_receipt` must have its
 [export receipt](RePoE/docs/native/native_facts.md#export-receipt) in the
-package; the build refuses a rehearsal or dirty one and records the export
-commits in `receipt.json` (`inputs.exports`).
+package (in the lock entry for crafting); the build refuses a rehearsal or dirty
+one and records the export commits in `receipt.json` (`inputs.exports`).
 
 ### Declarations: one directory per package
 
@@ -227,13 +227,14 @@ value and the actual value. Packaging and the lock/notes files are prepared
 in a temporary directory; a failure keeps the previous successful staging.
 
 A manifest written by `facts:candidate`, `tables:candidate`,
-`descriptions:candidate`, `RePoE.native.item_inheritance` or `facts:player`
+`descriptions:candidate`, `RePoE.native.item_inheritance`, `facts:player` or
+`RePoE.native.crafting_facts`
 must also carry `producer_receipt` and have its
 [export receipt](RePoE/docs/native/native_facts.md#export-receipt) beside its
 directory (`facts.export-receipt.json` next to `facts/`), pinning its bytes
 and target. Copies embedded in another candidate (`parent-manifest.json`,
 `input-manifest.json`) and the facts inside the exact frozen historical envelope
-ZIP need none, and the crafting export is not receipted yet. New ZIPs must also
+ZIP need none. New ZIPs must also
 carry receipts beside their candidate directories. A receipt that says
 rehearsal or dirty, or whose commit is not on `origin/master`, still stages
 but is listed under `publish refused` (exit 1), and `--yes` never publishes it.
@@ -242,7 +243,11 @@ For `--package crafting=<crafting export>`, the ZIP retains the
 `repoe-native-crafting-facts/v1` root `manifest.json` and its file pins.
 Its lock entry also includes `publication: "published"`, `producer` and
 `input_manifest`, derived from the exporter manifest, for the crafting
-build job. `publication` describes the Release input that the entry will
+build job. The sibling export receipt is carried as the complete
+`export_receipt` object in that entry, keeping the ZIP inventory closed.
+Current producer keys require both the manifest marker and that receipt;
+only the fixed historical producer keys retain the unreceipted path.
+`publication` describes the Release input that the entry will
 pin; a dry run still publishes nothing.
 
 ## China client capture input
@@ -390,7 +395,7 @@ its historical bounds for transfer re-validation.
 | What | Where | Change |
 | --- | --- | --- |
 | Exporter identity | the producer map in `trust.rs`; the `include_bytes!` fixtures `tests/fixtures/ordinary-facts/selected-tables-producer*.json`, `item-inheritance-producer.json` and `tests/fixtures/native-facts/player-context-manifest.json` | The producer table and the three fixtures are the frozen historical acceptance of the 0.5.5.5 packages: never edit them and do not add identities beside them. A new export carries `producer_receipt` and has an [export receipt](RePoE/docs/native/native_facts.md#export-receipt) naming its commit, which `release:inputs` and `release:build` check. The adapter accepts receipted manifests without comparing the historical producer hashes; its target, schema, decoder and payload checks still apply ([fixed producer identities](tools/pobr-data-adapter/tests/fixtures/ordinary-facts/README.md#fixed-producer-identities)) |
-| Crafting producer | `PRODUCER_KEY_SETS` in `RePoE/release/crafting_catalog.py` | Nothing while the exporters stay where they are: it already accepts the historical keys and the current `RePoE/native/` keys (a test keeps them equal to `native/crafting_facts.PRODUCERS`); add a set only if the exporters move again |
+| Crafting producer | `PRODUCER_KEY_SETS` in `RePoE/release/crafting_catalog.py` | Keep the fixed historical identities. Current exports require the same [export receipt](RePoE/docs/native/native_facts.md#export-receipt), carried in the crafting lock entry; the existing digest-only producer closure still applies |
 | Schema constants (only if the dat schema changes) | `trust.rs` (`DECODER_PIN_SHA`, `SCHEMA_REVISION`, `SCHEMA_SHA`, the native specification pin), `RePoE/native/decoded_tables.py` (`SPEC_SHA`), `native/locale_probe.py` (`SCHEMA_REVISION`, `SCHEMA_SHA256`), `native/crafting_facts.py` (`SCHEMA`), `native/facts.py` (`SCHEMA`, `SCHEMA_SHA`) | Add the new schema beside the pinned one |
 
 `RePoE/native/locale_probe.py` is pinned by its own bytes (`decoded_tables.py`
@@ -449,7 +454,9 @@ The `crafting` package holds the seven tables, `crafting.json`,
 ([crafting facts](RePoE/docs/native/native_crafting_facts.md)). Export it
 from the same ordinary facts root: its `input_package.manifest` pins that
 root's manifest. Package the directory directly with
-`--package crafting=<crafting export>`; keep its root manifest.
+`--package crafting=<crafting export>`; keep its root manifest and sibling
+`<crafting export>.export-receipt.json`. The packager carries the receipt
+in the lock entry as described above.
 
 ### 2. Publish the inputs
 

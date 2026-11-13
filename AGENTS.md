@@ -85,9 +85,9 @@ whether the exporters' code or environment was dirty, and whether the run was
 a `--rehearsal` ([export receipt](RePoE/docs/native/native_facts.md#export-receipt)).
 An exporter refuses a dirty checkout without `--rehearsal`; `release:inputs`
 and `release:build` require the field and the receipt, and a rehearsal or
-dirty export is never built or published (the crafting export is not receipted
-yet). The adapter accepts receipted manifests without comparing the historical
-producer hashes; its target, schema, decoder and payload checks still apply.
+dirty export is never built or published. The adapter accepts receipted manifests
+without comparing the historical producer hashes; its target, schema, decoder
+and payload checks still apply.
 The rule and the procedure are in
 [native facts](RePoE/docs/native/native_facts.md#producer-identity-and-re-validation);
 the new-patch work is in [RELEASING.md](RELEASING.md#a-new-game-patch).

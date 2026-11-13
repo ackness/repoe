@@ -14,7 +14,7 @@ mise exec -- python -B -m RePoE.native.crafting_facts \
 ```
 
 Python API:
-`create_candidate(*, facts, expected_manifest_sha256, out) -> manifest`.
+`create_candidate(*, facts, expected_manifest_sha256, out, rehearsal=False) -> manifest`.
 `project(tables) -> projection` accepts a dictionary of the seven complete native
 table documents without performing I/O; its caller owns input authentication.
 
@@ -113,11 +113,18 @@ Only the seven selected raw resource declarations appear in output
 `source_identity.raw_resources`. Producer files and selected inputs are checked
 again before publication. No timestamps or absolute input paths affect bytes.
 
+The manifest carries the constant `producer_receipt`; the exporter writes
+`<out>.export-receipt.json` beside the directory as its last step under the
+general [export receipt rule](native_facts.md#export-receipt), including
+`--rehearsal`. `release:inputs --package crafting=<out>` keeps the ZIP's existing
+inventory and carries the complete sibling receipt as `export_receipt` in the
+crafting lock entry ([packaging](../../../RELEASING.md#2-publish-the-inputs)).
+
 Candidates must use a new directory beneath this checkout's `.cache`. Input
 symlinks, output replacement, output within the input package and unsafe output
 namespaces are refused using the existing native publication helper. A failed
-write may leave an incomplete directory; without the last manifest it is not a
-completed candidate, and it cannot be overwritten by a retry.
+write may leave an incomplete directory; without the last manifest and sibling
+receipt it is not a completed candidate, and it cannot be overwritten by a retry.
 
 ## Consumer and historical boundary
 

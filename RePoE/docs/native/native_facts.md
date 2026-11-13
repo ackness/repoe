@@ -188,7 +188,8 @@ requires the field in every candidate it accepts.
 ## Export receipt
 
 `facts:candidate`, `tables:candidate`, `descriptions:candidate`,
-`RePoE.native.item_inheritance` and `facts:player` write
+`RePoE.native.item_inheritance`, `facts:player` and
+`RePoE.native.crafting_facts` write
 `<out>.export-receipt.json` beside the finished candidate directory, as their
 last step (`RePoE/client/export_receipt.py`):
 
@@ -227,8 +228,11 @@ last step (`RePoE/client/export_receipt.py`):
   its target, and publishes only receipts that are clean, not a rehearsal and
   from a commit on `origin/master`. `release:build` repeats the check, refuses
   a rehearsal or dirty receipt and copies the commits into its `receipt.json`.
-  These checks include candidate directories inside ZIPs; only the exact frozen
-  historical package and envelope bytes are exempt from requiring the field.
+  These checks include candidate directories inside ZIPs; the frozen historical
+  package and envelope keep their existing acceptance. Crafting carries its
+  receipt in the lock entry to preserve its closed ZIP inventory
+  ([crafting facts](native_crafting_facts.md#output-contract)); its unreceipted
+  path requires the fixed historical producer keys.
   `rehearsal` absent means false, in every receipt.
 
 ## Physical tables

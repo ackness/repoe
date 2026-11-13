@@ -35,7 +35,7 @@ import tempfile
 import zipfile
 
 from RePoE.client import export_receipt
-from RePoE.release.pins import archive_manifest, decode, encoded, pin, relative, require
+from RePoE.release.pins import archive_manifest, decode, encoded, pin, regular, relative, require
 from RePoE.release import build, crafting_catalog, publish
 
 SCHEMA = "repoe-release-input/v1"
@@ -174,6 +174,10 @@ def package(name, directory, target, out):
             "producer": manifest["producer"],
             "input_manifest": manifest["input_package"]["manifest"],
         }
+        source = Path(directory).absolute()
+        sibling = source.with_name(export_receipt.receipt_name(source.name))
+        if export_receipt.FIELD in manifest or sibling.exists() or sibling.is_symlink():
+            extra["export_receipt"] = decode(regular(sibling).read_bytes())
     else:
         manifest_raw = encoded({"schema": SCHEMA, "name": name, "target": target, "files": pins})
     path = Path(out) / asset_name(name, target["game_patch"])
@@ -194,6 +198,8 @@ def package(name, directory, target, out):
         # The files must not have changed while they were read.
         if name == "crafting":
             crafting_catalog.facts_document(archive, {"repository": publish.REPOSITORY, **spec}, target)
+            if "export_receipt" in spec:
+                receipts["export_receipt"] = spec["export_receipt"]
         else:
             _, manifest = archive_manifest(archive, spec)
             for member, expected in manifest["files"].items():

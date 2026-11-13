@@ -7,7 +7,8 @@ admission. `release:build` runs it as the `crafting-catalog` job.
 
 import json
 
-from RePoE.release.pins import HEX, archive_manifest, byte_pin, decode, pinned, require
+from RePoE.client import export_receipt
+from RePoE.release.pins import HEX, archive_manifest, byte_pin, decode, encoded, pinned, require
 
 FORMAT = "repoe-native-crafting-facts/v1"
 POLICY = "pobr-trade-crafting-catalog/v1"
@@ -15,8 +16,8 @@ TABLES = ("BaseItemTypes", "ItemClasses", "Mods", "Stats", "Essences", "EssenceT
 # Producer file keys a crafting facts package may carry; the package's manifest pin binds their values.
 # HISTORICAL_PRODUCERS is the identity sealed into the published package (`packages.crafting` in
 # release/0.5.5.5-2/inputs.lock.json) before the exporters moved to RePoE/native/: never rename it.
-# CURRENT_PRODUCERS is what RePoE/native/crafting_facts.py writes today (tests keep the two in step),
-# so a fresh export for a new patch is accepted, as it was before the move.
+# CURRENT_PRODUCERS is what RePoE/native/crafting_facts.py writes today (tests keep the two in step);
+# these exports also require the marker and the lock-carried export receipt.
 HISTORICAL_PRODUCERS = frozenset({"RePoE/native_crafting_facts.py", "RePoE/native_descriptions.py"})
 CURRENT_PRODUCERS = frozenset({"RePoE/native/crafting_facts.py", "RePoE/native/descriptions.py"})
 PRODUCER_KEY_SETS = (HISTORICAL_PRODUCERS, CURRENT_PRODUCERS)
@@ -219,6 +220,21 @@ def project(facts, *, source_manifest_sha256, facts_manifest_sha256, target):
     }
 
 
+def receipt(manifest_raw, spec):
+    """Verify the lock-carried receipt of a pinned crafting manifest, or its historical key set."""
+    manifest = decode(manifest_raw)
+    if export_receipt.FIELD in manifest or "export_receipt" in spec:
+        require(
+            isinstance(spec.get("export_receipt"), dict), "Crafting manifest requires its export_receipt lock entry"
+        )
+        return export_receipt.verify(encoded(spec["export_receipt"]), manifest_raw)
+    require(
+        frozenset(manifest.get("producer", {})) == HISTORICAL_PRODUCERS,
+        f"Crafting manifest lacks {export_receipt.FIELD}: export it again",
+    )
+    return None
+
+
 def facts_document(archive, spec, target):
     """Authenticate the whole crafting package before reading `crafting.json`."""
     require(spec.get("publication") == "published" and spec.get("repository") == OWNER, "Unpublished crafting facts")
@@ -228,7 +244,7 @@ def facts_document(archive, spec, target):
         "Invalid crafting producer closure",
     )
     byte_pin(spec["input_manifest"])
-    _, manifest = archive_manifest(archive, spec)
+    manifest_raw, manifest = archive_manifest(archive, spec)
     source = manifest["source_identity"]
     require(
         manifest.get("format") == FORMAT
@@ -241,6 +257,7 @@ def facts_document(archive, spec, target):
         manifest["input_package"]["manifest"] == spec["input_manifest"] and manifest["producer"] == spec["producer"],
         "Crafting producer/input identity mismatch",
     )
+    receipt(manifest_raw, spec)
     expected = {"crafting.json", "input-manifest.json", *(f"{name}.json" for name in TABLES)}
     require(set(manifest["files"]) == expected, "Unexpected crafting package inventory")
     require(manifest["files"]["input-manifest.json"] == spec["input_manifest"], "Crafting input manifest pin differs")

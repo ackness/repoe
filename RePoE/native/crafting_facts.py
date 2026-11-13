@@ -7,6 +7,7 @@ import re
 import sys
 
 from RePoE.native import descriptions as env
+from RePoE.client import export_receipt
 from RePoE.client.limits import (
     MAX_CRAFTING_TABLE_JSON_BYTES as MAX_TABLE_BYTES,
     MAX_CRAFTING_TOTAL_JSON_BYTES as MAX_TOTAL_BYTES,
@@ -351,7 +352,7 @@ def project(tables):
     }
 
 
-def create_candidate(*, facts, expected_manifest_sha256, out):
+def create_candidate(*, facts, expected_manifest_sha256, out, rehearsal=False):
     """Write a fresh completion-last package from authenticated exported bytes."""
     output, source_root = Path(out).absolute(), Path(facts).absolute()
     cache = ROOT.resolve(strict=True) / ".cache"
@@ -361,6 +362,7 @@ def create_candidate(*, facts, expected_manifest_sha256, out):
         raise ValueError("Crafting candidate must be beneath this checkout's .cache")
     if output.resolve().is_relative_to(source_root.resolve()):
         raise ValueError("Crafting output cannot be inside facts input")
+    seal = export_receipt.begin(output, "RePoE.native.crafting_facts", rehearsal=rehearsal)
     producer = {name: env._sha(_read(ROOT / name, 1024 * 1024)) for name in PRODUCERS}
     raw, source_manifest, payloads, tables = _inputs(facts, expected_manifest_sha256)
     projection = project(tables)
@@ -394,6 +396,7 @@ def create_candidate(*, facts, expected_manifest_sha256, out):
             "source_language_independently_observed": False,
         },
         "producer": producer,
+        export_receipt.FIELD: export_receipt.SCHEMA,
         "python": sys.version.split()[0],
         "summary": projection["summary"],
         "scope": [
@@ -415,6 +418,7 @@ def create_candidate(*, facts, expected_manifest_sha256, out):
         raise ValueError("Crafting producer changed during projection")
     payloads["manifest.json"] = env._json(manifest)
     env._publish(output, source_root, payloads)
+    seal(payloads["manifest.json"])
     return manifest
 
 
@@ -422,6 +426,7 @@ def main():
     parser = argparse.ArgumentParser(description=__doc__)
     for name in ("facts", "expected-manifest-sha256", "out"):
         parser.add_argument("--" + name, required=True)
+    export_receipt.add_rehearsal_option(parser)
     args = parser.parse_args()
     try:
         manifest = create_candidate(**vars(args))
