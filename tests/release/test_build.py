@@ -1331,7 +1331,13 @@ class ReleaseBuildTest(unittest.TestCase):
         workflow = (root / ".github/workflows/release-build.yml").read_text()
         patterns = re.findall(r"^ +- ([^\s:]+)$", workflow.split("pull_request:")[0], re.MULTILINE)
         self.assertIn("RePoE/release/content_diff.py", patterns)
-        for name in sorted(set(build.CODE) | packages):
+        ci_selection = {
+            "release/ci.json",
+            "RePoE/release/ci_declarations.py",
+            "mise.toml",
+            ".github/workflows/release-build.yml",
+        }
+        for name in sorted(set(build.CODE) | packages | ci_selection):
             covered = any(name == p or (p.endswith("/**") and name.startswith(p[:-2])) for p in patterns)
             self.assertTrue(covered, f"{name} is not in the release workflow's paths filter")
 

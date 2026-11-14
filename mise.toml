@@ -79,6 +79,10 @@ run = "uv run --locked --offline python -B -m RePoE.native.descriptions"
 description = "Export explicitly pinned supplemental DAT tables through the existing native reader"
 run = "uv run --locked --offline python -B -m RePoE.native.tables"
 
+[tasks."release:ci-configs"]
+description = "List current and non-retired declarations for full-package CI rebuilds; fails on invalid release/ci.json"
+run = "python -B -m RePoE.release.ci_declarations"
+
 [tasks."release:build"]
 description = "Rebuild the game part from pinned inputs (Git blobs or Release assets) and classify every member against the reference package (--config release/<patch>[-<n>], default: highest; --fetch, --check)"
 run = "cargo build --locked --release --quiet --manifest-path tools/pobr-data-adapter/Cargo.toml && python -B -m RePoE.release.build"

@@ -1,0 +1,5 @@
+{
+  "schema": "repoe-release-ci/v1",
+  "current": "0.5.5.5-3",
+  "retired": ["0.5.5.5-2"]
+}

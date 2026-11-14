@@ -153,7 +153,7 @@ Symptom, cause, fix.
 | --- | --- |
 | Documentation only | Check relative links and anchors; no tests |
 | Python in `RePoE/client/`, `RePoE/native/`, `RePoE/parser/` | `mise run check`; `RePoE/__init__.py`, `client/__init__.py`, `client/export_receipt.py`, `client/source_io.py` and `client/source_rebinding.py` are release-build inputs, so also the release row below |
-| `RePoE/release/`, `release/`, the adapter or its policies | `mise run check`, `mise run adapter:check`, `mise run adapter:keystones`, and `release:build -- --config release/<dir> --fetch --check` for every declaration (CI does this too) |
+| `RePoE/release/`, `release/`, the adapter or its policies | `mise run check`, `mise run adapter:check`, `mise run adapter:keystones`, and `release:build -- --config release/<dir> --fetch --check` for each declaration from `mise run release:ci-configs`; also rebuild a retired declaration when its inputs or historical compatibility change |
 | Adapter comments or docs inside `src/` | As above: `implementation_sha256` includes the sources, so the receipt's `implementation_revision` moves while the zip must not; `implementation_revision_covers_every_production_source` requires every non-test Rust source to be hashed or explicitly excluded with a reason |
 | `schema/` | `mise run schema:check`, then the procedure in [schema/README.md](schema/README.md) |
 | `RePoE/schema/*.json` | `mise run models:generate -- <paths>`, then `mise run check` |
@@ -169,14 +169,27 @@ tests) are not run by CI; state when they were skipped.
 | --- | --- | --- |
 | `verify.yml` (every PR and master push) | `verify` | `mise run check` |
 | | `adapter` | `mise run adapter:check`, `mise run adapter:keystones` |
-| `release-build.yml` (only when a path the build reads changes; the workflow's `paths` list is guarded by `tests/release/test_build.py`, which compares it with `build.CODE`) | `release` | `release:build -- --config release/<dir> --fetch --check` for every declaration directory today (see below) |
+| `release-build.yml` (when build or selection inputs change; `tests/release/test_build.py` guards its paths against `build.CODE` and the CI selector's inputs) | `release` | `release:ci-configs`, then `release:build -- --config release/<dir> --fetch --check` for each selected declaration |
 
-Policy: CI must rebuild only the newest published declaration (normally the
-one PoBR's `pipeline/data.lock.json` pins) and any unpublished ones; superseded declarations,
-their Releases and tags stay as records and are not rebuilt forever. Until the
-workflow is narrowed it still loops over every `release/*/`. Until the first 1.0
-game package is published, `release/0.5.5.5-3` keeps reproducing byte for byte
-as the regression guard.
+[release/ci.json](release/ci.json) is the sole record of full-package CI
+selection. `current` explicitly names `0.5.5.5-3`, the declaration PoBR
+currently pins; `retired` names `0.5.5.5-2`. These names are directories
+directly under `release/`. `mise run release:ci-configs` always includes
+current and every declaration not explicitly retired, so new and unpublished
+declarations enter CI by default, whether or not they have an `expect` pin.
+Selection errors fail before the build loop; missing declarations, malformed
+records, duplicates, an incomplete declaration or retiring current cannot
+silently reduce coverage. The record, selector, mise task and workflow are
+all covered by the workflow's paths filter.
+
+Retirement only stops a declaration's routine full-package CI rebuild. Its
+directory, Release, tag, receipt and historical acceptance/frozen-identity
+regressions remain; `release:build -- --config release/0.5.5.5-2` still works.
+The selector does not change default build or publication selection.
+Adding a newer version never withdraws current. Change current or retire its
+predecessor only after consumer adoption, exact ZIP reproduction and the
+replacement regression coverage are verified; this is independent of the
+first 1.0 package's publication.
 
 `release-build.yml` does not run for changes outside its `paths`, so edits to
 `RePoE/docs/` or root documents skip it; documents under `release/` or
