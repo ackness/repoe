@@ -266,11 +266,13 @@ class ReleaseBuildTest(unittest.TestCase):
         return config
 
     def fake_facts(self, package, spec, cache):
+        manifest = self.facts / "manifest.json"
+        rebound = pin(manifest.read_bytes()) if manifest.is_file() else {"bytes": 1, "sha256": REBOUND}
         return {
             "handoff": pin(b"{}"),
             "archive": pin(b""),
             "roots": {
-                "rebound": (self.facts, {"bytes": 1, "sha256": REBOUND}),
+                "rebound": (self.facts, rebound),
                 "original": (self.facts, {"bytes": 1, "sha256": ORIGINAL}),
             },
         }
@@ -286,6 +288,115 @@ class ReleaseBuildTest(unittest.TestCase):
                 policies=self.policies,
                 **kwargs,
             )
+
+    def item_class_names_fixture(self):
+        """Add the optional job to the existing package/snapshot fixture."""
+        from tests.release.test_item_class_names import table
+
+        name = "tables/ItemClasses.json"
+        raw = encoded(table([{"Id": "Class", "Name": "Names \r\n"}, {"Id": "Empty", "Name": ""}]))
+        (self.facts / name).parent.mkdir(parents=True)
+        (self.facts / name).write_bytes(raw)
+        self.item_class_manifest = {
+            "format": "repoe-native-facts/v4",
+            "files": {name: pin(raw)},
+            "source_identity": {
+                **TARGET,
+                "source": "synthetic",
+                "source_lock_sha256": "c" * 64,
+                "acquisition": {"status": "unreviewed-acquisition-draft"},
+            },
+            "status": "partial-candidate",
+            "production_ready": False,
+            "producer": {"RePoE/native_facts.py": "d" * 64},
+        }
+        (self.facts / "manifest.json").write_bytes(encoded(self.item_class_manifest))
+        config = self.fixture()
+        path = config / "domains.json"
+        domains = json.loads(path.read_bytes())
+        member = "overlay/item_class_names.json"
+        domains["jobs"].insert(
+            1,
+            {
+                "id": "item-class-names",
+                "kind": "item-class-names",
+                "facts": "rebound",
+                "outputs": {member: "data/9.9/" + member},
+            },
+        )
+        domains["jobs"][-1]["add"] = {member: "overlay"}
+        path.write_bytes(encoded(domains))
+        return config
+
+    def test_item_class_names_job_packages_the_optional_member_and_provenance(self):
+        config = self.item_class_names_fixture()
+        out, receipt, outcome = self.run_build(config)
+        member = "data/9.9/overlay/item_class_names.json"
+        with zipfile.ZipFile(out / "game-build-part.zip") as archive:
+            raw = archive.read(member)
+            document = json.loads(raw)
+            snapshot = json.loads(archive.read("data/9.9/manifest.json"))
+        self.assertEqual(document["_meta"], {"schema": "repoe-item-class-names/v1", **TARGET})
+        self.assertEqual(document["scopes"], {"ItemClasses.Name": {"Class": "Names \r\n"}})
+        self.assertEqual(snapshot["files"]["overlay/item_class_names.json"], pin(raw)["sha256"])
+        self.assertIn("item_class_names", snapshot["domains"]["overlay"])
+        self.assertEqual(receipt["members"][member]["class"], "generated-new")
+        job = receipt["jobs"]["item-class-names"]
+        self.assertEqual(job["summary"], {"rows": 2, "emitted": 1, "empty": 1, "whitespace": 0})
+        self.assertEqual(job["outputs"][member], pin(raw))
+        self.assertEqual(job["facts"]["producer"], self.item_class_manifest["producer"])
+        self.assertEqual(job["facts"]["source_identity"], self.item_class_manifest["source_identity"])
+        self.assertFalse(job["facts"]["production_ready"])
+        self.assertEqual(job["facts"]["status"], "partial-candidate")
+        for name in ("manifest.json", "tables/ItemClasses.json"):
+            self.assertEqual(receipt["inputs"]["files"]["facts:rebound:" + name], pin((self.facts / name).read_bytes()))
+        self.assertEqual(self.run_build(config)[2]["package"], outcome["package"])
+
+    def test_item_class_names_requires_facts_and_the_rebound_identity(self):
+        config = self.item_class_names_fixture()
+        path = config / "domains.json"
+        domains = json.loads(path.read_bytes())
+        domains["jobs"][1]["facts"] = "original"
+        path.write_bytes(encoded(domains))
+        with self.assertRaisesRegex(ValueError, "requires facts=rebound"):
+            build.load_config(config)
+        lock_path = config / "inputs.lock.json"
+        lock = json.loads(lock_path.read_bytes())
+        del lock["facts"]
+        lock_path.write_bytes(encoded(lock))
+        with self.assertRaisesRegex(ValueError, "facts envelope"):
+            build.load_config(config)
+
+    def test_item_class_names_rejects_every_target_mismatch_and_missing_table(self):
+        config = self.item_class_names_fixture()
+        manifest = self.facts / "manifest.json"
+        for key, value in (("game", "poe1"), ("game_patch", "8.8"), ("realm", "china")):
+            with self.subTest(key=key):
+                changed = copy.deepcopy(self.item_class_manifest)
+                changed["source_identity"][key] = value
+                manifest.write_bytes(encoded(changed))
+                with self.assertRaisesRegex(ValueError, "facts target differs"):
+                    self.run_build(config)
+        changed = copy.deepcopy(self.item_class_manifest)
+        changed["files"] = {}
+        manifest.write_bytes(encoded(changed))
+        with self.assertRaisesRegex(ValueError, "missing tables/ItemClasses.json"):
+            self.run_build(config)
+
+    def test_item_class_names_checks_the_payload_pin_and_output_declaration(self):
+        config = self.item_class_names_fixture()
+        table = self.facts / "tables/ItemClasses.json"
+        raw = table.read_bytes()
+        table.write_bytes(raw + b" ")
+        with self.assertRaisesRegex(ValueError, "Byte pin mismatch"):
+            self.run_build(config)
+        table.write_bytes(raw)
+        path = config / "domains.json"
+        domains = json.loads(path.read_bytes())
+        domains["jobs"][1]["outputs"]["overlay/extra.json"] = "data/9.9/overlay/extra.json"
+        path.write_bytes(encoded(domains))
+        with self.assertRaisesRegex(ValueError, "output must be overlay/item_class_names.json"):
+            self.run_build(config)
 
     def forward_config(self, config, issues=None):
         """Reuse the strict fixture and teach its adapter the frozen coverage interface."""

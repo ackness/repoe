@@ -56,7 +56,15 @@ DIRTY_PATHS = (
 COMMIT = re.compile(r"[0-9a-f]{40}")
 COVERAGE_ACTIONS = ("quarantined", "emitted-with-gap", "retained-legacy", "listed")
 RELEASE_JOB_KINDS = frozenset(
-    {"adapter", "special-derived", "historical-trees", "crafting-catalog", "gem-descriptions", "snapshot-manifest"}
+    {
+        "adapter",
+        "special-derived",
+        "historical-trees",
+        "crafting-catalog",
+        "gem-descriptions",
+        "item-class-names",
+        "snapshot-manifest",
+    }
 )
 
 

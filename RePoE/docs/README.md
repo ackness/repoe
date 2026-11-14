@@ -42,6 +42,7 @@ Formats and contracts, grouped like the code. Release procedure:
 | [pobr_crafting_catalog.md](release/pobr_crafting_catalog.md) | The `crafting-catalog` job |
 | [pobr_historical_trees.md](release/pobr_historical_trees.md) | The `historical-trees` job |
 | [pobr_gem_descriptions.md](release/pobr_gem_descriptions.md) | The `gem-descriptions` job (English gem descriptions) |
+| [pobr_item_class_names.md](release/pobr_item_class_names.md) | The opt-in `item-class-names` job (English item class names) |
 | [buff_source_reconciliation.md](release/buff_source_reconciliation.md) | The retained buff-source reconciliation in `sources/` |
 
 The adapter jobs are documented with the adapter:

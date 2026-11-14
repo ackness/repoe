@@ -52,7 +52,11 @@ then the highest `<n>`. Each directory holds three files:
   `pobr-data-adapter --ordinary-facts` domain, plus `special-derived`,
   `historical-trees`, `crafting-catalog`, `gem-descriptions` (from
   `release/0.5.5.5-3/` on; [English gem descriptions](RePoE/docs/release/pobr_gem_descriptions.md))
-  and the final `snapshot-manifest`. Its optional top-level `adapter_mode`
+  and the final `snapshot-manifest`. The optional `item-class-names` job
+  projects English names from `facts: "rebound"` into a separate display
+  member; [item class names](RePoE/docs/release/pobr_item_class_names.md)
+  describes its declaration, validation and candidate/publication boundary.
+  The document's optional top-level `adapter_mode`
   selects `"forward"`; omit it for strict mode. The declaration owns this
   choice; there is no command-line mode override.
 - `frozen-inputs.json`: every member not generated yet (see below).
