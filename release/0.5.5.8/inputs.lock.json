@@ -1,0 +1,113 @@
+{
+  "schema": "repoe-release-inputs/v1",
+  "target": {
+    "game": "poe2",
+    "game_patch": "0.5.5.8",
+    "realm": "international"
+  },
+  "packages": {
+    "ordinary": {
+      "repository": "ackness/repoe",
+      "tag": "inputs/0.5.5.8-1",
+      "asset": "repoe-input-ordinary-0.5.5.8.zip",
+      "bytes": 40385830,
+      "sha256": "88df93c935d77265b80903c3f616cc68f5cd42e24a22eca6950034945de3d2ae",
+      "manifest": {
+        "bytes": 17537,
+        "sha256": "5e20841e5a2a529a09f0fcd8a9903e728b96b941a275076d77f1326e483fbd70"
+      },
+      "expanded_bytes": 539714349,
+      "publication": "pending"
+    },
+    "legacy": {
+      "tag": "handoff/rollback-0.5.5.4.2-20261101",
+      "repository": "ackness/repoe",
+      "publication": "published",
+      "revision": "86f655bea4d9ca1ea95eec184c4217ca0912cefc",
+      "path": "handoff/rollback-0.5.5.4.2/game-build-part.zip",
+      "bytes": 3699436,
+      "sha256": "c93d17a4bb5f55a531712489a81d3800bf74c43350b6154ee226a0f5b5da4c64",
+      "manifest": {
+        "bytes": 10266,
+        "sha256": "c3c65583d00d906e9de0591466e2d2084834158bda1c0b917f9ef83ac0349d8d"
+      },
+      "expanded_bytes": 51660129
+    },
+    "crafting": {
+      "repository": "ackness/repoe",
+      "tag": "inputs/0.5.5.8-1",
+      "asset": "repoe-input-crafting-0.5.5.8.zip",
+      "bytes": 2330472,
+      "sha256": "7b5b22dd1d706a1ab305644cf229c1d486febefdd51f5c28077c87925a402715",
+      "manifest": {
+        "bytes": 21464,
+        "sha256": "4cdd0e712a054f796a3941abe3f2413a25af83f3ecc204a158af9af60a8fbfe6"
+      },
+      "expanded_bytes": 59103218,
+      "publication": "published",
+      "producer": {
+        "RePoE/native/crafting_facts.py": "85a51b7518bbfc07ee1320ed42130fe5a7d761ee4dad932fb833e0dddf094205",
+        "RePoE/native/descriptions.py": "1624d345781434ea226b503070611f3a8198a45751bce6bbfecdfb91f29ba5f1"
+      },
+      "input_manifest": {
+        "bytes": 36968,
+        "sha256": "9362e901de39b3ea826e1e5404a70051c69699e2c285601826e5c3b3de50e3c1"
+      },
+      "export_receipt": {
+        "exporter": "RePoE.native.crafting_facts",
+        "manifest": {
+          "bytes": 21464,
+          "sha256": "4cdd0e712a054f796a3941abe3f2413a25af83f3ecc204a158af9af60a8fbfe6"
+        },
+        "producer": {
+          "commit": "84e8a5c5d74bb659fbbf2bc188f50a185e132983",
+          "dirty": false,
+          "dirty_paths": [],
+          "repository": "ackness/repoe"
+        },
+        "rehearsal": false,
+        "schema": "repoe-export-receipt/v1",
+        "target": {
+          "game": "poe2",
+          "game_patch": "0.5.5.8",
+          "realm": "international"
+        }
+      },
+      "publication_status": "pending"
+    },
+    "previous": {
+      "repository": "ackness/repoe",
+      "tag": "game/0.5.5.5-3",
+      "asset": "pobr-game-0.5.5.5.zip",
+      "bytes": 4611967,
+      "sha256": "7f8d343b53bbbffa221b750c42fa71da4eda6fde909426c130a07d5b4dd4a7c9",
+      "manifest": {
+        "bytes": 9073,
+        "sha256": "480e4b1ec62a1ce8e98b10b71fe3752e002b01c6a5e9c8188ea1dd89e95a0169"
+      },
+      "expanded_bytes": 67114847
+    },
+    "intl_text": {
+      "repository": "ackness/repoe",
+      "tag": "inputs/0.5.5.8-1",
+      "asset": "repoe-input-intl_text-0.5.5.8.zip",
+      "bytes": 935349,
+      "sha256": "d89019ba8bd859233c458104458168e9692d84819a460b7508ada73c2c5af304",
+      "manifest": {
+        "bytes": 1245,
+        "sha256": "24bbf9fd8191bbf11b54285ab70bd0f5f9b20f9285737255eb6bd547f048ef17"
+      },
+      "expanded_bytes": 18798400,
+      "publication": "pending"
+    }
+  },
+  "reference": "previous",
+  "facts": {
+    "package": "ordinary",
+    "root": "facts",
+    "identities": {
+      "original": "9362e901de39b3ea826e1e5404a70051c69699e2c285601826e5c3b3de50e3c1",
+      "rebound": "9362e901de39b3ea826e1e5404a70051c69699e2c285601826e5c3b3de50e3c1"
+    }
+  }
+}
