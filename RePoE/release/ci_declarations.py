@@ -25,7 +25,9 @@ def selected(releases):
     require(len(set(retired)) == len(retired), "ci.json: duplicate retired declaration")
     for name in [current, *retired]:
         require(build.config_key(name) is not None, f"ci.json: invalid declaration name: {name!r}")
-    configs = sorted((path for path in releases.iterdir() if path.is_dir()), key=lambda path: path.name)
+    configs = sorted(
+        (path for path in releases.iterdir() if path.is_symlink() or path.is_dir()), key=lambda path: path.name
+    )
     for config in configs:
         require(build.config_key(config.name) is not None, f"Invalid release declaration directory: {config.name}")
         require(not config.is_symlink(), f"Symlink release declaration: {config.name}")

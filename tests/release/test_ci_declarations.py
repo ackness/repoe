@@ -83,14 +83,21 @@ class SelectionTest(unittest.TestCase):
 
     def test_a_broken_new_directory_fails_instead_of_disappearing(self):
         directory = self.declaration("1.0")
-        (directory / "inputs.lock.json").unlink()
+        lock = directory / "inputs.lock.json"
+        raw = lock.read_bytes()
+        lock.unlink()
         self.assert_cli_refusal()
+        lock.write_bytes(raw)
         directory.rename(self.releases / "scratch")
         self.assert_cli_refusal()
 
-    def test_symlink_declaration_is_not_a_second_name_for_existing_content(self):
-        (self.releases / "1.0").symlink_to(self.releases / "0.5.5.5-3", target_is_directory=True)
-        self.assert_cli_refusal()
+    def test_symlink_declarations_fail_even_when_the_target_is_missing(self):
+        for target in ["0.5.5.5-3", "missing-declaration"]:
+            with self.subTest(target=target):
+                link = self.releases / "1.0"
+                link.symlink_to(target, target_is_directory=True)
+                self.assert_cli_refusal()
+                link.unlink()
 
     def test_repository_policy_keeps_the_consumer_current_and_retires_only_the_old_full_build(self):
         self.assertEqual(decode((build.RELEASES / "ci.json").read_bytes()), self.policy)
@@ -123,7 +130,19 @@ class SelectionTest(unittest.TestCase):
         self.assertEqual(result.returncode, 0, result.stderr.decode())
         self.assertEqual(record.read_text().splitlines(), [str(self.releases / name) for name in ["0.5.5.5-3", "1.0"]])
         record.unlink()
-        self.write_policy({**self.policy, "retired": [self.policy["current"]]})
-        result = subprocess.run(["bash", "-e", "-o", "pipefail", "-c", shell], cwd=build.ROOT, capture_output=True)
-        self.assertNotEqual(result.returncode, 0)
-        self.assertFalse(record.exists())
+        for failure in ["invalid-policy", "broken-symlink"]:
+            with self.subTest(failure=failure):
+                if failure == "invalid-policy":
+                    self.write_policy({**self.policy, "retired": [self.policy["current"]]})
+                else:
+                    self.write_policy(self.policy)
+                    (self.releases / "1.0").rename(self.releases.parent / "future-declaration")
+                    (self.releases / "1.0").symlink_to("missing-declaration", target_is_directory=True)
+                result = subprocess.run(
+                    ["bash", "-e", "-o", "pipefail", "-c", shell], cwd=build.ROOT, capture_output=True
+                )
+                self.assertNotEqual(result.returncode, 0)
+                self.assertEqual(result.stdout, b"")
+                self.assertFalse(record.exists())
+                if failure == "broken-symlink":
+                    self.assertIn(b"Symlink release declaration: 1.0", result.stderr)
