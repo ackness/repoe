@@ -109,5 +109,11 @@
       "original": "9362e901de39b3ea826e1e5404a70051c69699e2c285601826e5c3b3de50e3c1",
       "rebound": "9362e901de39b3ea826e1e5404a70051c69699e2c285601826e5c3b3de50e3c1"
     }
+  },
+  "expect": {
+    "package": {
+      "bytes": 4614107,
+      "sha256": "7dcb18ec41dff4deadfb3d9c9acfd128122c748ad1309d75bc301ccfecf0574a"
+    }
   }
 }
