@@ -35,7 +35,7 @@ from urllib.parse import parse_qs, urlsplit
 import zipfile
 
 from RePoE.client import export_receipt, source_rebinding
-from RePoE.release import assets, content_diff, crafting_catalog, gem_descriptions, historical_trees
+from RePoE.release import assets, content_diff, crafting_catalog, gem_descriptions, historical_trees, item_class_names
 from RePoE.release.pins import archive_manifest, byte_pin, decode, encoded, pin, pinned, relative, require
 
 ROOT = Path(__file__).resolve().parents[2]
@@ -78,7 +78,7 @@ PROVENANCE = ("generated", "passthrough", "frozen")
 CLASSES = tuple(f"{p}-{c}" for p in PROVENANCE[:2] for c in ("identical", "different", "new")) + ("frozen", "missing")
 KINDS = export_receipt.RELEASE_JOB_KINDS
 # Job kinds that read the facts envelope (under the identity the job names in ``facts``).
-FACTS_KINDS = {"adapter", "gem-descriptions"}
+FACTS_KINDS = {"adapter", "gem-descriptions", "item-class-names"}
 COVERAGE_ACTIONS = export_receipt.COVERAGE_ACTIONS
 BUILD_ERRORS = (ValueError, KeyError, TypeError, OSError, zipfile.BadZipFile)
 CODE = (
@@ -92,6 +92,7 @@ CODE = (
     "RePoE/release/historical_trees.py",
     "RePoE/release/crafting_catalog.py",
     "RePoE/release/gem_descriptions.py",
+    "RePoE/release/item_class_names.py",
     "tools/pobr-data-adapter/Cargo.lock",
 )
 # Paths whose untracked files can change the build (sources, declarations, policies, toolchain pins).
@@ -216,7 +217,7 @@ def load_config(config):
         # Without a facts envelope only the package-derived jobs can run (a replay of an old package).
         require(
             all(job.get("kind") not in FACTS_KINDS for job in domains["jobs"]),
-            "Adapter jobs need a facts envelope (facts), and so do gem-descriptions jobs",
+            "Adapter jobs need a facts envelope (facts), and so do gem-descriptions jobs and item-class-names jobs",
         )
     if "expect" in lock:
         require(set(lock["expect"]) == {"package"}, "expect: only a package pin is supported")
@@ -233,6 +234,8 @@ def load_config(config):
             )
         if job["kind"] in FACTS_KINDS:
             require(job.get("facts") in FACTS_IDENTITIES, f"{job['id']}: facts must be one of {FACTS_IDENTITIES}")
+        if job["kind"] == "item-class-names":
+            require(job["facts"] == "rebound", f"{job['id']}: item-class-names requires facts=rebound")
         if job["kind"] == "adapter":
             require(set(job.get("options", {})) <= set(PAIRED), f"{job['id']}: unsupported adapter option")
         for member in job.get("outputs", {}).values():
@@ -638,6 +641,48 @@ def run_gem_descriptions(ctx, job, out):
     return {name: out / name}, {"summary": summary}
 
 
+def run_item_class_names(ctx, job, out):
+    """English class names from the verified target facts, with provenance in the receipt."""
+    member = item_class_names.MEMBER
+    require(
+        job["outputs"] == {member: f"data/{ctx.target['game_patch']}/{member}"},
+        f"{job['id']}: output must be {member} for the target patch",
+    )
+    facts_root, manifest_pin = ctx.facts["roots"][job["facts"]]
+    manifest = decode(pinned((facts_root / "manifest.json").read_bytes(), manifest_pin))
+    identity = manifest["source_identity"]
+    require(
+        {key: identity.get(key) for key in ctx.target} == ctx.target,
+        f"{job['id']}: facts target differs from the build target",
+    )
+    name = f"tables/{item_class_names.TABLE}.json"
+    require(name in manifest["files"], f"{job['id']}: missing {name} in the facts manifest")
+    raw = pinned((facts_root / name).read_bytes(), manifest["files"][name])
+    table_pin = pin(raw)
+    for path, expected in (("manifest.json", manifest_pin), (name, table_pin)):
+        ref = f"facts:{job['facts']}:{path}"
+        ctx.inputs[ref] = expected
+        ctx.job_inputs.setdefault(job["id"], {})[ref] = facts_root / path
+    document, summary = item_class_names.project(decode(raw), ctx.target)
+    write_new(out / member, runtime_encoded(document))
+    provenance = {
+        "identity": job["facts"],
+        "manifest": manifest_pin,
+        "table": {"path": name, **table_pin},
+        "status": manifest["status"],
+        "production_ready": manifest["production_ready"],
+        "producer": manifest["producer"],
+        "source_identity": {
+            key: identity[key] for key in ("game", "game_patch", "realm", "source", "source_lock_sha256", "acquisition")
+        },
+    }
+    return {member: out / member}, {
+        "generator": "RePoE.release.item_class_names",
+        "facts": provenance,
+        "summary": summary,
+    }
+
+
 def execute(command, logs):
     logs.mkdir(parents=True, exist_ok=True)
     with (logs / "stdout.txt").open("wb") as stdout, (logs / "stderr.txt").open("wb") as stderr:
@@ -654,6 +699,7 @@ RUNNERS = {
     "historical-trees": run_historical_trees,
     "crafting-catalog": run_crafting_catalog,
     "gem-descriptions": run_gem_descriptions,
+    "item-class-names": run_item_class_names,
 }
 
 
