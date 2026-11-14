@@ -52,10 +52,11 @@ jobs:
       # Pinned handoff commits and tags are fetched from origin and pinned Release
       # assets downloaded anonymously (never the game CDN). --check fails unless each
       # zip equals its lock's expect pin (without one: its reference package).
-      - name: Rebuild every declared game package from pinned inputs
+      - name: Rebuild selected game packages from pinned inputs
         run: |
-          for config in release/*/; do
-            mise run release:build -- --config "${config%/}" --fetch --check
+          configs=$(mise run release:ci-configs)
+          for config in $configs; do
+            mise run release:build -- --config "$config" --fetch --check
           done
       - uses: actions/upload-artifact@v4.6.2
         if: always()

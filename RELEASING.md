@@ -135,8 +135,14 @@ A declaration directory claims that the code produces its `expect` pin (or
 its reference); when a code or policy change moves a published package's bytes
 on purpose, add the next `release/<patch>-<n>/`. A superseded declaration
 directory stays in place, as do its Release and tag; its receipt is the
-evidence of what it produced. Which declarations CI keeps rebuilding is set in
-[AGENTS.md](AGENTS.md#ci).
+evidence of what it produced. [release/ci.json](release/ci.json) explicitly
+records the current declaration and those retired from routine full-package
+CI. `mise run release:ci-configs` lists current and every non-retired
+declaration, including new ones; it does not infer publication from `expect`
+or change the default build or publishing commands. Retirement keeps historical
+builds and acceptance tests supported. Changing current requires verified
+consumer adoption, exact package reproduction and replacement regression
+coverage, not just a newer version number; see [CI](AGENTS.md#ci).
 
 ## Publish
 
