@@ -37,6 +37,7 @@ Formats and contracts, grouped like the code. Release procedure:
 
 | Document | Covers |
 | --- | --- |
+| [patch-preparation.md](release/patch-preparation.md) | `release:prepare-patch`: pinned local acquisition, exports and staging; stops before input publication |
 | [policy-rebinding.md](release/policy-rebinding.md) | `policy:rebind`: new policy identities and domain references from staged inputs |
 | [declaration-derivation.md](release/declaration-derivation.md) | `release:declare`: `inputs.lock.json` and `frozen-inputs.json` from the predecessor declaration and staged inputs |
 | [content-diff.md](release/content-diff.md) | Cross-patch byte classes and the bounded informational content/reference report |

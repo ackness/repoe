@@ -416,6 +416,21 @@ keeps working only at its producer commit
 
 ### 1. Export the inputs
 
+The optional [`release:prepare-patch`](RePoE/docs/release/patch-preparation.md)
+runner handles local acquisition, fixed exports and staging after discovery
+and source review. Before output, non-rehearsal runs require every selected
+source's `acquisition.status` to be `reviewed-source-input`; unreviewed drafts
+require `--rehearsal`, with no automatic promotion. Resume also requires
+unchanged per-source installed decoder fingerprints. Export-lock conversion
+validates every ledger entry before source acquisition; recipe target, profile
+and review checks, and acquisition itself, apply only to selected sources.
+Native exports and validation precede assembly and staging. This first slice
+stops before step 2: its tagless stage has no `lock.json`, and staged crafting
+publication metadata is not proof of publication. It does not set declaration
+pending/publication markers or `expect` pins, run `policy:rebind` or
+`release:declare`, or complete forward policy review. Those remain explicit
+later gates. The manual export path remains available:
+
 Locate the patch's explicit paths with `client:locate`, collect them with
 `client:draft`, then write an acquisition lock from the observed `bytes`,
 `sha256`, `bundle_url`, `uncompressed_offset` and `uncompressed_length`

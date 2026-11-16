@@ -107,6 +107,10 @@ run = "python -B -m RePoE.release.policy_rebinding"
 description = "Create inputs.lock.json and frozen-inputs.json from an old declaration and a release:inputs stage; requires new domains.json and refuses existing outputs"
 run = "python -B -m RePoE.release.declarations"
 
+[tasks."release:prepare-patch"]
+description = "Prepare pinned client exports and input packages locally; stops before publication and policy review"
+run = "uv run --locked --offline python -I -B -c \"import runpy, sys; sys.path.insert(0, '{{config_root}}'); runpy.run_module('RePoE.release.prepare_patch', run_name='__main__')\""
+
 [tasks."client:source"]
 description = "Acquire one fixed source or import archived ranges with explicit inputs"
 run = "python -B -m RePoE.client.sources"
