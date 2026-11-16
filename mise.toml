@@ -103,6 +103,10 @@ run = "python -B -m RePoE.release.policy_draft"
 description = "Create new policies and domains.json from an old declaration and a release:inputs stage; refuses existing outputs"
 run = "python -B -m RePoE.release.policy_rebinding"
 
+[tasks."release:declare"]
+description = "Create inputs.lock.json and frozen-inputs.json from an old declaration and a release:inputs stage; requires new domains.json and refuses existing outputs"
+run = "python -B -m RePoE.release.declarations"
+
 [tasks."client:source"]
 description = "Acquire one fixed source or import archived ranges with explicit inputs"
 run = "python -B -m RePoE.client.sources"
