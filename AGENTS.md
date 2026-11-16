@@ -172,8 +172,8 @@ tests) are not run by CI; state when they were skipped.
 | `release-build.yml` (when build or selection inputs change; `tests/release/test_build.py` guards its paths against `build.CODE` and the CI selector's inputs) | `release` | `release:ci-configs`, then `release:build -- --config release/<dir> --fetch --check` for each selected declaration |
 
 [release/ci.json](release/ci.json) is the sole record of full-package CI
-selection. `current` explicitly names `0.5.5.5-3`, the declaration PoBR
-currently pins; `retired` names `0.5.5.5-2`. These names are directories
+selection. `current` explicitly names `0.5.5.8`, the declaration PoBR
+currently pins; `retired` names `0.5.5.5-2` and `0.5.5.5-3`. These names are directories
 directly under `release/`. `mise run release:ci-configs` always includes
 current and every declaration not explicitly retired, so new and unpublished
 declarations enter CI by default, whether or not they have an `expect` pin.

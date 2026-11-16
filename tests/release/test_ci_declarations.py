@@ -99,13 +99,18 @@ class SelectionTest(unittest.TestCase):
                 self.assert_cli_refusal()
                 link.unlink()
 
-    def test_repository_policy_keeps_the_consumer_current_and_retires_only_the_old_full_build(self):
-        self.assertEqual(decode((build.RELEASES / "ci.json").read_bytes()), self.policy)
+    def test_repository_policy_keeps_the_consumer_current_and_retires_the_superseded_full_builds(self):
+        self.assertEqual(
+            decode((build.RELEASES / "ci.json").read_bytes()),
+            {"schema": "repoe-release-ci/v1", "current": "0.5.5.8", "retired": ["0.5.5.5-2", "0.5.5.5-3"]},
+        )
         names = [path.name for path in ci_declarations.selected(build.RELEASES)]
-        self.assertIn("0.5.5.5-3", names)
+        self.assertIn("0.5.5.8", names)
         self.assertNotIn("0.5.5.5-2", names)
+        self.assertNotIn("0.5.5.5-3", names)
         # Historical declarations remain explicitly loadable by the ordinary build, including their expect pins.
         self.assertEqual(build.load_config(build.RELEASES / "0.5.5.5-2")[1]["target"]["game_patch"], "0.5.5.5")
+        self.assertEqual(build.load_config(build.RELEASES / "0.5.5.5-3")[1]["target"]["game_patch"], "0.5.5.5")
 
     def test_workflow_builds_the_selection_and_stops_before_building_on_selector_failure(self):
         workflow = (build.ROOT / ".github/workflows/release-build.yml").read_text()
