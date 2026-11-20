@@ -1,9 +1,8 @@
 # 0.5.5.8 game declaration
 
-This declaration prepares the ordinary international 0.5.5.8 upgrade from
-`game/0.5.5.5-3`. Its intended first tags are `inputs/0.5.5.8-1` and
-`game/0.5.5.8-1`. Both are pending publication; the declaration and local
-staging do not establish that either tag or Release exists.
+This declaration defines the ordinary international 0.5.5.8 upgrade from
+`game/0.5.5.5-3`, published as `inputs/0.5.5.8-1` and `game/0.5.5.8-1` and
+currently selected in `release/ci.json`.
 
 The declaration uses the existing release builder, native exporters and
 policy rebinder. No historical declaration, policy, source acceptance record,
@@ -90,18 +89,16 @@ The English text table equals the facts table, and Traditional Chinese has
 the same stable ItemClasses Id set. Language adoption and translation
 matching remain the locale owner's responsibility.
 
-Formal publication of this optional member needs the corresponding PoBR
-documentation contract increment. No adapter Rust dependency change is
-required. The next remote increment observed during preparation was
-`contract/1.4`; it is pending coordinator action and is not reserved here.
+Formal inclusion of this optional member requires the corresponding PoBR data
+contract increment. No adapter Rust dependency change is required (`contract/1.4`
+was noted during preparation as the next increment).
 
 ## Publication status
 
-All new input tags remain pending. The crafting lock retains the standard
-packager's `publication: "published"` reader field because the existing
-crafting validator requires that shape; `publication_status: "pending"`
-records its actual status. That reader field is not evidence of a remote
-Release. The ordinary and text lock entries also explicitly mark publication
-pending. Publication must first deliver the exact staged inputs, then build
-and publish the game package from clean master through the normal process.
-No local tag, push or Release is made by this declaration preparation.
+`inputs/0.5.5.8-1` and `game/0.5.5.8-1` are published, `release/ci.json` selects
+`0.5.5.8` as `current`, and PoBR adopts this release in `pipeline/data.lock.json`.
+Because `release/0.5.5.8/inputs.lock.json` is never rewritten after preparation,
+the lock retains its declaration-time `"publication": "pending"` and
+`"publication_status": "pending"` fields as frozen input metadata (while the
+crafting lock keeps its validator-required `"publication": "published"` reader
+field).

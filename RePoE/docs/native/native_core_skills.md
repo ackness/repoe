@@ -40,8 +40,9 @@ entry must contain exactly these seven additional resources:
 - `Data/Balance/EffectivenessCostConstants.datc64`
 
 All base game/patch/realm, resource size/hash, schema and trusted decoder checks
-apply. This profile currently accepts international PoE2 `0.5.5.5` only. Its
-selected source entry also requires:
+apply. This profile accepts international PoE2 sources with a valid dotted
+numeric `game_patch` (first validated on `0.5.5.5`). Its selected source entry
+also requires:
 
 ```json
 {
