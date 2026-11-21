@@ -28,6 +28,10 @@ on:
 permissions:
   contents: read
 
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.run_id }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
 jobs:
   release:
     name: release:build reproduces the published game package
@@ -36,6 +40,8 @@ jobs:
       MISE_DISABLE_TOOLS: rust
     steps:
       - uses: actions/checkout@v7.0.1
+        with:
+          persist-credentials: false
       - uses: jdx/mise-action@6be3c7ed4c21d4f76b208d351d95aac273ebb76d # v5
         with:
           version: '2026.10.23'
@@ -49,6 +55,13 @@ jobs:
           workspaces: tools/pobr-data-adapter
           cache-bin: 'false'
           save-if: ${{ github.event_name != 'pull_request' }}
+      - name: Restore release input cache
+        uses: actions/cache@v6
+        with:
+          # Content-addressed by SHA-256; build.py verifies every cached file on open.
+          path: .cache/release/inputs
+          key: repoe-release-inputs-${{ hashFiles('release/*/inputs.lock.json') }}
+          restore-keys: repoe-release-inputs-
       # Pinned handoff commits and tags are fetched from origin and pinned Release
       # assets downloaded anonymously (never the game CDN). --check fails unless each
       # zip equals its lock's expect pin (without one: its reference package).
