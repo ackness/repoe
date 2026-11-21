@@ -478,7 +478,7 @@ class _Capture:
 
 
 def capture(capture_root, expected_capture_sha256, request_path, game_patch, output, python, decoder_lock):
-    if not re.fullmatch(r"[0-9]+(?:\.[0-9]+){2,5}", draft.text(game_patch, "game patch", 64)):
+    if not re.fullmatch(r"[0-9]+(?:\.[0-9]+)+", draft.text(game_patch, "game patch", 64)):
         raise ValueError("Expected an explicit numeric game patch")
     run = _Capture(capture_root, expected_capture_sha256, request_path, output, python, decoder_lock)
     if run.missing:

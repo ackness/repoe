@@ -43,8 +43,11 @@ expand retained bindings and calculate their new `expect` byte pins.
 
 The new policy names replace the old patch prefix with `--patch`.
 The new domains file receives those references, the new target, job output
-paths and snapshot-manifest member. Its `previous:` source references retain
-their original paths. `inputs.lock.json` and `frozen-inputs.json` still need
+paths and snapshot-manifest member; a `snapshot-manifest` job whose `template`
+is `previous:data/.../manifest.json` advances it to
+`previous:data/<old_patch>/manifest.json`, while other `previous:` source
+references and non-`previous:` templates retain their original paths.
+`inputs.lock.json` and `frozen-inputs.json` still need
 the edits in [RELEASING step 3](../../../RELEASING.md#3-declare-the-package),
 including replacing the historical `facts.archive` / `facts.handoff` fields
 with `facts.root` for a fresh candidate.

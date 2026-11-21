@@ -206,6 +206,13 @@ def rebind(
             }
             if job.get("kind") == "snapshot-manifest":
                 job["member"] = f"data/{patch}/manifest.json"
+                template = job.get("template")
+                if (
+                    isinstance(template, str)
+                    and template.startswith("previous:data/")
+                    and template.endswith("/manifest.json")
+                ):
+                    job["template"] = f"previous:data/{old_patch}/manifest.json"
     destination = safe_path(domains_out)
     require(destination not in outputs, f"output-conflict: {destination}")
     outputs[destination] = build.runtime_encoded(result)

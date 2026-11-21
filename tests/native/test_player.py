@@ -4,7 +4,9 @@ import json
 from pathlib import Path
 import tempfile
 import unittest
+from unittest.mock import patch
 
+from RePoE.client import limits
 from RePoE.native import player
 from RePoE.native import schema_candidate
 from RePoE.native.tools import pinned_pypoe
@@ -194,3 +196,59 @@ class NativePlayerTests(unittest.TestCase):
         with self.assertRaises(FileExistsError):
             self.create()
         self.assertEqual((self.out / "sentinel").read_bytes(), b"unchanged")
+
+
+class PlayerParentLimitTests(unittest.TestCase):
+    def test_parent_uses_centralized_limit_above_256_mib(self):
+        self.assertEqual(player.MAX_PARENT_FACTS_BYTES, limits.MAX_PARENT_FACTS_BYTES)
+        self.assertEqual(limits.MAX_PARENT_FACTS_BYTES, 1024 * limits.MIB)
+        with tempfile.TemporaryDirectory(prefix="player-limit-test-") as temporary:
+            parent = Path(temporary) / "parent"
+            (parent / "tables").mkdir(parents=True)
+            values = {
+                "Characters": [{"Id": "selected"}],
+                "PassiveSkills": [{"Id": "first_option"}],
+                "Stats": [{"Id": "base_critical_hit_damage_bonus"}],
+                "ClassPassiveSkillOverrides": [{"CharacterToOverrideFor": 0}],
+            }
+            files = {}
+            for name, rows in values.items():
+                data = player.io._json({"table": name, "rows": [{"_row": i, "values": v} for i, v in enumerate(rows)]})
+                (parent / "tables" / f"{name}.json").write_bytes(data)
+                files[f"tables/{name}.json"] = {"bytes": len(data), "sha256": player._sha(data)}
+            base_total = sum(entry["bytes"] for entry in files.values())
+
+            def write_manifest(entries):
+                raw = player.io._json(
+                    {
+                        "format": "repoe-native-facts/v4",
+                        "profile": "items-actors-bc",
+                        "production_ready": False,
+                        "source_identity": {"game": "poe2", "realm": "international", "game_patch": "1.0"},
+                        "files": entries,
+                    }
+                )
+                (parent / "manifest.json").write_bytes(raw)
+                return player._sha(raw)
+
+            expected = write_manifest(files)
+            with patch.object(player, "MAX_PARENT_FACTS_BYTES", base_total):
+                _, _, _, tables = player._parent(parent, expected)
+            self.assertEqual(set(tables), set(player.PARENT_TABLES))
+            with patch.object(player, "MAX_PARENT_FACTS_BYTES", base_total - 1):
+                with self.assertRaisesRegex(ValueError, "total byte limit"):
+                    player._parent(parent, expected)
+
+            # A 515 MiB parent payload passes the centralized 1024 MiB limit (only missing on disk).
+            over_old_limit = {**files, "tables/Extra.json": {"bytes": 515 * limits.MIB, "sha256": "a" * 64}}
+            expected = write_manifest(over_old_limit)
+            with self.assertRaisesRegex(ValueError, "not regular"):
+                player._parent(parent, expected)
+
+            over_new_limit = {
+                **files,
+                "tables/Extra.json": {"bytes": limits.MAX_PARENT_FACTS_BYTES + 1, "sha256": "a" * 64},
+            }
+            expected = write_manifest(over_new_limit)
+            with self.assertRaisesRegex(ValueError, "total byte limit"):
+                player._parent(parent, expected)

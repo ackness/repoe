@@ -243,6 +243,12 @@ class PreflightTest(GitRepoCase):
         git(self.repo, "checkout", "a.txt")
         (self.repo / "untracked.txt").write_text("x")
         self.assertRegex(publish.preflight(self.repo)[1][0], "working tree is not clean.*untracked.txt")
+        (self.repo / "untracked.txt").unlink()
+        (self.repo / "a spaced 路径.txt").write_text("x")
+        self.assertEqual(
+            publish.preflight(self.repo)[1],
+            ["the working tree is not clean (1 paths, e.g. a spaced 路径.txt)"],
+        )
 
     def test_refuses_a_commit_not_on_origin_master(self):
         commit = self.commit("b.txt")
@@ -708,6 +714,37 @@ class MainTest(GitRepoCase):
             contextlib.redirect_stderr(io.StringIO()),
         ):
             self.assertEqual(publish.built(args, "c", cache), out)
+
+    def test_omitted_config_uses_repo_release_directory(self):
+        declaration = self.repo / "release" / "9.9-1"
+        declaration.mkdir(parents=True)
+        (declaration / "inputs.lock.json").write_text("{}\n")
+        git(self.repo, "add", "release/9.9-1/inputs.lock.json")
+        git(self.repo, "commit", "-q", "-m", "add declaration")
+        git(self.repo, "push", "-q", "origin", "master")
+        head = git(self.repo, "rev-parse", "HEAD").strip()
+        self.fixture.receipt["producer"]["commit"] = head
+        self.fixture.write_build()
+        seen = []
+
+        def load_target(config):
+            seen.append(("load_target", config))
+            return TARGET
+
+        def built(args, config):
+            seen.append(("built", config))
+            return self.fixture.build_dir
+
+        stdout, stderr = io.StringIO(), io.StringIO()
+        with (
+            mock.patch.object(publish, "load_target", load_target),
+            mock.patch.object(publish, "built", built),
+            contextlib.redirect_stdout(stdout),
+            contextlib.redirect_stderr(stderr),
+        ):
+            publish.main(["--repo", str(self.repo)], runner=Runner(self.repo))
+        self.assertEqual(seen, [("load_target", declaration), ("built", declaration)])
+        self.assertIn("dry run: nothing was tagged", stdout.getvalue())
 
 
 if __name__ == "__main__":
