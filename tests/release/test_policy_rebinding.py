@@ -185,6 +185,33 @@ class PolicyRebindingTest(unittest.TestCase):
         rebound, _ = rebinding.rebind_document(self.policy, identities, "0.5", "0.6", "policy:text/0.5-policy.json")
         self.assertEqual(rebound, policy)
 
+    def test_snapshot_manifest_previous_template_advances_across_two_hops(self):
+        self.domains["jobs"][2]["template"] = "previous:data/0.4/manifest.json"
+        self.domains["jobs"].append(
+            {
+                "id": "snapshot-other",
+                "kind": "snapshot-manifest",
+                "member": "data/0.5/manifest.json",
+                "template": "ordinary:data/0.4/manifest.json",
+            }
+        )
+        self.write_config()
+        target_1_0 = {**self.old_target, "game_patch": "1.0"}
+        stage_1_0 = self.stage("one-zero", self.files(target_1_0, b'"1.0 descriptions"\n'), target_1_0)
+        rebinding.rebind(
+            config=self.config,
+            staged=stage_1_0,
+            patch="1.0",
+            domains_out=self.root / "one-zero/domains.json",
+            policies=self.policies,
+            cache=self.cache,
+        )
+        domains = decode((self.root / "one-zero/domains.json").read_bytes())
+        self.assertEqual(domains["jobs"][2]["template"], "previous:data/0.5/manifest.json")
+        self.assertEqual(domains["jobs"][2]["member"], "data/1.0/manifest.json")
+        self.assertEqual(domains["jobs"][3]["template"], "ordinary:data/0.4/manifest.json")
+        self.assertEqual(domains["jobs"][3]["member"], "data/1.0/manifest.json")
+
     def test_cli_lists_field_paths_and_changed_payload_members(self):
         output = io.StringIO()
         with contextlib.redirect_stdout(output):
