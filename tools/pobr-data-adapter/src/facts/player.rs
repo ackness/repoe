@@ -82,12 +82,12 @@ pub(crate) fn verify(args: &Args, parent: &VerifiedInput) -> Result<Player, Stri
         String::from_utf8(manifest_bytes).map_err(|e| e.to_string())?,
     )]);
     let mut documents = BTreeMap::new();
-    let mut total = 0;
+    let mut total: u64 = 0;
     for &name in PAYLOADS {
         let fp = &manifest["files"][name];
         trust::exact_keys(fp, &["bytes".into(), "sha256".into()])?;
         let size = fp["bytes"].as_u64().ok_or("player payload size missing")?;
-        total += size;
+        total = total.checked_add(size).ok_or("player payload byte limit")?;
         require(
             size > 0 && size <= 8 * 1024 * 1024 && total <= 16 * 1024 * 1024,
             "player payload byte limit",
@@ -215,11 +215,10 @@ fn verify_manifest(m: &Value) -> Result<(), String> {
     )?;
     let identity = &m["source_identity"];
     require(
-        identity["game"] == "poe2"
-            && identity["realm"] == "international"
-            && identity["acquisition"]["status"] == "unreviewed-acquisition-draft",
-        "unsupported player game/realm/status",
+        identity["game"] == "poe2" && identity["realm"] == "international",
+        "unsupported player game/realm",
     )?;
+    trust::verify_acquisition(&identity["acquisition"])?;
     // Reuse the existing 117-source verifier, translating only the producer's field names.
     let d = &m["decoder"];
     for field in [
@@ -322,12 +321,13 @@ pub(crate) fn validate_projection(
         .filter(|(_, row)| row["values"]["Id"] == NATIVE_PLAYER_ID)
         .collect::<Vec<_>>();
     require(
-        matches.len() == 1 && matches[0].0 == 7,
-        "selected actor must be exact Character7 stable ID",
+        matches.len() == 1,
+        "selected actor must resolve uniquely by stable ID",
     )?;
-    let raw = &matches[0].1["values"];
+    let (character_row, character) = matches[0];
+    let raw = &character["values"];
     require(
-        c.facts.character.source == reference("Characters", 7, raw)
+        c.facts.character.source == reference("Characters", character_row, raw)
             && serde_json::to_value(&c.facts.character.values).map_err(|e| e.to_string())? == *raw
             && raw["AOFile"] == NATIVE_PLAYER_AO,
         "selected character physical projection mismatch",
@@ -352,29 +352,24 @@ pub(crate) fn validate_projection(
         });
     }
     let selected = inputs::index(&raw["StartingPassive"])?;
+    let selected_relation = relations
+        .get(selected)
+        .ok_or("selected starting relation out of range")?;
     require(
-        relations.len() == 6
-            && relations.iter().map(|r| r.options.len()).sum::<usize>() == 12
-            && selected == 2
-            && relations.get(selected) == Some(&c.facts.starting_relation)
-            && relations == c.facts.all_starting_relations
-            && relations[2]
-                .options
-                .iter()
-                .map(|r| r.row)
-                .collect::<Vec<_>>()
-                == [2779, 1146],
+        !selected_relation.options.is_empty()
+            && *selected_relation == c.facts.starting_relation
+            && relations == c.facts.all_starting_relations,
         "starting relationship projection mismatch; choices are never grants",
     )?;
     let overrides = tables["ClassPassiveSkillOverrides"]
         .iter()
         .enumerate()
-        .filter(|(_, row)| row["values"]["CharacterToOverrideFor"] == 7)
+        .filter(|(_, row)| row["values"]["CharacterToOverrideFor"] == character_row)
         .map(|(i, row)| reference("ClassPassiveSkillOverrides", i, &row["values"]))
         .collect::<Vec<_>>();
     require(
-        overrides == c.facts.selected_class_overrides && overrides.is_empty(),
-        "Character1 class override cannot bind Character7",
+        overrides == c.facts.selected_class_overrides,
+        "selected class passive skill overrides projection mismatch",
     )?;
     validate_metadata(c)?;
     let stat_rows = tables["Stats"];
@@ -406,7 +401,7 @@ pub(crate) fn validate_projection(
         }
     }
     require(
-        expected == c.facts.metadata_stats && expected.len() == 99,
+        expected == c.facts.metadata_stats && !expected.is_empty(),
         "metadata Stats physical projection mismatch",
     )?;
     // Validate every reference recursively, including nullable IDs and origin-specific paths.
