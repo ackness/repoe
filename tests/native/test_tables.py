@@ -242,5 +242,49 @@ class SelectedTablesTests(unittest.TestCase):
             self.create("raw/inside")
 
 
+class SelectedTablesPatchValidationTests(unittest.TestCase):
+    def test_two_segment_numeric_game_patch_is_accepted_and_single_segment_rejected(self):
+        with tempfile.TemporaryDirectory(prefix="selected-tables-patch-test-") as temporary:
+            root = Path(temporary)
+            raw = root / "raw"
+            dat = raw / "Data/Balance/Ascendancy.datc64"
+            dat.parent.mkdir(parents=True)
+            data = b"\x00" * 16
+            dat.write_bytes(data)
+            source = {
+                "kind": "official-client-resource-candidate",
+                "game": "poe2",
+                "game_patch": "1.0",
+                "realm": "international",
+                "acquisition": {
+                    "status": "unreviewed-acquisition-draft",
+                    "evidence": [{"kind": "synthetic", "sha256": "a" * 64}],
+                },
+                "decoder": {
+                    "repository": "https://github.com/repoe-fork/pypoe",
+                    "revision": facts.PYPOE,
+                    "dat_schema_repository": "https://github.com/poe-tool-dev/dat-schema",
+                    "dat_schema_revision": facts.SCHEMA,
+                    "schema_sha256": facts.SCHEMA_SHA,
+                },
+                "resources": {
+                    "Data/Balance/Ascendancy.datc64": {"bytes": len(data), "sha256": producer.envelope._sha(data)}
+                },
+            }
+            lock = root / "lock.json"
+
+            def load(game_patch):
+                source["game_patch"] = game_patch
+                raw_lock = facts._json({"schema_version": 1, "sources": {"selected": source}})
+                lock.write_bytes(raw_lock)
+                return producer._inputs(lock, "selected", raw, producer.envelope._sha(raw_lock))
+
+            _, selected, _, _ = load("1.0")
+            self.assertEqual(selected["game_patch"], "1.0")
+            for invalid in ("1", "1.0a", "unknown", 1):
+                with self.subTest(game_patch=invalid), self.assertRaisesRegex(ValueError, "Explicit patch"):
+                    load(invalid)
+
+
 if __name__ == "__main__":
     unittest.main()

@@ -403,6 +403,19 @@ class CraftingFactsTests(unittest.TestCase):
                 self.create()
         self.assertFalse((self.root / "candidate").exists())
 
+    def test_two_segment_numeric_game_patch_is_accepted_and_single_segment_rejected(self):
+        self.manifest["source_identity"]["game_patch"] = "1.0"
+        self.pin()
+        manifest = self.create("one-zero")
+        self.assertEqual(manifest["source_identity"]["game_patch"], "1.0")
+        for invalid in ("1", "1.0a", "unknown", 1):
+            with self.subTest(game_patch=invalid):
+                self.manifest["source_identity"]["game_patch"] = invalid
+                self.pin()
+                with self.assertRaisesRegex(ValueError, "identity required"):
+                    self.create(f"invalid-{invalid}")
+                self.assertFalse((self.root / f"invalid-{invalid}").exists())
+
 
 if __name__ == "__main__":
     unittest.main()

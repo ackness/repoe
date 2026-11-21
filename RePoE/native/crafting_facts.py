@@ -66,7 +66,7 @@ def _inputs(facts, expected_manifest_sha256):
         source.get("kind") != "official-client-resource-candidate"
         or source.get("game") != "poe2"
         or not isinstance(source.get("game_patch"), str)
-        or not re.fullmatch(r"\d+(?:\.\d+){2,5}", source["game_patch"])
+        or not re.fullmatch(r"[0-9]+(?:\.[0-9]+)+", source["game_patch"])
         or source.get("realm") not in {"international", "china"}
         or (language is not None and (not isinstance(language, str) or not language))
         or not isinstance(source.get("source"), str)

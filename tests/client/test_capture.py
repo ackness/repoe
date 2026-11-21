@@ -714,6 +714,13 @@ class CaptureTests(unittest.TestCase):
             self.assertEqual(report["extra_bundles"], ["Folders/data/10/b.bundle.bin"])
             self.assertEqual((out / "manifest.json").exists(), flag == "--preflight")
 
+    def test_two_segment_numeric_game_patch_is_accepted_and_single_segment_rejected(self):
+        receipt, _, _ = self.run_capture(game_patch="1.0")
+        self.assertEqual(receipt["game_patch"], "1.0")
+        for invalid in ("1", "1.0a", "unknown"):
+            with self.subTest(game_patch=invalid), self.assertRaisesRegex(ValueError, "numeric game patch"):
+                self.run_capture(out=self.root / ".cache" / f"invalid-{invalid}", game_patch=invalid)
+
     def test_cli_reports_failure_without_output(self):
         with self.assertRaises(SystemExit) as raised:
             capture.main(

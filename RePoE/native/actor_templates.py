@@ -241,7 +241,8 @@ def _inputs(source_lock, source, raw, expected_source_lock_sha256):
     if (
         selected.get("kind") != "official-client-resource-candidate"
         or selected.get("game") != "poe2"
-        or not re.fullmatch(r"\d+(?:\.\d+){2,5}", selected.get("game_patch", ""))
+        or not isinstance(selected.get("game_patch"), str)
+        or not re.fullmatch(r"[0-9]+(?:\.[0-9]+)+", selected["game_patch"])
         or selected.get("realm") not in {"international", "china"}
         or acquisition.get("status") not in {"unreviewed-acquisition-draft", "reviewed-source-input"}
         or not isinstance(acquisition.get("evidence"), list)
