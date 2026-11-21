@@ -26,8 +26,8 @@ RePoE 负责客户端事实与游戏包；[poe2-zh-cn-stats](https://github.com/
 
 | 层 | 内容 | 使用者 |
 | --- | --- | --- |
-| 客户端输入 | 明确选定的客户端资源、schema pin、获取回执与资源摘要 | 导出器与来源校验 |
-| 原生事实 | DAT 行、天赋图、宝石与物品身份、角色关系、元数据，以及有序的 CSD 描述分支 | 领域适配器与翻译仓库 |
+| 客户端输入 | 明确选定的客户端资源、固定 schema 版本、获取回执与资源摘要 | 导出器与来源校验 |
+| 原生事实 | DAT 行、天赋树、宝石与物品身份、角色关系、元数据，以及有序的 CSD 描述分支 | 领域适配器与翻译仓库 |
 | 游戏包 | PoBR 运行时 JSON、单独标识的兼容输入与来源回执 | PoBR 的固定输入流水线 |
 | 旧版导出 | 属性、词缀、基底物品、宝石、职业、制作及其他上游 JSON 格式 | 现有 PoE 工具 |
 
@@ -125,7 +125,7 @@ RePoE/data/                   旧版导出的默认目录；Git 忽略
 | 制作与天赋树 | [制作事实](RePoE/docs/native/native_crafting_facts.md)、[PoBR 制作目录](RePoE/docs/release/pobr_crafting_catalog.md)、[历史天赋树选择器](RePoE/docs/release/pobr_historical_trees.md) |
 | PoBR 运行时转换 | [适配器模式](tools/pobr-data-adapter/README.md)与[领域 policy](tools/pobr-data-adapter/policies/README.md) |
 | PoBR 运行时领域 | [ordinary-facts 领域](tools/pobr-data-adapter/docs/ordinary-facts.md)，每个领域一个 `docs/ordinary-<domain>.md` |
-| 旧版 JSON 格式 | [属性](RePoE/docs/stats.md)、[词缀](RePoE/docs/mods.md)、[物品](RePoE/docs/base_items.md)、[宝石](RePoE/docs/gems.md)、[augments](RePoE/docs/augments.md)，以及[其他领域文件](RePoE/docs/README.md#legacy-json-formats-repoeparser) |
+| 旧版 JSON 格式 | [属性](RePoE/docs/stats.md)、[词缀](RePoE/docs/mods.md)、[物品](RePoE/docs/base_items.md)、[宝石](RePoE/docs/gems.md)、[增幅物（augments）](RePoE/docs/augments.md)，以及[其他领域文件](RePoE/docs/README.md#legacy-json-formats-repoeparser) |
 
 除本页与[宝石品质 policy 说明](tools/pobr-data-adapter/policies/gem-quality/README.md)外，文档均为英文。
 
