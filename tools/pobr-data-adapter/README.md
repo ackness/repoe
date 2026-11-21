@@ -7,9 +7,9 @@ in [`policies/`](policies). The tool and the policies moved here from PoBR
 published packages through its `pipeline/data.lock.json`.
 
 It is a standalone Cargo workspace inside this Python repository. PoBR's data
-types come from the immutable contract tag `contract/1.1` of `ackness/pobr`
+types come from the immutable contract tag `contract/1.4` of `ackness/pobr`
 (`contract/<n>.<m>`, where n is `pobr_data::CONTRACT_VERSION`); `Cargo.lock`
-pins the resolved commit `ac3c5c92`. Production code depends on `pobr-data`
+pins the resolved commit `be6ef004`. Production code depends on `pobr-data`
 only. The engine crates `pobr-core`, `pobr-gamedata`, `pobr-item` and
 `pobr-tree` are dev-dependencies for the tests that check how PoBR consumes the
 output, and they must name the same tag: two tags compile two copies of

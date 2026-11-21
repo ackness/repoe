@@ -153,6 +153,7 @@ pub(super) fn adapt_effects(
             stat_set,
             additional_stat_set_ids,
             skill_types,
+            skill_type_set: std::sync::OnceLock::new(),
             cost_types: raw.cost_types,
             // Minion sidecar fields: empty/false in the base artifact,
             // merged in from overlay/granted_effect_minions.json during
