@@ -215,6 +215,19 @@ class ActorTemplateTests(unittest.TestCase):
         parsed = actor.parse_template("Metadata/Monsters/Test.otc", template("Metadata/Monsters/Parent"))
         self.assertEqual(parsed["extends"]["target"], "Metadata/Monsters/Parent.otc")
 
+    def test_two_segment_numeric_game_patch_is_accepted_and_single_segment_rejected(self):
+        self.source["game_patch"] = "1.0"
+        self.pin()
+        manifest = self.create("one-zero")
+        self.assertEqual(manifest["source_identity"]["game_patch"], "1.0")
+        for invalid in ("1", "1.0a", "unknown", 1):
+            with self.subTest(game_patch=invalid):
+                self.source["game_patch"] = invalid
+                self.pin()
+                with self.assertRaisesRegex(ValueError, "identity required"):
+                    self.create(f"invalid-{invalid}")
+                self.assertFalse((self.root / f"invalid-{invalid}").exists())
+
 
 if __name__ == "__main__":
     unittest.main()

@@ -204,7 +204,7 @@ def _targets(lock_path, expected, names, source_schemas):
         if (
             current["game"] != "poe2"
             or not isinstance(current["game_patch"], str)
-            or not re.fullmatch(r"\d+(?:\.\d+){2,5}", current["game_patch"])
+            or not re.fullmatch(r"[0-9]+(?:\.[0-9]+)+", current["game_patch"])
             or current["realm"] not in {"international", "china"}
             or source.get("language", "English") != "English"
         ):

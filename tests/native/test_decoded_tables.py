@@ -256,5 +256,59 @@ class DecodedIngestTests(unittest.TestCase):
             self.create()
 
 
+class DecodedTargetsPatchValidationTests(unittest.TestCase):
+    def test_two_segment_numeric_game_patch_is_accepted_and_single_segment_rejected(self):
+        schemas = ingest.schema_tables()
+        name = "Ascendancy"
+        fields = [field for field, _ in probe.LAYOUTS[name]]
+        row_bytes = sum(probe.width(kind) for _, kind in probe.LAYOUTS[name])
+        with tempfile.TemporaryDirectory(prefix="decoded-targets-patch-test-") as temporary:
+            root = Path(temporary)
+            package = root / "target"
+            package.mkdir()
+            table = {
+                "table": name,
+                "raw_resource": f"Data/Balance/{name}.datc64",
+                "physical_fields": fields,
+                "columns": facts._columns(schemas[name], fields),
+                "validation": {"rows": 0, "schema_row_bytes": row_bytes, "actual_row_bytes": row_bytes},
+                "rows": [],
+            }
+            raw_tables = env._json({name: table})
+            (package / "tables.json").write_bytes(raw_tables)
+            lock = root / "target-lock.json"
+
+            def load(game_patch):
+                manifest = {
+                    "format": "repoe-native-tables/v1",
+                    "status": "partial-candidate",
+                    "production_ready": False,
+                    "source_identity": {
+                        "game": "poe2",
+                        "game_patch": game_patch,
+                        "realm": "international",
+                        "raw_resources": {table["raw_resource"]: {"bytes": 12, "sha256": "a" * 64}},
+                    },
+                    "schema": ingest.schemas(),
+                    "files": {"tables.json": {"bytes": len(raw_tables), "sha256": env._sha(raw_tables)}},
+                }
+                manifest_raw = env._json(manifest)
+                (package / "manifest.json").write_bytes(manifest_raw)
+                lock_raw = env._json(
+                    {
+                        "format": "repoe-language-target-lock/v1",
+                        "tables": {name: {"package": str(package), "manifest_sha256": env._sha(manifest_raw)}},
+                    }
+                )
+                lock.write_bytes(lock_raw)
+                return ingest._targets(lock, env._sha(lock_raw), [name], schemas)
+
+            _, _, _, identity, _ = load("1.0")
+            self.assertEqual(identity["game_patch"], "1.0")
+            for invalid in ("1", "1.0a", "unknown", 1):
+                with self.subTest(game_patch=invalid), self.assertRaisesRegex(ValueError, "English game/patch/realm"):
+                    load(invalid)
+
+
 if __name__ == "__main__":
     unittest.main()
