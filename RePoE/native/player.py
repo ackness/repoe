@@ -7,6 +7,7 @@ from pathlib import Path, PurePosixPath
 import sys
 
 from RePoE.client import export_receipt
+from RePoE.client.limits import MAX_PARENT_FACTS_BYTES
 from RePoE.native import descriptions as io
 from RePoE.native import facts
 from RePoE.native import metadata
@@ -84,7 +85,7 @@ def _parent(directory, expected):
         if not isinstance(fp, dict) or not _integer(fp.get("bytes")) or not io._digest(fp.get("sha256")):
             raise ValueError("Invalid parent payload fingerprint")
         total += fp["bytes"]
-        if total > 256 * 1024 * 1024:
+        if total > MAX_PARENT_FACTS_BYTES:
             raise ValueError("Parent facts exceed total byte limit")
         path = directory / name
         if any(p.is_symlink() for p in [path, *path.parents] if p != directory.parent):
