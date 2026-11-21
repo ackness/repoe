@@ -104,7 +104,7 @@ mise run check                            # uv lock, schema:check, lint, test, C
 mise run test                             # offline regression suite only
 mise exec -- python -B -m unittest tests.native.test_facts -v   # one module
 mise run adapter:check                    # cargo fmt, clippy, test, engine-deps check
-mise run adapter:keystones                # keystone rules of the reference package of the highest declaration
+mise run adapter:keystones                # keystone rules of the published current game package (release/ci.json)
 mise run release:build -- --fetch --check # rebuild the highest declaration, compare with expect
 mise run release:publish -- --fetch       # dry run: build, check, stage, list refusals
 ```

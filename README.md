@@ -63,7 +63,7 @@ mise run adapter:check
 mise run adapter:keystones
 ```
 
-`adapter:keystones` rebuilds the keystone rules of the `reference` package of the highest `release/<patch>[-<n>]/` declaration from its passive tree and compares bytes. Generated `RePoE/model/` files are maintained explicitly with `mise run models:generate -- [schema paths]`.
+`adapter:keystones` rebuilds the keystone rules of the published current game package (`current` in `release/ci.json`, via its `expect.package` pin) from its passive tree and compares bytes. Generated `RePoE/model/` files are maintained explicitly with `mise run models:generate -- [schema paths]`.
 
 CI runs `verify.yml` on every pull request and `release-build.yml` when the release build's inputs change; what each runs is described in [AGENTS.md](AGENTS.md#ci).
 
