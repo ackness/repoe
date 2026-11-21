@@ -214,9 +214,9 @@ def preflight(repo, remote=REMOTE, branch=BRANCH, fetch=True):
     head = git(repo, "rev-parse", "--verify", "HEAD^{commit}")
     require(head.returncode == 0, f"{repo}: no HEAD commit")
     commit = head.stdout.decode().strip()
-    status = git(repo, "status", "--porcelain", "--untracked-files=all").stdout.decode().splitlines()
-    if status:
-        problems.append(f"the working tree is not clean ({len(status)} paths, e.g. {status[0][3:]})")
+    paths = sorted(export_receipt.changed_paths(repo))
+    if paths:
+        problems.append(f"the working tree is not clean ({len(paths)} paths, e.g. {paths[0]})")
     tracking = f"refs/remotes/{remote}/{branch}"
     if fetch:
         fetched = git(repo, "fetch", "--quiet", "--no-tags", remote, f"+refs/heads/{branch}:{tracking}", online=True)
@@ -460,7 +460,7 @@ def main(argv=None, runner=None):
     try:
         # Before the build: the checkout, the remote's tags and (to publish) gh.
         commit, problems, warnings = preflight(args.repo)
-        config = Path(args.config or build.default_config())
+        config = Path(args.config or build.default_config(args.repo / "release"))
         target = load_target(config)
         patch = target["game_patch"]
         decision = plan(args.repo, patch, commit, list_remote_tags(args.repo))
