@@ -5,8 +5,6 @@ crafting facts, not a complete effect packet, crafting simulator or source
 admission. `release:build` runs it as the `crafting-catalog` job.
 """
 
-import json
-
 from RePoE.client import export_receipt
 from RePoE.release.pins import HEX, archive_manifest, byte_pin, decode, encoded, pinned, require
 
@@ -22,11 +20,6 @@ HISTORICAL_PRODUCERS = frozenset({"RePoE/native_crafting_facts.py", "RePoE/nativ
 CURRENT_PRODUCERS = frozenset({"RePoE/native/crafting_facts.py", "RePoE/native/descriptions.py"})
 PRODUCER_KEY_SETS = (HISTORICAL_PRODUCERS, CURRENT_PRODUCERS)
 OWNER = "ackness/repoe"
-
-
-def runtime_encoded(value):
-    """PoBR runtime JSON layout; the snapshot manifest pins these exact bytes."""
-    return (json.dumps(value, ensure_ascii=False, indent=2, allow_nan=False) + "\n").encode()
 
 
 def project(facts, *, source_manifest_sha256, facts_manifest_sha256, target):

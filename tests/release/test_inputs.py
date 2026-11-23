@@ -11,7 +11,7 @@ from unittest import mock
 import zipfile
 
 from RePoE.client import export_receipt
-from RePoE.release.pins import decode, encoded, pin
+from RePoE.release.pins import decode, encoded, pin, runtime_encoded
 from RePoE.release import assets, build, crafting_catalog, inputs, publish
 from tests.client.test_export_receipt import DIRTY, candidate, receipt_for, sibling
 from tests.release.test_build import serve, zip_bytes
@@ -475,7 +475,7 @@ class MainTest(GitRepoCase):
         self.assertEqual(runner.calls, [])
         lock = json.loads((self.stage / "inputs-poe2-international-9.9/lock.json").read_text())
         self.assertEqual(lock["ordinary"]["tag"], "inputs/9.9-1")
-        self.assertIn(build.runtime_encoded(lock).decode().rstrip(), output)
+        self.assertIn(runtime_encoded(lock).decode().rstrip(), output)
         assets.validate(lock["ordinary"])
 
     def test_failed_packaging_keeps_the_previous_successful_stage(self):

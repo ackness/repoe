@@ -39,7 +39,7 @@ def binding(raw, selectors=(1200, 11741)):
 class ProjectionTests(unittest.TestCase):
     def setUp(self):
         self.nodes = fixture()
-        self.raw = trees.runtime_encoded(self.nodes)
+        self.raw = package.runtime_encoded(self.nodes)
         self.binding = binding(self.raw)
 
     def test_selectors_preserve_identity_and_every_other_field_fixed_nodes_stay_fixed(self):
@@ -74,7 +74,7 @@ class ProjectionTests(unittest.TestCase):
                 nodes[0]["stats"] = ["+10 to Strength"]
             else:
                 nodes[0]["stats"] = ["+5 to any Attribute"]
-            raw = trees.runtime_encoded(nodes)
+            raw = package.runtime_encoded(nodes)
             # Even rebinding a changed file cannot silently change reviewed IDs.
             review = {**self.binding, "input": package.pin(raw)}
             with self.subTest(change=change), self.assertRaises(ValueError):
@@ -94,7 +94,7 @@ class ProjectionTests(unittest.TestCase):
         ):
             nodes = copy.deepcopy(self.nodes)
             nodes[0][key] = value
-            raw = trees.runtime_encoded(nodes)
+            raw = package.runtime_encoded(nodes)
             with self.subTest(key=key, value=value), self.assertRaises(ValueError):
                 trees.project(raw, {**self.binding, "input": package.pin(raw)})
         with self.assertRaisesRegex(ValueError, "Byte pin"):

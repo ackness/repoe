@@ -11,7 +11,7 @@ from unittest import mock
 import zipfile
 
 from RePoE.release import assets, build, declarations, inputs
-from RePoE.release.pins import decode, pin
+from RePoE.release.pins import decode, pin, runtime_encoded
 from tests.client.test_export_receipt import candidate
 from tests.release.test_build import zip_bytes
 from tests.release.test_inputs import receipted
@@ -60,16 +60,16 @@ class ReplayTest(unittest.TestCase):
         marked["packages"]["ordinary"]["publication"] = "pending"
         marked["packages"]["intl_text"]["publication"] = "pending"
         marked["packages"]["crafting"]["publication_status"] = "pending"
-        self.assertEqual(build.runtime_encoded(marked), build.runtime_encoded(expected_without_expect))
+        self.assertEqual(runtime_encoded(marked), runtime_encoded(expected_without_expect))
         result["packages"]["ordinary"]["publication"] = "pending"
         result["packages"]["intl_text"]["publication"] = "pending"
         result["packages"]["crafting"]["publication_status"] = "pending"
         result["expect"] = decode(expected)["expect"]
         differences = declarations.changed_fields(decode(expected), result)
-        self.assertEqual(build.runtime_encoded(result), expected, f"Differing JSON paths: {differences}")
+        self.assertEqual(runtime_encoded(result), expected, f"Differing JSON paths: {differences}")
         expected_frozen = (build.ROOT / "release/0.5.5.8/frozen-inputs.json").read_bytes()
         differences = declarations.changed_fields(decode(expected_frozen), new_frozen)
-        self.assertEqual(build.runtime_encoded(new_frozen), expected_frozen, f"Differing JSON paths: {differences}")
+        self.assertEqual(runtime_encoded(new_frozen), expected_frozen, f"Differing JSON paths: {differences}")
 
 
 class PresentationTest(unittest.TestCase):
@@ -242,7 +242,7 @@ class DeclarationTest(unittest.TestCase):
         # cross-check is relevant to this command; crafting payloads are validated by inputs.
         self.entries["crafting"] = {**self.entries["ordinary"], "input_manifest": pin(files["native/manifest.json"])}
         self.write_stage()
-        manifest = build.runtime_encoded({"target": self.old_target, "files": {"data/0.5/value.json": pin(b"old")}})
+        manifest = runtime_encoded({"target": self.old_target, "files": {"data/0.5/value.json": pin(b"old")}})
         self.game_zip = zip_bytes({"manifest.json": manifest, "data/0.5/value.json": b"old"})
         self.previous = {
             "tag": "game/0.5-3",
@@ -286,7 +286,7 @@ class DeclarationTest(unittest.TestCase):
             "manifest": {"mode": "fresh"},
         }
         self.write_config()
-        build.write_new(self.out / "domains.json", build.runtime_encoded(self.domains))
+        build.write_new(self.out / "domains.json", runtime_encoded(self.domains))
         build.write_new(self.cache / "downloads" / pin(self.game_zip)["sha256"], self.game_zip)
         self.tag = mock.patch.object(build, "tag_commit", return_value="a" * 40)
         self.tag.start()
@@ -301,12 +301,12 @@ class DeclarationTest(unittest.TestCase):
         return out
 
     def write_stage(self):
-        (self.stage / "lock.json").write_bytes(build.runtime_encoded(self.entries))
+        (self.stage / "lock.json").write_bytes(runtime_encoded(self.entries))
 
     def write_config(self):
         self.config.mkdir(exist_ok=True)
         for name, document in (("inputs.lock.json", self.lock), ("frozen-inputs.json", self.frozen)):
-            (self.config / name).write_bytes(build.runtime_encoded(document))
+            (self.config / name).write_bytes(runtime_encoded(document))
 
     def derive(self, **kwargs):
         arguments = dict(
@@ -534,7 +534,7 @@ class DeclarationTest(unittest.TestCase):
             ({**self.domains, "target": self.old_target}, "target-mismatch"),
             ({**self.domains, "schema": "wrong"}, "expected schema"),
         ):
-            path.write_bytes(build.runtime_encoded(document))
+            path.write_bytes(runtime_encoded(document))
             with self.assertRaisesRegex(ValueError, message):
                 self.declare()
             self.assert_no_outputs()
@@ -571,7 +571,7 @@ class DeclarationTest(unittest.TestCase):
         with self.assertRaisesRegex(ValueError, "Corrupt cache"):
             self.declare()
         self.assert_no_outputs()
-        wrong = zip_bytes({"manifest.json": build.runtime_encoded({"target": self.target, "files": {}})})
+        wrong = zip_bytes({"manifest.json": runtime_encoded({"target": self.target, "files": {}})})
         self.lock["expect"]["package"] = pin(wrong)
         self.write_config()
         build.write_new(self.cache / "downloads" / pin(wrong)["sha256"], wrong)
@@ -672,7 +672,7 @@ class DeclarationTest(unittest.TestCase):
         stage = self.make_stage("wrong-target", {"value.json": b"{}"}, self.old_target)
         entries = decode((stage / "lock.json").read_bytes())
         entries["crafting"] = copy.deepcopy(entries["ordinary"])
-        (stage / "lock.json").write_bytes(build.runtime_encoded(entries))
+        (stage / "lock.json").write_bytes(runtime_encoded(entries))
         with self.assertRaisesRegex(ValueError, "target-mismatch: staged crafting"):
             self.declare(staged=stage)
         self.assert_no_outputs()
@@ -700,7 +700,7 @@ class DeclarationTest(unittest.TestCase):
         )
         raw = zip_bytes(
             {
-                "manifest.json": build.runtime_encoded(
+                "manifest.json": runtime_encoded(
                     {"target": self.target, "files": {name: pin(value) for name, value in files.items()}}
                 ),
                 **files,
@@ -742,7 +742,7 @@ class DeclarationTest(unittest.TestCase):
                 **entries["ordinary"],
                 "input_manifest": {"bytes": 0, "sha256": self.facts["sha256"]},
             }
-            (stage / "lock.json").write_bytes(build.runtime_encoded(entries))
+            (stage / "lock.json").write_bytes(runtime_encoded(entries))
             with self.subTest(name=name), self.assertRaisesRegex(ValueError, "facts-root"):
                 self.declare(staged=stage)
             self.assert_no_outputs()

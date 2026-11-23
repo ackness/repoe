@@ -7,16 +7,10 @@ arbitrary snapshots. `release:build` runs it as the `historical-trees` job.
 """
 
 import copy
-import json
 
-from RePoE.release.pins import decode, encoded, pin, pinned, require
+from RePoE.release.pins import decode, encoded, pin, pinned, require, runtime_encoded
 
 POLICY = "pobr-historical-attribute-selectors/v1"
-
-
-def runtime_encoded(value):
-    """Retain the historical JSON member/field order and pretty-print convention."""
-    return (json.dumps(value, ensure_ascii=False, indent=2, allow_nan=False) + "\n").encode()
 
 
 def project(raw, binding):

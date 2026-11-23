@@ -10,7 +10,7 @@ import sys
 from RePoE.client import export_lock, export_receipt, source_io, sources
 from RePoE.native import crafting_facts, descriptions, facts, item_inheritance, tables, validate
 from RePoE.release import build, inputs, patch_recipe
-from RePoE.release.pins import decode, encoded, pin, pinned, regular, relative, require, safe_path
+from RePoE.release.pins import decode, encoded, pin, pinned, regular, relative, require, runtime_encoded, safe_path
 
 SCHEMA = "repoe-prepare-patch-progress/v1"
 REPORT = "repoe-prepare-patch-report/v1"
@@ -438,7 +438,7 @@ def main(argv=None):
         report = prepare(**vars(args))
     except (ValueError, OSError, KeyError, TypeError) as error:
         parser.exit(1, f"release:prepare-patch: {error}\n")
-    print(build.runtime_encoded(report).decode(), end="")
+    print(runtime_encoded(report).decode(), end="")
 
 
 if __name__ == "__main__":
