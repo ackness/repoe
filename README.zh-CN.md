@@ -63,7 +63,7 @@ mise run adapter:check
 mise run adapter:keystones
 ```
 
-`adapter:keystones` 选择最高的 `release/<patch>[-<n>]/` 声明，从其 `reference` 包的天赋树重建基石规则，并逐字节比较结果。生成的 `RePoE/model/` 文件用 `mise run models:generate -- [schema 路径]` 显式维护。
+`adapter:keystones` 读取 `release/ci.json` 中 `current` 声明的已发布游戏包（基于其 `expect.package` pin），从其天赋树重建基石规则，并逐字节比较结果。生成的 `RePoE/model/` 文件用 `mise run models:generate -- [schema 路径]` 显式维护。
 
 CI 对每个 PR 运行 `verify.yml`，在发布构建的输入改变时运行 `release-build.yml`；各自运行什么见 [AGENTS.md](AGENTS.md#ci)。
 

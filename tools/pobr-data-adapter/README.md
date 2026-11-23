@@ -7,9 +7,9 @@ in [`policies/`](policies). The tool and the policies moved here from PoBR
 published packages through its `pipeline/data.lock.json`.
 
 It is a standalone Cargo workspace inside this Python repository. PoBR's data
-types come from the immutable contract tag `contract/1.1` of `ackness/pobr`
+types come from the immutable contract tag `contract/1.4` of `ackness/pobr`
 (`contract/<n>.<m>`, where n is `pobr_data::CONTRACT_VERSION`); `Cargo.lock`
-pins the resolved commit `ac3c5c92`. Production code depends on `pobr-data`
+pins the resolved commit `be6ef004`. Production code depends on `pobr-data`
 only. The engine crates `pobr-core`, `pobr-gamedata`, `pobr-item` and
 `pobr-tree` are dev-dependencies for the tests that check how PoBR consumes the
 output, and they must name the same tag: two tags compile two copies of
@@ -57,7 +57,7 @@ mise reads it locally, and CI installs it with rustup.
 ```sh
 mise run adapter -- --ordinary-facts <F> --facts-manifest-sha256 <HEX> --version <patch> --out <fresh-directory> ...
 mise run adapter:check       # fmt, clippy -D warnings, cargo test, pobr-data-only normal deps
-mise run adapter:keystones   # rebuild the published package's special_derived.json and compare bytes
+mise run adapter:keystones   # rebuild the published current game package's special_derived.json and compare bytes
 ```
 
 The modes are `--ordinary-facts` (current domains), `--tree` (historical
@@ -112,14 +112,16 @@ The schema-4 (native runtime) modes `--native-facts` and `--native-runtime` were
 removed on 2026-11-04, after PoBR deleted its schema-4 loader; Git history keeps
 them.
 
-`adapter:keystones` checks the `reference` package of the highest
-`release/<patch>[-<n>]/inputs.lock.json` (the published game package). A
-Release asset `{repository, tag, asset, bytes, sha256}` is downloaded
-anonymously and verified; a Git blob `{revision, path, bytes, sha256}` must
-have a `handoff/<name>` tag on `origin` that peels to its commit. A pull
-request that moves `reference` to a new release therefore runs the check on
-the new package. To check a candidate before publishing it, pass `--pin
-<file>` with either shape.
+`adapter:keystones` checks the published current game package named by
+`current` in `release/ci.json`, deriving its GitHub Release asset pin from that
+declaration's `expect.package`. A Release asset `{repository, tag, asset,
+bytes, sha256}` is downloaded anonymously and verified; a Git blob `{revision,
+path, bytes, sha256}` must have a `handoff/<name>` tag on `origin` that peels
+to its commit. Updating `current` in `release/ci.json` to a newly published
+release therefore moves the check to the new package, while newer unpublished
+declarations do not displace it. Pass `--config <dir>` to check another
+declaration's `expect.package` pin, or `--pin <file>` with either shape to
+check a candidate before publishing it.
 
 ## Assembling a package
 

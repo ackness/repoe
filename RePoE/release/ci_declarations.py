@@ -7,7 +7,7 @@ from RePoE.release import build
 from RePoE.release.pins import decode, require
 
 
-def selected(releases):
+def load_policy(releases):
     releases = Path(releases)
     policy = decode((releases / "ci.json").read_bytes())
     require(
@@ -16,14 +16,14 @@ def selected(releases):
         and policy["schema"] == "repoe-release-ci/v1",
         "ci.json: expected repoe-release-ci/v1 with schema, current and retired",
     )
-    current, retired = policy["current"], policy["retired"]
-    require(isinstance(current, str), "ci.json: current must be a declaration name")
+    current_name, retired = policy["current"], policy["retired"]
+    require(isinstance(current_name, str), "ci.json: current must be a declaration name")
     require(
         isinstance(retired, list) and all(isinstance(name, str) for name in retired), "ci.json: invalid retired list"
     )
-    require(current not in retired, "ci.json: current cannot be retired")
+    require(current_name not in retired, "ci.json: current cannot be retired")
     require(len(set(retired)) == len(retired), "ci.json: duplicate retired declaration")
-    for name in [current, *retired]:
+    for name in [current_name, *retired]:
         require(build.config_key(name) is not None, f"ci.json: invalid declaration name: {name!r}")
     configs = sorted(
         (path for path in releases.iterdir() if path.is_symlink() or path.is_dir()), key=lambda path: path.name
@@ -34,8 +34,18 @@ def selected(releases):
         for filename in build.SCHEMAS:
             require((config / filename).is_file(), f"Incomplete release declaration: {config.name}/{filename}")
     names = {path.name for path in configs}
-    require(current in names, f"ci.json: unknown current declaration: {current}")
+    require(current_name in names, f"ci.json: unknown current declaration: {current_name}")
     require(not (unknown := set(retired) - names), f"ci.json: unknown retired declarations: {sorted(unknown)}")
+    return current_name, retired, configs
+
+
+def current(releases=build.RELEASES):
+    current_name, _, _ = load_policy(releases)
+    return Path(releases) / current_name
+
+
+def selected(releases):
+    _, retired, configs = load_policy(releases)
     return [path for path in configs if path.name not in retired]
 
 
