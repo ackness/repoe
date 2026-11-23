@@ -3,18 +3,17 @@
 import argparse
 from collections import Counter
 from pathlib import Path
-import re
 import sys
 
-from RePoE.native import descriptions as env
 from RePoE.client import export_receipt
 from RePoE.client.limits import (
     MAX_CRAFTING_TABLE_JSON_BYTES as MAX_TABLE_BYTES,
     MAX_CRAFTING_TOTAL_JSON_BYTES as MAX_TOTAL_BYTES,
 )
+from RePoE.native import envelope as env
+from RePoE.native.envelope import ROOT, pin as _pin
 
 
-ROOT = Path(__file__).resolve().parents[2]
 FORMAT = "repoe-native-crafting-facts/v1"
 TABLES = (
     "BaseItemTypes",
@@ -31,7 +30,7 @@ SCHEMA = {
     "native_specification_sha256": "c9417f03e2205ff649721c3dbf9620ee0c703bf905b3cf53469ce3eda86f1e25",
     "compatibility_views": 0,
 }
-PRODUCERS = ("RePoE/native/crafting_facts.py", "RePoE/native/descriptions.py")
+PRODUCERS = ("RePoE/native/crafting_facts.py", "RePoE/native/envelope.py")
 
 
 def _read(path, limit):
@@ -39,10 +38,6 @@ def _read(path, limit):
     if any(part.is_symlink() for part in (path, *path.parents)):
         raise ValueError(f"Symlink input path: {path}")
     return env._read(path, limit)
-
-
-def _pin(raw):
-    return {"bytes": len(raw), "sha256": env._sha(raw)}
 
 
 def _inputs(facts, expected_manifest_sha256):
@@ -60,33 +55,21 @@ def _inputs(facts, expected_manifest_sha256):
     ):
         raise ValueError("Expected partial F77 native facts with exact native schema")
     source = manifest["source_identity"]
-    acquisition = source.get("acquisition", {})
+    env.validate_source_identity(
+        source,
+        numeric_patch=True,
+        identity_error="Explicit inherited source/patch/realm and acquisition identity required",
+        evidence_error="Invalid inherited acquisition evidence",
+    )
     language = source.get("language")
     if (
-        source.get("kind") != "official-client-resource-candidate"
-        or source.get("game") != "poe2"
-        or not isinstance(source.get("game_patch"), str)
-        or not re.fullmatch(r"[0-9]+(?:\.[0-9]+)+", source["game_patch"])
-        or source.get("realm") not in {"international", "china"}
-        or (language is not None and (not isinstance(language, str) or not language))
+        (language is not None and (not isinstance(language, str) or not language))
         or not isinstance(source.get("source"), str)
         or not source["source"]
         or not env._digest(source.get("source_lock_sha256"))
         or not env._digest(source.get("selected_source_sha256"))
-        or acquisition.get("status") not in {"unreviewed-acquisition-draft", "reviewed-source-input"}
-        or not isinstance(acquisition.get("evidence"), list)
-        or not acquisition["evidence"]
     ):
         raise ValueError("Explicit inherited source/patch/realm and acquisition identity required")
-    for evidence in acquisition["evidence"]:
-        if (
-            not isinstance(evidence, dict)
-            or set(evidence) != {"kind", "sha256"}
-            or not isinstance(evidence["kind"], str)
-            or not evidence["kind"]
-            or not env._digest(evidence["sha256"])
-        ):
-            raise ValueError("Invalid inherited acquisition evidence")
     decoder = manifest["decoder"]
     if (
         decoder.get("pypoe_revision") != "66d1d7442c5718260e1a8efd24989d22987e91af"

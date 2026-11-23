@@ -12,18 +12,18 @@ import re
 import sys
 import zlib
 
-from RePoE.native import descriptions as env
-from RePoE.native import facts
-from RePoE.native import locale_probe as probe
 from RePoE.client.limits import (
     MAX_DECODED_TABLE_PAIR_BYTES,
     MAX_TARGET_TABLE_JSON_BYTES,
     MAX_TRANSFER_COMPRESSED_BYTES,
     MAX_TRANSFER_DECODED_BYTES,
 )
+from RePoE.native import envelope as env
+from RePoE.native import facts
+from RePoE.native import locale_probe as probe
 
 
-ROOT = Path(__file__).resolve().parents[2]
+ROOT = env.ROOT
 FORMAT = "repoe-localized-tables/v2"
 POLICY = "stable-key-current-english-all-nontext/v1"
 SPEC_SHA = "c9417f03e2205ff649721c3dbf9620ee0c703bf905b3cf53469ce3eda86f1e25"
@@ -434,7 +434,7 @@ def _payloads(receipt_raw, receipt, parts_raw, pairs, lock_raw, targets, target_
             for name in [
                 "RePoE/native/decoded_tables.py",
                 "RePoE/native/locale_probe.py",
-                "RePoE/native/descriptions.py",
+                "RePoE/native/envelope.py",
                 "RePoE/native/facts.py",
                 "schema/poe2.json",
             ]

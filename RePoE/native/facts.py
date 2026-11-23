@@ -5,7 +5,6 @@ from collections import defaultdict
 import json
 import os
 from pathlib import Path
-import re
 import struct
 import sys
 import tempfile
@@ -15,6 +14,7 @@ from RePoE.client import export_receipt
 from RePoE.client.source_io import numeric_patch
 from RePoE.native import schema_candidate
 from RePoE.native.dat import validate_dat
+from RePoE.native.envelope import canonical_json as _json, is_digest, sha256 as _sha, validate_acquisition
 from RePoE.native.tools import pinned_pypoe
 
 
@@ -47,12 +47,6 @@ LIMITS = [
     "No quality application policy, translations, level data, radii or global coordinates are inferred.",
     "Definition existence and default graph membership are distinct; no historical deletion is inferred.",
 ]
-
-
-def _json(value):
-    return (
-        json.dumps(value, ensure_ascii=False, sort_keys=True, separators=(",", ":"), allow_nan=False) + "\n"
-    ).encode()
 
 
 def profile_tables(profile):
@@ -100,24 +94,13 @@ def _verified_raw(source_lock, source_name, raw_root, *, profile=BASE_PROFILE):
     acquisition = None
     if profile != BASE_PROFILE:
         acquisition = source.get("acquisition")
-        if (
-            source.get("profile") != profile
-            or not isinstance(acquisition, dict)
-            or acquisition.get("status") not in {"unreviewed-acquisition-draft", "reviewed-source-input"}
-            or not isinstance(acquisition.get("evidence"), list)
-            or not acquisition["evidence"]
-        ):
+        if source.get("profile") != profile:
             raise ValueError("Extended source needs an explicit profile and acquisition evidence/status")
-        for evidence in acquisition["evidence"]:
-            if (
-                not isinstance(evidence, dict)
-                or set(evidence) != {"kind", "sha256"}
-                or not isinstance(evidence["kind"], str)
-                or not evidence["kind"]
-                or not isinstance(evidence["sha256"], str)
-                or not re.fullmatch(r"[a-f0-9]{64}", evidence["sha256"])
-            ):
-                raise ValueError("Invalid acquisition evidence fingerprint")
+        validate_acquisition(
+            acquisition,
+            identity_error="Extended source needs an explicit profile and acquisition evidence/status",
+            evidence_error="Invalid acquisition evidence fingerprint",
+        )
     raw_root = Path(raw_root).resolve(strict=True)
     verified = {}
     identities = {}
@@ -126,17 +109,17 @@ def _verified_raw(source_lock, source_name, raw_root, *, profile=BASE_PROFILE):
         path = (raw_root / name).resolve(strict=True)
         if not path.is_relative_to(raw_root) or not path.is_file():
             raise ValueError(f"Raw resource path escapes root or is not a file: {name}")
-        if type(entry["bytes"]) is not int or entry["bytes"] <= 0 or not re.fullmatch(r"[a-f0-9]{64}", entry["sha256"]):
+        if type(entry["bytes"]) is not int or entry["bytes"] <= 0 or not is_digest(entry["sha256"]):
             raise ValueError(f"Invalid raw identity: {name}")
         raw = path.read_bytes()
-        identity = {"bytes": len(raw), "sha256": schema_candidate._sha(raw)}
+        identity = {"bytes": len(raw), "sha256": _sha(raw)}
         if identity != {key: entry[key] for key in identity}:
             raise ValueError(f"Raw hash/size mismatch: {name}")
         verified[name] = raw
         identities[name] = identity
     identity = {
-        "source_lock_sha256": schema_candidate._sha(lock_raw),
-        "selected_source_sha256": schema_candidate._sha(_json(source)),
+        "source_lock_sha256": _sha(lock_raw),
+        "selected_source_sha256": _sha(_json(source)),
         "source": source_name,
         "kind": source["kind"],
         "game": source["game"],
@@ -510,8 +493,7 @@ def _projections(tables, graph):
 def _candidate_payloads(verified, source_identity, tool_identity, *, profile=BASE_PROFILE, source_lock_bytes=None):
     selected_tables = profile_tables(profile)
     if profile != BASE_PROFILE and (
-        not isinstance(source_lock_bytes, bytes)
-        or schema_candidate._sha(source_lock_bytes) != source_identity["source_lock_sha256"]
+        not isinstance(source_lock_bytes, bytes) or _sha(source_lock_bytes) != source_identity["source_lock_sha256"]
     ):
         raise ValueError("Extended source-lock snapshot differs from verified identity")
     # Regenerate only from trusted locked inputs; never execute a caller's specification.
@@ -589,7 +571,7 @@ def _candidate_payloads(verified, source_identity, tool_identity, *, profile=BAS
     producer = {
         **inputs["producer"],
         **{
-            name: schema_candidate._sha((schema_candidate.ROOT / name).read_bytes())
+            name: _sha((schema_candidate.ROOT / name).read_bytes())
             for name in (
                 "RePoE/client/source_io.py",
                 "RePoE/native/facts.py",
@@ -600,16 +582,12 @@ def _candidate_payloads(verified, source_identity, tool_identity, *, profile=BAS
         },
     }
     if profile != BASE_PROFILE:
-        producer["RePoE/native/skills.py"] = schema_candidate._sha(
-            (schema_candidate.ROOT / "RePoE/native/skills.py").read_bytes()
-        )
+        producer["RePoE/native/skills.py"] = _sha((schema_candidate.ROOT / "RePoE/native/skills.py").read_bytes())
     if profile in (GEMS_PROFILE, ITEMS_ACTORS_PROFILE):
-        producer["RePoE/native/gems.py"] = schema_candidate._sha(
-            (schema_candidate.ROOT / "RePoE/native/gems.py").read_bytes()
-        )
+        producer["RePoE/native/gems.py"] = _sha((schema_candidate.ROOT / "RePoE/native/gems.py").read_bytes())
     if profile == ITEMS_ACTORS_PROFILE:
         for name in ("RePoE/native/items.py", "RePoE/native/actor_facts.py"):
-            producer[name] = schema_candidate._sha((schema_candidate.ROOT / name).read_bytes())
+            producer[name] = _sha((schema_candidate.ROOT / name).read_bytes())
     manifest = {
         "format": (
             FORMAT
@@ -635,7 +613,7 @@ def _candidate_payloads(verified, source_identity, tool_identity, *, profile=BAS
         "schema": {
             "revision": SCHEMA,
             "sha256": inputs["schema_sha256"],
-            "native_specification_sha256": schema_candidate._sha(spec_raw),
+            "native_specification_sha256": _sha(spec_raw),
             "compatibility_views": 0,
         },
         "producer": producer,
@@ -648,13 +626,11 @@ def _candidate_payloads(verified, source_identity, tool_identity, *, profile=BAS
     payloads = {name: _json(document) for name, document in documents.items()}
     if profile != BASE_PROFILE:
         payloads["source-lock.json"] = source_lock_bytes
-    manifest["files"] = {
-        name: {"sha256": schema_candidate._sha(data), "bytes": len(data)} for name, data in sorted(payloads.items())
-    }
+    manifest["files"] = {name: {"sha256": _sha(data), "bytes": len(data)} for name, data in sorted(payloads.items())}
     payloads["manifest.json"] = _json(manifest)
     if schema_candidate._inputs(schema_candidate.ROOT)[0] != inputs:
         raise ValueError("Producer/schema inputs changed during generation")
-    if any(schema_candidate._sha((schema_candidate.ROOT / name).read_bytes()) != sha for name, sha in producer.items()):
+    if any(_sha((schema_candidate.ROOT / name).read_bytes()) != sha for name, sha in producer.items()):
         raise ValueError("Facts producer changed during generation")
     return manifest, payloads
 

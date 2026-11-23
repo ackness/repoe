@@ -20,7 +20,13 @@ class SchemaCandidateTests(unittest.TestCase):
         temporary = tempfile.TemporaryDirectory(prefix="repoe-schema-test-")
         self.addCleanup(temporary.cleanup)
         self.root = Path(temporary.name)
-        for name in ["pyproject.toml", "uv.lock", "RePoE/native/schema_candidate.py", "schema/source.json"]:
+        for name in [
+            "pyproject.toml",
+            "uv.lock",
+            "RePoE/native/schema_candidate.py",
+            "RePoE/native/envelope.py",
+            "schema/source.json",
+        ]:
             path = self.root / name
             path.parent.mkdir(parents=True, exist_ok=True)
             shutil.copyfile(candidate.ROOT / name, path)

@@ -14,11 +14,14 @@ TABLES = ("BaseItemTypes", "ItemClasses", "Mods", "Stats", "Essences", "EssenceT
 # Producer file keys a crafting facts package may carry; the package's manifest pin binds their values.
 # HISTORICAL_PRODUCERS is the identity sealed into the published package (`packages.crafting` in
 # release/0.5.5.5-2/inputs.lock.json) before the exporters moved to RePoE/native/: never rename it.
+# PUBLISHED_RECEIPTED_PRODUCERS retains earlier receipted RePoE/native/ producer closures pinned by
+# published declarations (e.g. release/0.5.5.8); they still require the marker and export receipt.
 # CURRENT_PRODUCERS is what RePoE/native/crafting_facts.py writes today (tests keep the two in step);
 # these exports also require the marker and the lock-carried export receipt.
 HISTORICAL_PRODUCERS = frozenset({"RePoE/native_crafting_facts.py", "RePoE/native_descriptions.py"})
-CURRENT_PRODUCERS = frozenset({"RePoE/native/crafting_facts.py", "RePoE/native/descriptions.py"})
-PRODUCER_KEY_SETS = (HISTORICAL_PRODUCERS, CURRENT_PRODUCERS)
+PUBLISHED_RECEIPTED_PRODUCERS = (frozenset({"RePoE/native/crafting_facts.py", "RePoE/native/descriptions.py"}),)
+CURRENT_PRODUCERS = frozenset({"RePoE/native/crafting_facts.py", "RePoE/native/envelope.py"})
+PRODUCER_KEY_SETS = (HISTORICAL_PRODUCERS, *PUBLISHED_RECEIPTED_PRODUCERS, CURRENT_PRODUCERS)
 OWNER = "ackness/repoe"
 
 
