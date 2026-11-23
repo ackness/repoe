@@ -19,6 +19,7 @@ use serde::Deserialize;
 
 use crate::write_pretty;
 
+#[derive(Debug)]
 pub struct TreeArgs {
     pub data_json: PathBuf,
     pub out: PathBuf,
@@ -285,10 +286,14 @@ fn adapt(raw: RawTree) -> Result<(Vec<PassiveNodeDef>, PassiveTreeMeta), String>
     let mut alias_bases = BTreeMap::new();
     for node in nodes.values_mut() {
         node.variants.sort_by(|a, b| a.class.cmp(&b.class));
-        if let Some(pair) = node.variants.windows(2).find(|v| v[0].class == v[1].class) {
+        if let Some([first, _]) = node
+            .variants
+            .array_windows()
+            .find(|[a, b]| a.class == b.class)
+        {
             return Err(format!(
                 "node {}: duplicate variant selector {}",
-                node.skill, pair[0].class
+                node.skill, first.class
             ));
         }
         for alias in node.variants.iter().filter_map(|v| v.variant_skill) {

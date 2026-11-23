@@ -830,10 +830,10 @@ fn cli_source_and_output_boundaries_fail_before_reservation() {
         "--codec-policy-sha256",
         "sha",
     ];
-    assert!(matches!(
+    std::assert_matches!(
         crate::parse_args_from(cli.into_iter().map(String::from)),
         Ok(crate::Mode::OrdinaryFacts(_))
-    ));
+    );
     for i in (10..cli.len()).step_by(2) {
         let mut a = cli.to_vec();
         a.drain(i..i + 2);

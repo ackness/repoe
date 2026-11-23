@@ -1110,10 +1110,10 @@ fn all_six_auxiliary_flags_are_explicit_and_cross_domain_flags_fail() {
         "--branch-codec-sha256",
         "sha",
     ];
-    assert!(matches!(
+    std::assert_matches!(
         crate::parse_args_from(base.into_iter().map(String::from)),
         Ok(crate::Mode::OrdinaryFacts(_))
-    ));
+    );
     for index in (10..base.len()).step_by(2) {
         let mut args = base.to_vec();
         args.drain(index..index + 2);

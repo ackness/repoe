@@ -38,6 +38,7 @@ use serde_json::json;
 use crate::facts::{Output, reader};
 use crate::raw_source::sha256_hex;
 
+#[derive(Debug)]
 pub(crate) struct Args {
     input: PathBuf,
     expected_manifest_sha256: String,
@@ -55,11 +56,13 @@ pub(crate) struct Args {
     player_context: Option<BranchCodecArgs>,
 }
 
+#[derive(Debug)]
 struct BranchCodecArgs {
     path: PathBuf,
     sha256: String,
 }
 
+#[derive(Debug)]
 struct CodecArgs {
     source: PathBuf,
     source_sha256: String,

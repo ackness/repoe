@@ -82,7 +82,7 @@ pub(crate) fn clamp_u32(v: Option<i64>) -> u32 {
 
 /// Builds an `_index -> (Id, Name)` lookup from base item rows (`_index` is contiguous; out-of-range returns None).
 fn id_lookup_from_base(rows: &[RawBaseItemId]) -> Vec<(String, String)> {
-    let max = rows.iter().map(|r| r.index).max().map_or(0, |m| m + 1);
+    let max = rows.iter().map(|r| r.index).max().map_or_default(|m| m + 1);
     let mut table = vec![(String::new(), String::new()); max];
     for r in rows {
         table[r.index] = (r.id.clone(), r.name.clone());

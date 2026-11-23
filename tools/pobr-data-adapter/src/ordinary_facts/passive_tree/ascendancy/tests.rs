@@ -99,7 +99,6 @@ fn project_with_coverage(
 ) -> Result<(Value, Value, Value), String> {
     project_with_baseline(f, p, old, r, extra, None, coverage)
 }
-#[allow(clippy::too_many_arguments)]
 fn project_with_baseline(
     f: &mut Fixture,
     p: &Value,

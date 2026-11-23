@@ -359,7 +359,7 @@ fn context_baseline_indexes_old_rows_by_id_and_sorts_fields() {
     assert_eq!(baseline.row("maximum_resistances1"), Some(&target_row));
     assert_ne!(baseline.rows["maximum_resistances1"]["_row"], json!(0));
     assert!(baseline.row("absent").is_none());
-    assert!(baseline.fields.windows(2).all(|pair| pair[0] < pair[1]));
+    assert!(baseline.fields.array_windows().all(|[a, b]| a < b));
 }
 
 #[test]

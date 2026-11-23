@@ -81,7 +81,7 @@ pub(super) fn build(
         effect_sources.push(json!({"source_row":row,"id":id,
             "active_skill_source_row":raw["ActiveSkill"],
             "stat_set_source_rows":set_rows,
-            "level_source_rows":ranges(effect_levels.get(&row).map(Vec::as_slice).unwrap_or(&[]))}));
+            "level_source_rows":ranges(effect_levels.get(&row).map_or_default(Vec::as_slice))}));
         let output = sets_by_effect.get(id);
         if output.is_none() {
             empty_stat_effects.push(json!({"source_row":row,"id":id,"stat_set_source_rows":set_rows,
@@ -91,16 +91,15 @@ pub(super) fn build(
             let set = tables.row("GrantedEffectStatSets", set_row)?;
             let output_levels: BTreeSet<_> = output
                 .and_then(|effect| effect.sets.get(position))
-                .map(|set| {
+                .map_or_default(|set| {
                     set.levels
                         .iter()
                         .map(|level| u64::from(level.gem_level))
                         .collect()
-                })
-                .unwrap_or_default();
+                });
             let mut zero = Vec::new();
             let mut trivial = Vec::new();
-            for &level_row in set_levels.get(&set_row).map(Vec::as_slice).unwrap_or(&[]) {
+            for &level_row in set_levels.get(&set_row).map_or_default(Vec::as_slice) {
                 let level = tables.row("GrantedEffectStatSetsPerLevel", level_row)?["GemLevel"]
                     .as_u64()
                     .ok_or("invalid GemLevel")?;
@@ -122,7 +121,7 @@ pub(super) fn build(
             }
         }
         let mut zero_rows = Vec::new();
-        for &r in effect_levels.get(&row).map(Vec::as_slice).unwrap_or(&[]) {
+        for &r in effect_levels.get(&row).map_or_default(Vec::as_slice) {
             if tables.row("GrantedEffectsPerLevel", r)?["Level"] == 0 {
                 zero_rows.push(r);
             }
@@ -138,17 +137,14 @@ pub(super) fn build(
         let raw = tables.row("GrantedEffectStatSets", row)?;
         set_sources.push(
             json!({"source_row":row,"id":raw["Id"],"label_source_row":raw["Label"],
-            "level_source_rows":ranges(set_levels.get(&row).map(Vec::as_slice).unwrap_or(&[]))}),
+            "level_source_rows":ranges(set_levels.get(&row).map_or_default(Vec::as_slice))}),
         );
     }
     let mut experience_sources = Vec::new();
     let mut requirement_normalizations = Vec::new();
     for row in 0..tables.len("ItemExperienceTypes") {
         let id = &tables.row("ItemExperienceTypes", row)?["Id"];
-        let rows = experience_levels
-            .get(&row)
-            .map(Vec::as_slice)
-            .unwrap_or(&[]);
+        let rows = experience_levels.get(&row).map_or_default(Vec::as_slice);
         experience_sources.push(json!({"source_row":row,"id":id,"level_source_rows":ranges(rows)}));
         let mut sorted = Vec::new();
         for &r in rows {

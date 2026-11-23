@@ -524,10 +524,10 @@ fn pins_patch_cli_and_protected_output_reject_before_any_candidate() {
         "--ordinary-domain",
         "totem-varieties",
     ];
-    assert!(matches!(
+    std::assert_matches!(
         crate::parse_args_from(base.into_iter().map(String::from)),
         Ok(crate::Mode::OrdinaryFacts(_))
-    ));
+    );
     for extra in [
         ["--quality-policy", "p"],
         ["--quality-policy-sha256", "sha"],

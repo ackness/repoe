@@ -230,7 +230,7 @@ pub(super) fn validate(
             id,
             json!({
                 "decision":if dnt_only { "excluded-dnt-only" } else { "published" },
-                "gem_links":links.get(id.as_str()).map(Vec::as_slice).unwrap_or_default()
+                "gem_links":links.get(id.as_str()).map_or_default(Vec::as_slice)
             }),
         );
     }

@@ -517,10 +517,10 @@ fn quality_options_are_explicit_exclusive_and_dispatched_by_the_existing_cli() {
     ];
     let parsed = parse_args(base.into_iter().chain(quality).map(String::from)).unwrap();
     assert_eq!(parsed.domain, Domain::GemQuality);
-    assert!(matches!(
+    std::assert_matches!(
         crate::parse_args_from(base.into_iter().chain(quality).map(String::from)),
         Ok(crate::Mode::OrdinaryFacts(_))
-    ));
+    );
     for suffix in [
         vec!["--ordinary-domain", "gem-quality"],
         vec![

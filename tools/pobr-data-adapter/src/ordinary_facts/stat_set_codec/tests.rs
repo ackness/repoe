@@ -771,7 +771,7 @@ fn codec_requires_all_explicit_flags_and_rejects_cross_domain_or_repeated_option
         .domain,
         Domain::StatSetCodec
     );
-    assert!(matches!(
+    std::assert_matches!(
         crate::parse_args_from(
             base.into_iter()
                 .chain(domain)
@@ -779,7 +779,7 @@ fn codec_requires_all_explicit_flags_and_rejects_cross_domain_or_repeated_option
                 .map(String::from)
         ),
         Ok(crate::Mode::OrdinaryFacts(_))
-    ));
+    );
     for i in (0..flags.len()).step_by(2) {
         let incomplete = flags
             .iter()

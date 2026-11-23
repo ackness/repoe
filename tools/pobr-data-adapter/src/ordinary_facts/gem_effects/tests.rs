@@ -554,7 +554,7 @@ fn gem_effects_cli_uses_only_the_four_explicit_codec_options() {
         "pin",
     ];
     let domain = ["--ordinary-domain", "gem-effects"];
-    assert!(matches!(
+    std::assert_matches!(
         crate::parse_args_from(
             base.into_iter()
                 .chain(domain)
@@ -562,7 +562,7 @@ fn gem_effects_cli_uses_only_the_four_explicit_codec_options() {
                 .map(String::from)
         ),
         Ok(crate::Mode::OrdinaryFacts(_))
-    ));
+    );
     for i in (0..flags.len()).step_by(2) {
         assert!(
             parse_args(
