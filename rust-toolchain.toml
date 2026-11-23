@@ -2,6 +2,6 @@
 # Keep it equal to ackness/pobr's rust-toolchain.toml at the pinned
 # contract tag so the adapter builds the PoBR crates with the same rustc.
 [toolchain]
-channel = "1.100.0"
+channel = "1.99.1"
 components = ["rustfmt", "clippy"]
 profile = "minimal"

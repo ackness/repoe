@@ -469,7 +469,7 @@ fn rolls(text: &str) -> Vec<Value> {
 /// grammar); the separating hyphen cannot be `min`'s own leading sign.
 fn range_body(body: &str) -> Option<(f64, f64)> {
     fn endpoint(s: &str) -> Option<f64> {
-        let digits = s.trim_prefix('-');
+        let digits = s.strip_prefix('-').unwrap_or(s);
         let (integer, fraction) = match digits.split_once('.') {
             Some((i, f)) => (i, Some(f)),
             None => (digits, None),
