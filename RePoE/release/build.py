@@ -36,7 +36,17 @@ import zipfile
 
 from RePoE.client import export_receipt, source_rebinding
 from RePoE.release import assets, content_diff, crafting_catalog, gem_descriptions, historical_trees, item_class_names
-from RePoE.release.pins import archive_manifest, byte_pin, decode, encoded, pin, pinned, relative, require
+from RePoE.release.pins import (
+    archive_manifest,
+    byte_pin,
+    decode,
+    encoded,
+    pin,
+    pinned,
+    relative,
+    require,
+    runtime_encoded,
+)
 
 ROOT = Path(__file__).resolve().parents[2]
 RELEASES = ROOT / "release"
@@ -101,22 +111,15 @@ CARGO_LOCK = ADAPTER_DIR / "Cargo.lock"
 PRODUCER_PATHS = ("RePoE", "release", "tools/pobr-data-adapter", "mise.toml", "mise.lock", "rust-toolchain.toml")
 
 
-def runtime_encoded(value):
-    """PoBR runtime JSON layout: insertion order, two-space indent, UTF-8, final newline."""
-    return (json.dumps(value, ensure_ascii=False, indent=2, allow_nan=False) + "\n").encode()
-
-
 def sha256(raw):
     return hashlib.sha256(raw).hexdigest()
 
 
 def file_pin(path):
-    digest, size = hashlib.sha256(), 0
     with open(path, "rb") as stream:
-        while chunk := stream.read(1 << 20):
-            digest.update(chunk)
-            size += len(chunk)
-    return {"bytes": size, "sha256": digest.hexdigest()}
+        digest = hashlib.file_digest(stream, "sha256").hexdigest()
+        size = os.fstat(stream.fileno()).st_size
+    return {"bytes": size, "sha256": digest}
 
 
 def write_new(path, raw):
@@ -615,7 +618,7 @@ def run_crafting_catalog(ctx, job, out):
     )
     ctx.inputs[f"{package.name}:crafting.json"] = package.members["crafting.json"]
     (name,) = job["outputs"]
-    write_new(out / name, crafting_catalog.runtime_encoded(document))
+    write_new(out / name, runtime_encoded(document))
     return {name: out / name}, {"summary": decisions["summary"]}
 
 
@@ -637,7 +640,7 @@ def run_gem_descriptions(ctx, job, out):
     )
     (name,) = job["outputs"]
     require(name == "overlay/gem_descriptions.json", f"{job['id']}: output must be overlay/gem_descriptions.json")
-    write_new(out / name, gem_descriptions.runtime_encoded(document))
+    write_new(out / name, runtime_encoded(document))
     return {name: out / name}, {"summary": summary}
 
 

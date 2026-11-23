@@ -25,6 +25,7 @@ from RePoE.release.pins import (
     regular,
     relative,
     require,
+    runtime_encoded,
     safe_path,
 )
 
@@ -258,7 +259,7 @@ def declare(
     result, new_frozen, report = derive(
         lock, frozen, config.name, entries, facts_identity, previous, patch, set(add_package), set(carry)
     )
-    encoded = [build.runtime_encoded(document) for document in (result, new_frozen)]
+    encoded = [runtime_encoded(document) for document in (result, new_frozen)]
     with tempfile.TemporaryDirectory(prefix="release-declare-") as temporary:
         work = Path(temporary) / out.name
         build.write_new(work / "domains.json", domains_raw)

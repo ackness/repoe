@@ -67,6 +67,12 @@ class PinsTests(unittest.TestCase):
                 pins.byte_pin(bad)
         pins.validate_pin({**good, "extra": 1})
 
+    def test_runtime_encoded(self):
+        raw = pins.runtime_encoded({"b": 1, "a": "火"})
+        self.assertEqual(raw, '{\n  "b": 1,\n  "a": "火"\n}\n'.encode())
+        with self.assertRaises(ValueError):
+            pins.runtime_encoded({"bad": float("nan")})
+
 
 if __name__ == "__main__":
     unittest.main()

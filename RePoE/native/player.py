@@ -8,14 +8,14 @@ import sys
 
 from RePoE.client import export_receipt
 from RePoE.client.limits import MAX_PARENT_FACTS_BYTES
-from RePoE.native import descriptions as io
+from RePoE.native import envelope as io
 from RePoE.native import facts
 from RePoE.native import metadata
 from RePoE.native import schema_candidate
+from RePoE.native.envelope import ROOT, sha256 as _sha
 from RePoE.native.tools import pinned_pypoe
 
 
-ROOT = Path(__file__).resolve().parents[2]
 TABLES = ("StartingPassiveSkills", "KeywordPopups")
 PARENT_TABLES = ("Characters", "PassiveSkills", "Stats", "ClassPassiveSkillOverrides")
 LIMITS = [
@@ -25,10 +25,6 @@ LIMITS = [
     "Pool initialization offsets, accuracy baseline, attribute requirements and server cadence are not inferred.",
     "All metadata values remain lexical; glossary text is retained, not executed as a formula.",
 ]
-
-
-def _sha(data):
-    return hashlib.sha256(data).hexdigest()
 
 
 def _integer(value):
@@ -123,69 +119,49 @@ def _parent(directory, expected):
 
 
 def _inputs(lock_path, source, raw_root, expected):
-    lock_bytes = io._read(Path(lock_path), 1024 * 1024)
-    if not io._digest(expected) or _sha(lock_bytes) != expected:
-        raise ValueError("Player source lock differs from external expected byte pin")
-    lock = io._decode(lock_bytes)
-    if lock.get("schema_version") != 1:
-        raise ValueError("Unsupported player source lock")
-    selected = lock["sources"][source]
-    acquisition = selected.get("acquisition", {})
-    if (
-        selected.get("kind") != "official-client-resource-candidate"
-        or selected.get("profile") != "player-context-a2"
-        or selected.get("game") != "poe2"
-        or selected.get("realm") not in {"international", "china"}
-        or not isinstance(selected.get("game_patch"), str)
-        or not selected["game_patch"]
-        or acquisition.get("status") != "unreviewed-acquisition-draft"
-        or not isinstance(acquisition.get("evidence"), list)
-        or not acquisition["evidence"]
-    ):
-        raise ValueError("Explicit player source identity/acquisition declaration required")
-    for item in acquisition["evidence"]:
-        if (
-            not isinstance(item, dict)
-            or not isinstance(item.get("kind"), str)
-            or not item["kind"]
-            or not io._digest(item.get("sha256"))
-        ):
-            raise ValueError("Invalid player acquisition evidence")
-    decoder = selected["decoder"]
-    if (
-        decoder.get("revision") != facts.PYPOE
-        or decoder.get("dat_schema_revision") != facts.SCHEMA
-        or decoder.get("schema_sha256") != facts.SCHEMA_SHA
-    ):
-        raise ValueError("Player decoder/schema pin mismatch")
-    resources = selected["resources"]
-    if not isinstance(resources, dict) or not 2 < len(resources) <= 32:
-        raise ValueError("Bounded player resource inventory required")
-    raw_root = Path(raw_root).resolve(strict=True)
-    verified, total = {}, 0
-    for name, fp in sorted(resources.items()):
+    lock_bytes, selected = io.load_source_lock(
+        lock_path,
+        source,
+        expected,
+        limit=1024 * 1024,
+        pin_error="Player source lock differs from external expected byte pin",
+    )
+    io.validate_source_identity(
+        selected,
+        profile="player-context-a2",
+        statuses={"unreviewed-acquisition-draft"},
+        strict_evidence_keys=False,
+        identity_error="Explicit player source identity/acquisition declaration required",
+        evidence_error="Invalid player acquisition evidence",
+    )
+    io.validate_decoder(
+        selected,
+        {"revision": facts.PYPOE, "dat_schema_revision": facts.SCHEMA, "schema_sha256": facts.SCHEMA_SHA},
+        error="Player decoder/schema pin mismatch",
+    )
+    table_resources = {f"Data/Balance/{table}.datc64" for table in TABLES}
+
+    def validate_name(name):
         _safe(name)
-        if name not in {f"Data/Balance/{table}.datc64" for table in TABLES}:
+        if name not in table_resources:
             metadata.resource_path(name)
-        if (
-            not isinstance(fp, dict)
-            or not _integer(fp.get("bytes"))
-            or not 0 < fp["bytes"] <= 8 * 1024 * 1024
-            or not io._digest(fp.get("sha256"))
-        ):
-            raise ValueError("Invalid player raw fingerprint")
-        total += fp["bytes"]
-        if total > 16 * 1024 * 1024:
-            raise ValueError("Player raw resource byte limit exceeded")
-        path = raw_root / name
-        if not path.resolve(strict=True).is_relative_to(raw_root) or any(
-            p.is_symlink() for p in [path, *path.parents] if p != raw_root.parent
-        ):
-            raise ValueError("Player raw resource escapes root or has symlink components")
-        data = io._read(path, fp["bytes"])
-        if len(data) != fp["bytes"] or _sha(data) != fp["sha256"]:
-            raise ValueError(f"Player raw identity mismatch: {name}")
-        verified[name] = data
+
+    verified, raw_root = io.verify_raw_resources(
+        raw_root,
+        selected["resources"],
+        min_files=3,
+        max_files=32,
+        max_resource_bytes=8 * 1024 * 1024,
+        max_total_bytes=16 * 1024 * 1024,
+        validate_name=validate_name,
+        check_raw_dir=False,
+        sort_items=True,
+        inventory_error="Bounded player resource inventory required",
+        fingerprint_error="Invalid player raw fingerprint",
+        total_error="Player raw resource byte limit exceeded",
+        path_error="Player raw resource escapes root or has symlink components",
+        mismatch_error="Player raw identity mismatch",
+    )
     for name in TABLES:
         if f"Data/Balance/{name}.datc64" not in verified:
             raise ValueError(f"Missing player table {name}")
@@ -369,8 +345,7 @@ def create_candidate(
         "RePoE/native/__init__.py",
         "RePoE/native/player.py",
         "RePoE/native/metadata.py",
-        "RePoE/native/descriptions.py",
-        "RePoE/native/csd.py",
+        "RePoE/native/envelope.py",
         "RePoE/native/facts.py",
         "RePoE/native/dat.py",
         "RePoE/native/tools.py",
@@ -400,7 +375,7 @@ def create_candidate(
         "files": {name: {"bytes": len(data), "sha256": _sha(data)} for name, data in payloads.items()},
     }
     payloads["manifest.json"] = io._json(manifest)
-    io._publish(output, raw_root, payloads)
+    io._publish(output, raw_root, payloads, root=ROOT)
     seal(payloads["manifest.json"])
     return manifest
 

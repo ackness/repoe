@@ -19,6 +19,11 @@ def encoded(value):
     return (json.dumps(value, ensure_ascii=False, sort_keys=True, separators=(",", ":")) + "\n").encode()
 
 
+def runtime_encoded(value):
+    """PoBR runtime JSON layout: insertion order, two-space indent, UTF-8, final newline."""
+    return (json.dumps(value, ensure_ascii=False, indent=2, allow_nan=False) + "\n").encode()
+
+
 def decode(raw):
     def pairs(items):
         result = {}

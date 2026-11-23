@@ -19,7 +19,6 @@ build, because PoBR's display rule only knows these two. `release:build` runs
 this as the ``gem-descriptions`` job, only in declarations that list it.
 """
 
-import json
 import re
 
 from RePoE.release.pins import require
@@ -30,11 +29,6 @@ SUPPORT = "GemEffects.SupportText"
 ACTIVE = "ActiveSkills.Description"
 # Plain text and [A] / [A|B] tags, no nesting; no <...> or {...} markup.
 MARKUP = re.compile(r"(?:[^\[\]|<>{}]|\[[^\[\]|<>{}]+(?:\|[^\[\]|<>{}]+)?\])*")
-
-
-def runtime_encoded(value):
-    """PoBR runtime JSON layout; the snapshot manifest pins these exact bytes."""
-    return (json.dumps(value, ensure_ascii=False, indent=2, allow_nan=False) + "\n").encode()
 
 
 def checked(text, where):

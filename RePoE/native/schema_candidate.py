@@ -1,7 +1,6 @@
 """Build and verify native PoE2 schema candidates without replacing PyPoE data."""
 
 import argparse
-import hashlib
 import importlib.metadata
 import importlib.util
 import json
@@ -12,12 +11,7 @@ import sys
 import tempfile
 import tomllib
 
-
-ROOT = Path(__file__).resolve().parents[2]
-
-
-def _sha(raw):
-    return hashlib.sha256(raw).hexdigest()
+from RePoE.native.envelope import ROOT, sha256 as _sha
 
 
 def _inputs(root):
@@ -65,6 +59,7 @@ def _inputs(root):
         name: _sha((root / name).read_bytes())
         for name in [
             "RePoE/native/schema_candidate.py",
+            "RePoE/native/envelope.py",
             "pyproject.toml",
             "uv.lock",
             "schema/source.json",

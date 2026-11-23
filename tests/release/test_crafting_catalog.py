@@ -210,23 +210,24 @@ class FactsDocumentTests(unittest.TestCase):
             with self.subTest(producers=sorted(producers)):
                 facts = fixture()
                 spec, raw = crafting_package(
-                    facts, producers=producers, receipted=producers == crafting.CURRENT_PRODUCERS
+                    facts, producers=producers, receipted=producers != crafting.HISTORICAL_PRODUCERS
                 )
                 with zipfile.ZipFile(io.BytesIO(raw)) as archive:
                     self.assertEqual(crafting.facts_document(archive, spec, TARGET), facts)
 
     def test_current_export_requires_the_marker_and_its_matching_lock_receipt(self):
-        clean, _ = crafting_package(fixture(), producers=crafting.CURRENT_PRODUCERS, receipted=True)
-        # Both stripped, or just the marker stripped: the remaining historical path is closed to current keys.
-        for receipt in (None, clean["export_receipt"]):
-            spec, raw = crafting_package(fixture(), producers=crafting.CURRENT_PRODUCERS)
-            if receipt is not None:
-                spec["export_receipt"] = receipt
-            with (
-                zipfile.ZipFile(io.BytesIO(raw)) as archive,
-                self.assertRaisesRegex(ValueError, "lacks producer_receipt"),
-            ):
-                crafting.facts_document(archive, spec, TARGET)
+        for producers in (*crafting.PUBLISHED_RECEIPTED_PRODUCERS, crafting.CURRENT_PRODUCERS):
+            clean, _ = crafting_package(fixture(), producers=producers, receipted=True)
+            # Both stripped, or just the marker stripped: the remaining historical path is closed to non-historical keys.
+            for receipt in (None, clean["export_receipt"]):
+                spec, raw = crafting_package(fixture(), producers=producers)
+                if receipt is not None:
+                    spec["export_receipt"] = receipt
+                with (
+                    zipfile.ZipFile(io.BytesIO(raw)) as archive,
+                    self.assertRaisesRegex(ValueError, "lacks producer_receipt"),
+                ):
+                    crafting.facts_document(archive, spec, TARGET)
         for case, message in (
             ("missing", "requires its export_receipt"),
             ("manifest", "receipt pins another manifest"),
@@ -272,7 +273,13 @@ class FactsDocumentTests(unittest.TestCase):
 
     def test_mixed_or_unknown_producer_keys_reject(self):
         mixed = {"RePoE/native_crafting_facts.py", "RePoE/native/descriptions.py"}
-        for producers in (mixed, {"RePoE/native_crafting_facts.py"}, {*crafting.HISTORICAL_PRODUCERS, "extra.py"}):
+        mixed_envelope = {"RePoE/native_crafting_facts.py", "RePoE/native/envelope.py"}
+        for producers in (
+            mixed,
+            mixed_envelope,
+            {"RePoE/native_crafting_facts.py"},
+            {*crafting.HISTORICAL_PRODUCERS, "extra.py"},
+        ):
             with self.subTest(producers=sorted(producers)):
                 spec, raw = crafting_package(fixture(), producers=producers)
                 with (

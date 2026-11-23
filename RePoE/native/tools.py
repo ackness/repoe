@@ -6,7 +6,6 @@ loaded modules. This is not a sandbox against a hostile Python process or OS.
 """
 
 from contextlib import contextmanager
-import hashlib
 import importlib.abc
 import importlib.machinery
 import importlib.metadata
@@ -16,14 +15,12 @@ import json
 from pathlib import Path
 import sys
 
+from RePoE.native.envelope import ROOT, sha256 as _sha
 
-PIN = Path(__file__).resolve().parents[2] / "schema/pypoe-sources.json"
+
+PIN = ROOT / "schema/pypoe-sources.json"
 REVISION = "66d1d7442c5718260e1a8efd24989d22987e91af"
 URL = "https://github.com/repoe-fork/pypoe.git"
-
-
-def _sha(raw):
-    return hashlib.sha256(raw).hexdigest()
 
 
 def _matches_origin(spec, expected):

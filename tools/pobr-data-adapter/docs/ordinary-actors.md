@@ -281,7 +281,7 @@ effects.
 
 ### Observed three-root OT draft
 
-RePoE's [actor-template contract](../../../RePoE/docs/native/native_actor_templates.md)
+RePoE's [actor-template contract](https://github.com/ackness/repoe/blob/b41b3e84ecc0c747d4d38ca4826ed39b4036dee1/RePoE/docs/native_actor_templates.md)
 records six observed OT resources, 11,172 raw bytes, for three exact varieties.
 BearCompanion (row 1722) and LivingLightning (row 2309) extend
 PlayerFollowingMinionBase, then PlayerSummonedMinionBase and Monster;

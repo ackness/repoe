@@ -11,7 +11,7 @@ import tempfile
 
 from RePoE.client import source_io
 from RePoE.release import build
-from RePoE.release.pins import HEX, decode, pin, pinned, relative, require, safe_path
+from RePoE.release.pins import HEX, decode, pin, pinned, relative, require, runtime_encoded, safe_path
 
 
 def input_references(job):
@@ -185,7 +185,7 @@ def rebind(
                 renamed = member.with_name(patch + member.name[len(old_patch) :]).as_posix()
                 source = decode((policies / member).read_bytes())
                 policy, changes = rebind_document(source, identities, old_patch, patch, ref)
-                raw = build.runtime_encoded(policy)
+                raw = runtime_encoded(policy)
                 destination = policies / renamed
                 require(destination not in outputs or outputs[destination] == raw, f"policy-conflict: {destination}")
                 outputs[destination] = raw
@@ -215,7 +215,7 @@ def rebind(
                     job["template"] = f"previous:data/{old_patch}/manifest.json"
     destination = safe_path(domains_out)
     require(destination not in outputs, f"output-conflict: {destination}")
-    outputs[destination] = build.runtime_encoded(result)
+    outputs[destination] = runtime_encoded(result)
     for path in outputs:
         safe_path(path)
         require(not path.exists(), f"existing-output: {path}")

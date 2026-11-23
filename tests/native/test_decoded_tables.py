@@ -9,7 +9,7 @@ from unittest.mock import patch
 
 from RePoE.client import capture
 from RePoE.native import decoded_tables as ingest
-from RePoE.native import descriptions as env
+from RePoE.native import envelope as env
 from RePoE.native import facts
 from RePoE.native import locale_probe as probe
 from RePoE.native import schema_candidate

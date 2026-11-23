@@ -6,7 +6,7 @@ pipeline/query-patch-version.mjs. This observation does not authenticate a clien
 
 import argparse
 from dataclasses import dataclass
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 import ipaddress
 import json
 import math
@@ -146,7 +146,7 @@ def _producer_pins():
 
 
 def _utc():
-    return datetime.now(timezone.utc).isoformat().replace("+00:00", "Z")
+    return datetime.now(UTC).isoformat().replace("+00:00", "Z")
 
 
 def observe(*, host=HOST, port=PORT, timeout=TIMEOUT, out=None) -> Observation:
