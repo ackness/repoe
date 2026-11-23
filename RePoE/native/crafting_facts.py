@@ -400,7 +400,7 @@ def create_candidate(*, facts, expected_manifest_sha256, out, rehearsal=False):
     if producer != {name: env._sha(_read(ROOT / name, 1024 * 1024)) for name in PRODUCERS}:
         raise ValueError("Crafting producer changed during projection")
     payloads["manifest.json"] = env._json(manifest)
-    env._publish(output, source_root, payloads)
+    env._publish(output, source_root, payloads, root=ROOT)
     seal(payloads["manifest.json"])
     return manifest
 

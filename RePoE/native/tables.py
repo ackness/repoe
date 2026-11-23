@@ -179,7 +179,7 @@ def create_candidate(
     for name, digest in manifest["producer"].items():
         if envelope._sha((ROOT / name).read_bytes()) != digest:
             raise ValueError("Selected-table producer changed during decoding")
-    envelope._publish(output, raw_root, payloads)
+    envelope._publish(output, raw_root, payloads, root=ROOT)
     seal(payloads["manifest.json"])
     return manifest
 

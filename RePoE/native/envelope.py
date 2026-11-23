@@ -228,12 +228,12 @@ def verify_raw_resources(
     return verified, raw_root
 
 
-def _publish_windows(output, raw_root, payloads):
+def _publish_windows(output, raw_root, payloads, *, root=None):
     """Lock directory ancestors against rename and reject Windows reparse points."""
     import ctypes
     from ctypes import wintypes
 
-    root = ROOT.resolve(strict=True)
+    root = (ROOT if root is None else Path(root)).resolve(strict=True)
     relative = output.relative_to(root)
     if not relative.parts or relative.parts[0] != ".cache" or any(part in {".", ".."} for part in relative.parts):
         raise ValueError("Invalid cache output path")
@@ -300,13 +300,13 @@ def _publish_windows(output, raw_root, payloads):
             kernel.CloseHandle(handle)
 
 
-def _publish(output, raw_root, payloads):
+def _publish(output, raw_root, payloads, *, root=None):
     """Anchor exclusive writes to directory handles; completion manifest is last."""
     if os.name == "nt":
-        return _publish_windows(output, raw_root, payloads)
+        return _publish_windows(output, raw_root, payloads, root=root)
     if os.name != "posix" or not hasattr(os, "O_NOFOLLOW"):
         raise ValueError("Description publication requires POSIX directory-relative operations")
-    root = ROOT.resolve(strict=True)
+    root = (ROOT if root is None else Path(root)).resolve(strict=True)
     relative = output.relative_to(root)
     if relative.parts[0] != ".cache" or any(part in {".", ".."} for part in relative.parts):
         raise ValueError("Invalid cache output path")

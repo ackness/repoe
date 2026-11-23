@@ -476,7 +476,7 @@ def create_candidate(
     for name, expected in manifest["producer"].items():
         if env._sha((ROOT / name).read_bytes()) != expected:
             raise ValueError("Decoded ingest producer changed before publication")
-    env._publish(output, Path(parts).resolve().parent, payloads)
+    env._publish(output, Path(parts).resolve().parent, payloads, root=ROOT)
     return manifest
 
 

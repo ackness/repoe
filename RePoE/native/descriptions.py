@@ -153,7 +153,7 @@ def create_candidate(*, source_lock, source, raw, out, expected_source_lock_sha2
     if resolved.is_relative_to(raw_root):
         raise ValueError("Description output cannot be inside raw input")
     manifest, payloads = _payloads(lock_bytes, selected, verified, source)
-    _publish(output, raw_root, payloads)
+    _publish(output, raw_root, payloads, root=ROOT)
     seal(payloads["manifest.json"])
     return manifest
 

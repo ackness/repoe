@@ -375,7 +375,7 @@ def create_candidate(
         "files": {name: {"bytes": len(data), "sha256": _sha(data)} for name, data in payloads.items()},
     }
     payloads["manifest.json"] = io._json(manifest)
-    io._publish(output, raw_root, payloads)
+    io._publish(output, raw_root, payloads, root=ROOT)
     seal(payloads["manifest.json"])
     return manifest
 

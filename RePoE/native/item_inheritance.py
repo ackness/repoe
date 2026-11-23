@@ -267,7 +267,7 @@ def create_candidate(*, source_lock, source, raw, out, expected_source_lock_sha2
     for name, digest in manifest["producer"].items():
         if envelope._sha((ROOT / name).read_bytes()) != digest:
             raise ValueError("Inheritance producer changed during parsing")
-    envelope._publish(output, raw_root, payloads)
+    envelope._publish(output, raw_root, payloads, root=ROOT)
     seal(payloads["manifest.json"])
     return manifest
 
