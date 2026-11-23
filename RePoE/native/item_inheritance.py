@@ -6,10 +6,10 @@ import re
 import sys
 
 from RePoE.client import export_receipt
-from RePoE.native import descriptions as envelope
+from RePoE.native import envelope
 
 
-ROOT = Path(__file__).resolve().parents[2]
+ROOT = envelope.ROOT
 FORMAT = "repoe-item-inheritance/v1"
 POLICY = "pypoe-66d1d744-base-tag-child-first-ordered-union/v1"
 PYPOE = "66d1d7442c5718260e1a8efd24989d22987e91af"
@@ -148,70 +148,34 @@ def interpret_tags(chain, files):
 
 
 def _inputs(source_lock, source, raw, expected_source_lock_sha256):
-    lock_bytes = envelope._read(Path(source_lock), 2 * 1024 * 1024)
-    if not envelope._digest(expected_source_lock_sha256) or envelope._sha(lock_bytes) != expected_source_lock_sha256:
-        raise ValueError("Source lock differs from external expected byte pin")
-    lock = envelope._decode(lock_bytes)
-    if type(lock.get("schema_version")) is not int or lock["schema_version"] != 1:
-        raise ValueError("Unsupported source lock schema")
-    selected = lock["sources"][source]
-    acquisition = selected.get("acquisition", {})
-    if (
-        selected.get("kind") != "official-client-resource-candidate"
-        or selected.get("game") != "poe2"
-        or not isinstance(selected.get("game_patch"), str)
-        or not re.fullmatch(r"[0-9]+(?:\.[0-9]+)+", selected["game_patch"])
-        or selected.get("realm") not in {"international", "china"}
-        or acquisition.get("status") not in {"unreviewed-acquisition-draft", "reviewed-source-input"}
-        or not isinstance(acquisition.get("evidence"), list)
-        or not acquisition["evidence"]
-    ):
-        raise ValueError("Explicit game/patch/realm/acquisition identity required")
-    for item in acquisition["evidence"]:
-        if (
-            not isinstance(item, dict)
-            or set(item) != {"kind", "sha256"}
-            or not isinstance(item["kind"], str)
-            or not item["kind"]
-            or not envelope._digest(item["sha256"])
-        ):
-            raise ValueError("Invalid acquisition evidence")
-    resources, roots = selected.get("resources"), selected.get("roots")
-    if (
-        not isinstance(resources, dict)
-        or not 0 < len(resources) <= MAX_FILES
-        or not isinstance(roots, list)
-        or not roots
-        or any(not isinstance(root, str) or root not in resources for root in roots)
-        or len(set(roots)) != len(roots)
-    ):
-        raise ValueError("Explicit bounded resource inventory and roots required")
-    raw_root = Path(raw).resolve(strict=True)
-    verified, total, names = {}, 0, set()
-    for name, pin in resources.items():
-        resource_path(name)
-        if name.casefold() in names:
-            raise ValueError("Case-colliding metadata resources")
-        names.add(name.casefold())
-        if (
-            not isinstance(pin, dict)
-            or type(pin.get("bytes")) is not int
-            or not 0 < pin["bytes"] <= MAX_FILE_BYTES
-            or not envelope._digest(pin.get("sha256"))
-        ):
-            raise ValueError("Invalid metadata raw pin")
-        total += pin["bytes"]
-        if total > MAX_TOTAL_BYTES:
-            raise ValueError("Metadata inventory exceeds byte bound")
-        path = raw_root / name
-        if not path.resolve(strict=True).is_relative_to(raw_root) or any(
-            parent.is_symlink() for parent in [path, *path.parents] if parent != raw_root.parent
-        ):
-            raise ValueError("Raw metadata path escapes root or contains symlink")
-        data = envelope._read(path, pin["bytes"])
-        if len(data) != pin["bytes"] or envelope._sha(data) != pin["sha256"]:
-            raise ValueError(f"Raw metadata fingerprint mismatch: {name}")
-        verified[name] = data
+    lock_bytes, selected = envelope.load_source_lock(source_lock, source, expected_source_lock_sha256)
+    envelope.validate_source_identity(
+        selected,
+        numeric_patch=True,
+        identity_error="Explicit game/patch/realm/acquisition identity required",
+    )
+    resources = selected.get("resources")
+    envelope.validate_roots(
+        resources,
+        selected.get("roots"),
+        max_files=MAX_FILES,
+        error="Explicit bounded resource inventory and roots required",
+    )
+    verified, raw_root = envelope.verify_raw_resources(
+        raw,
+        resources,
+        max_files=MAX_FILES,
+        max_resource_bytes=MAX_FILE_BYTES,
+        max_total_bytes=MAX_TOTAL_BYTES,
+        validate_name=resource_path,
+        check_case_collision=True,
+        check_raw_dir=False,
+        case_collision_error="Case-colliding metadata resources",
+        fingerprint_error="Invalid metadata raw pin",
+        total_error="Metadata inventory exceeds byte bound",
+        path_error="Raw metadata path escapes root or contains symlink",
+        mismatch_error="Raw metadata fingerprint mismatch",
+    )
     return lock_bytes, selected, verified, raw_root
 
 
@@ -262,7 +226,7 @@ def _payloads(lock_bytes, selected, verified, source):
             name: envelope._sha((ROOT / name).read_bytes())
             for name in [
                 "RePoE/native/item_inheritance.py",
-                "RePoE/native/descriptions.py",
+                "RePoE/native/envelope.py",
                 "schema/pypoe-sources.json",
             ]
         },
@@ -303,7 +267,7 @@ def create_candidate(*, source_lock, source, raw, out, expected_source_lock_sha2
     for name, digest in manifest["producer"].items():
         if envelope._sha((ROOT / name).read_bytes()) != digest:
             raise ValueError("Inheritance producer changed during parsing")
-    envelope._publish(output, raw_root, payloads)
+    envelope._publish(output, raw_root, payloads, root=ROOT)
     seal(payloads["manifest.json"])
     return manifest
 

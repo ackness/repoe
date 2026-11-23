@@ -10,7 +10,7 @@ import sys
 
 from RePoE.client import export_receipt
 from RePoE.native import facts
-from RePoE.native import schema_candidate
+from RePoE.native.envelope import sha256 as _sha
 from RePoE.native.tools import PIN, pinned_pypoe
 
 
@@ -56,7 +56,7 @@ def validate_graph_instances(raw_psg, passive_table, graph, passives):
 def validate_candidate(*, source_lock, source, raw, candidate, manifest_sha256=None, profile=facts.BASE_PROFILE):
     directory = Path(candidate).resolve(strict=True)
     manifest_raw = (directory / "manifest.json").read_bytes()
-    manifest_hash = schema_candidate._sha(manifest_raw)
+    manifest_hash = _sha(manifest_raw)
     if manifest_sha256 is not None and manifest_hash != manifest_sha256:
         raise ValueError("Externally pinned manifest SHA256 mismatch")
     manifest = json.loads(manifest_raw)
@@ -84,7 +84,7 @@ def validate_candidate(*, source_lock, source, raw, candidate, manifest_sha256=N
         if not path.is_relative_to(directory):
             raise ValueError(f"Candidate path escapes root: {name}")
         data = path.read_bytes()
-        _equal(manifest["files"][name], {"bytes": len(data), "sha256": schema_candidate._sha(data)}, name + " hash")
+        _equal(manifest["files"][name], {"bytes": len(data), "sha256": _sha(data)}, name + " hash")
         payloads[name] = json.loads(data)
 
     source_lock_bytes = Path(source_lock).read_bytes() if profile != facts.BASE_PROFILE else None
@@ -135,7 +135,7 @@ def validate_candidate(*, source_lock, source, raw, candidate, manifest_sha256=N
         "source_identity": identity,
         "summary": manifest["summary"],
         "complete_graph_instances_checked": instances,
-        "validator_sha256": schema_candidate._sha(Path(__file__).read_bytes()),
+        "validator_sha256": _sha(Path(__file__).read_bytes()),
         "replay_producer": expected_manifest["producer"],
         "trusted_source_pin_sha256": tool_identity["pin_sha256"],
         "scope": "Raw replay and complete repeated graph facts; source authenticity remains caller-pinned.",

@@ -4,6 +4,7 @@ import json
 import unittest
 
 from RePoE.release import gem_descriptions as gd
+from RePoE.release.pins import runtime_encoded
 
 
 def effect(gem_id, support_text=""):
@@ -91,7 +92,7 @@ class GemDescriptionsTest(unittest.TestCase):
         )
 
     def test_text_is_the_raw_client_string(self):
-        raw = gd.runtime_encoded(self.project()[0])
+        raw = runtime_encoded(self.project()[0])
         decoded = json.loads(raw)
         self.assertEqual(decoded["scopes"]["GemEffects.SupportText"]["FasterAttackSupport"], self.support_text)
         self.assertTrue(decoded["scopes"]["GemEffects.SupportText"]["FasterAttackSupport"].endswith(". "))
@@ -99,14 +100,14 @@ class GemDescriptionsTest(unittest.TestCase):
         self.assertIn("[Attack|Attacks]", raw.decode())
 
     def test_output_is_deterministic_and_sorted(self):
-        first = gd.runtime_encoded(self.project()[0])
+        first = runtime_encoded(self.project()[0])
         shuffled = self.project(
             gems={"effects": list(reversed(self.gems["effects"]))},
             gem_effects={"gems": list(reversed(self.gem_effects["gems"]))},
             granted_effects=list(reversed(self.granted)),
             active_skills=active_skills(list(reversed([row["values"] for row in self.skills["rows"]]))),
         )
-        self.assertEqual(gd.runtime_encoded(shuffled[0]), first)
+        self.assertEqual(runtime_encoded(shuffled[0]), first)
         self.assertTrue(first.endswith(b"}\n"))
         self.assertEqual(list(json.loads(first)["scopes"]), ["ActiveSkills.Description", "GemEffects.SupportText"])
 
@@ -129,7 +130,7 @@ class GemDescriptionsTest(unittest.TestCase):
             {"id": "AlphaPlayer", "is_support": False, "active_skill": "alpha_skill"},
         ]
         document = json.loads(
-            gd.runtime_encoded(
+            runtime_encoded(
                 self.project(gems=gems, active_skills=skills, gem_effects=gem_effects, granted_effects=granted)[0]
             )
         )

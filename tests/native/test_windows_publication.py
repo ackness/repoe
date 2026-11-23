@@ -6,7 +6,7 @@ import tempfile
 import unittest
 from unittest.mock import patch
 
-from RePoE.native import descriptions as publication
+from RePoE.native import envelope as publication
 
 
 @unittest.skipUnless(os.name == "nt", "Windows directory-handle publication")

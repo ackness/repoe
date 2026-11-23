@@ -11,7 +11,7 @@ from unittest import mock
 
 from RePoE.client import export_receipt
 from RePoE.release import build, inputs, policy_rebinding as rebinding
-from RePoE.release.pins import decode, encoded, pin
+from RePoE.release.pins import decode, encoded, pin, runtime_encoded
 from tests.client.test_export_receipt import candidate
 from tests.release.test_inputs import receipted
 
@@ -165,7 +165,7 @@ class PolicyRebindingTest(unittest.TestCase):
         self.assertEqual(domains["target"], self.new_target)
         self.assertEqual(domains["jobs"][0]["outputs"]["overlay/text.json"], "data/0.6/overlay/text.json")
         spec = domains["jobs"][1]["options"]["--codec-policy"]
-        self.assertEqual(spec["expect"], pin(build.runtime_encoded(policy)))
+        self.assertEqual(spec["expect"], pin(runtime_encoded(policy)))
         self.assertEqual(domains["jobs"][2]["template"], "previous:data/0.5/manifest.json")
         self.assertEqual(domains["jobs"][2]["member"], "data/0.6/manifest.json")
         for path, raw in before.items():

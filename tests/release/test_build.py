@@ -20,7 +20,7 @@ from unittest import mock
 import zipfile
 
 from RePoE.client import export_receipt
-from RePoE.release.pins import encoded, pin
+from RePoE.release.pins import encoded, pin, runtime_encoded
 from RePoE.release import build
 from tests.client.test_export_receipt import DIRTY, candidate, receipt_for
 from tests.release.test_crafting_catalog import crafting_package, fixture as crafting_fixture
@@ -76,7 +76,7 @@ FAKE_ADAPTER = textwrap.dedent(
 
 
 def runtime(value):
-    return build.runtime_encoded(value)
+    return runtime_encoded(value)
 
 
 def zip_bytes(members):

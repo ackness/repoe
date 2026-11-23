@@ -4,9 +4,10 @@ This parser is written from the acquired UTF-16 resources. It does not import
 or copy PyPoE's translation parser/handler implementation.
 """
 
-import hashlib
 from pathlib import PurePosixPath
 import re
+
+from RePoE.native.envelope import sha256
 
 
 BRANCH = re.compile(
@@ -198,7 +199,7 @@ def _description(source):
         "ids": ids,
         "groups": groups,
         "span": span,
-        "raw_slice_sha256": hashlib.sha256(source.raw[span["byte_start"] : span["byte_end"]]).hexdigest(),
+        "raw_slice_sha256": sha256(source.raw[span["byte_start"] : span["byte_end"]]),
     }
 
 
@@ -243,7 +244,7 @@ def parse_csd(path, raw):
         "path": path,
         "encoding": "BOM UTF-16LE",
         "bytes": len(raw),
-        "sha256": hashlib.sha256(raw).hexdigest(),
+        "sha256": sha256(raw),
         "records": records,
         "stat_index": stat_index,
     }
