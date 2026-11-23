@@ -26,7 +26,6 @@ Formats and contracts, grouped like the code. Release procedure:
 | [native_tables.md](native/native_tables.md) | `tables:candidate`: supplemental DAT tables |
 | [native_descriptions.md](native/native_descriptions.md) | `descriptions:candidate`: CSD description branches |
 | [native_item_inheritance.md](native/native_item_inheritance.md) | Item `.it` inheritance |
-| [native_actor_templates.md](native/native_actor_templates.md) | Actor `.ot`/`.otc` template literals |
 | [native_player_context.md](native/native_player_context.md) | `facts:player`: starting options, glossary and source context |
 | [native_crafting_facts.md](native/native_crafting_facts.md) | The seven-table crafting facts |
 | [native_locale_probe.md](native/native_locale_probe.md) | Memory locale decoding |
