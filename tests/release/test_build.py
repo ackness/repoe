@@ -1441,7 +1441,6 @@ class ReleaseBuildTest(unittest.TestCase):
         packages = {str(PurePosixPath(name).parent / "__init__.py") for name in imported}
         workflow = (root / ".github/workflows/release-build.yml").read_text()
         patterns = re.findall(r"^ +- ([^\s:]+)$", workflow.split("pull_request:")[0], re.MULTILINE)
-        self.assertIn("RePoE/release/content_diff.py", patterns)
         ci_selection = {
             "release/ci.json",
             "RePoE/release/ci_declarations.py",

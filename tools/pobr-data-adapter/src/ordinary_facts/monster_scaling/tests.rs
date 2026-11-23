@@ -411,10 +411,10 @@ fn cli_pins_patch_and_existing_output_protection_remain_strict() {
         "--ordinary-domain",
         "monster-scaling",
     ];
-    assert!(matches!(
+    std::assert_matches!(
         crate::parse_args_from(base.into_iter().map(String::from)),
         Ok(crate::Mode::OrdinaryFacts(_))
-    ));
+    );
     for extra in [
         ["--quality-policy", "p"],
         ["--quality-policy-sha256", "p"],

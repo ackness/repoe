@@ -363,10 +363,10 @@ fn pin_patch_argument_and_output_guards_apply_without_auxiliary_inputs() {
         "--ordinary-domain",
         "monster-resistances",
     ];
-    assert!(matches!(
+    std::assert_matches!(
         crate::parse_args_from(base.into_iter().map(String::from)),
         Ok(crate::Mode::OrdinaryFacts(_))
-    ));
+    );
     for extra in [
         ["--quality-policy", "p"],
         ["--quality-policy-sha256", "sha"],

@@ -1047,10 +1047,10 @@ fn cli_requires_all_pins_and_exclusively_accepts_branch_flags_for_map() {
         "--branch-codec-sha256",
         "sha",
     ];
-    assert!(matches!(
+    std::assert_matches!(
         crate::parse_args_from(base.into_iter().map(String::from)),
         Ok(crate::Mode::OrdinaryFacts(_))
-    ));
+    );
     for index in (10..base.len()).step_by(2) {
         let mut args = base.to_vec();
         args.drain(index..index + 2);

@@ -54,6 +54,7 @@ fn main() -> ExitCode {
 }
 
 /// Independent data-domain adapter modes, mutually exclusive.
+#[derive(Debug)]
 enum Mode {
     OrdinaryFacts(Box<ordinary_facts::Args>),
     Tree(tree::TreeArgs),
@@ -154,10 +155,7 @@ mod tests {
 
     #[test]
     fn contract_version_is_a_mode_of_its_own() {
-        assert!(matches!(
-            parse(&["--contract-version"]),
-            Ok(Mode::ContractVersion)
-        ));
+        std::assert_matches!(parse(&["--contract-version"]), Ok(Mode::ContractVersion));
         assert!(parse(&["--contract-version", "--out", "x"]).is_err());
     }
 }

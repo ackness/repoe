@@ -11,6 +11,7 @@ use crate::facts::reader::{self, VerifiedFacts};
 use crate::raw_source::sha256_hex;
 use crate::skills::quality::{Compatibility, validate_compatibility};
 
+#[derive(Debug)]
 pub(in crate::ordinary_facts) struct Args {
     pub path: PathBuf,
     pub expected_sha256: String,

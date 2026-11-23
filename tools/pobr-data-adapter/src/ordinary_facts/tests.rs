@@ -785,8 +785,8 @@ fn explicit_mode_requires_pin_and_keeps_legacy_raw_dispatch() {
         )
         .is_err()
     );
-    assert!(matches!(
+    std::assert_matches!(
         crate::parse_args_from(flags.into_iter().map(String::from)),
         Ok(crate::Mode::OrdinaryFacts(_))
-    ));
+    );
 }

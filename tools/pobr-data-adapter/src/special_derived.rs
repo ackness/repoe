@@ -29,6 +29,7 @@ use serde::Serialize;
 
 use crate::write_pretty;
 
+#[derive(Debug)]
 pub struct SpecialDerivedArgs {
     /// Path to the already-stored `passive_tree.json` (a node array).
     pub tree_json: PathBuf,

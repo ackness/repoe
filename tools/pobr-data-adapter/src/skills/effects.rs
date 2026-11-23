@@ -197,7 +197,7 @@ pub(crate) fn adapt_cost_types_from(
     en: &(impl super::SkillTables + ?Sized),
 ) -> Result<Vec<CostTypeDef>, String> {
     let raw = en.read_table::<RawCostType>("CostTypes")?;
-    let max = raw.iter().map(|r| r.index).max().map_or(0, |m| m + 1);
+    let max = raw.iter().map(|r| r.index).max().map_or_default(|m| m + 1);
     let mut out = vec![
         CostTypeDef {
             id: String::new(),

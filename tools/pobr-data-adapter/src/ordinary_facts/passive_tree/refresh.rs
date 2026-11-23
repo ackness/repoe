@@ -17,12 +17,14 @@ use serde_json::{Value, json};
 use std::collections::{BTreeMap, BTreeSet};
 use std::path::PathBuf;
 
+#[derive(Debug)]
 pub(in crate::ordinary_facts) struct Args {
     pub reference: PathBuf,
     pub descriptions: PathBuf,
     pub context_baseline: Option<ContextBaselineArgs>,
 }
 
+#[derive(Debug)]
 pub(in crate::ordinary_facts) struct ContextBaselineArgs {
     pub path: PathBuf,
     pub sha256: String,
@@ -637,7 +639,10 @@ fn normalized_lines<'a>(lines: impl IntoIterator<Item = &'a str>) -> Vec<String>
         })
         .collect()
 }
-#[allow(clippy::too_many_arguments)]
+#[expect(
+    clippy::too_many_arguments,
+    reason = "node text projection threads verified facts, policy, renderer, legacy lines, effects, and coverage"
+)]
 fn text(
     input: &VerifiedFacts,
     facts: &Facts<'_>,
@@ -767,7 +772,10 @@ fn text(
     }
 }
 
-#[allow(clippy::too_many_arguments)]
+#[expect(
+    clippy::too_many_arguments,
+    reason = "top-level passive tree projection takes each verified input bundle explicitly"
+)]
 pub(super) fn project(
     input: &VerifiedFacts,
     facts: &Facts<'_>,
@@ -1850,7 +1858,10 @@ fn round_group(value: f64) -> Result<f64, String> {
     }
 }
 
-#[allow(clippy::too_many_arguments)]
+#[expect(
+    clippy::too_many_arguments,
+    reason = "variant projection threads verified facts, policy, renderer, previous node, output map, effects, and coverage"
+)]
 fn variants(
     input: &VerifiedFacts,
     facts: &Facts<'_>,
@@ -2196,7 +2207,10 @@ fn validate_variant_physical(
     Ok(())
 }
 
-#[allow(clippy::too_many_arguments)]
+#[expect(
+    clippy::too_many_arguments,
+    reason = "variant coverage reporting takes diagnostic metadata alongside verified context handles"
+)]
 fn decide_variant(
     coverage: &mut Coverage,
     kind: &'static str,

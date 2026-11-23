@@ -1170,10 +1170,10 @@ fn actor_cli_requires_four_pins_and_rejects_branch_quality_and_duplicate_options
             "--codec-policy-sha256",
             "sha",
         ];
-        assert!(matches!(
+        std::assert_matches!(
             crate::parse_args_from(base.into_iter().map(String::from)),
             Ok(crate::Mode::OrdinaryFacts(_))
-        ));
+        );
         for index in (10..base.len()).step_by(2) {
             let mut args = base.to_vec();
             args.drain(index..index + 2);

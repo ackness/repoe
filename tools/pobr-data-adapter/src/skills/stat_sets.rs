@@ -282,7 +282,11 @@ pub(crate) fn adapt_stat_sets_from(
 ) -> Result<StatSetsBundle, String> {
     // stat row index -> stable id (positioned by `_index`, out-of-range entries stay an empty string).
     let raw_stats = en.read_table::<RawStatId>("Stats")?;
-    let max_stat = raw_stats.iter().map(|r| r.index).max().map_or(0, |m| m + 1);
+    let max_stat = raw_stats
+        .iter()
+        .map(|r| r.index)
+        .max()
+        .map_or_default(|m| m + 1);
     let mut stat_id = vec![String::new(); max_stat];
     for r in &raw_stats {
         stat_id[r.index] = r.id.clone();
@@ -426,7 +430,7 @@ pub(crate) fn adapt_stat_sets_from(
 
         let main_constants = resolve_constants(main_set);
         let main_implicit = resolve_implicit(&[], main_set);
-        let main_rows = rows_by_set.get(&main_idx).map(Vec::as_slice).unwrap_or(&[]);
+        let main_rows = rows_by_set.get(&main_idx).map_or_default(Vec::as_slice);
         let main_scaling = user_level_scaling(main_set, main_rows);
 
         // Main set: parsed as-is, the same as the single-set era (the migration-invariant anchor).
@@ -494,7 +498,7 @@ pub(crate) fn adapt_stat_sets_from(
             // Per-level: this set's rows are paired with the main set's rows
             // by array position (:521 `skill.baseStatRow[indx]`), stats =
             // paired main row ++ this row (:541-549 tableConcat).
-            let add_rows = rows_by_set.get(&add_idx).map(Vec::as_slice).unwrap_or(&[]);
+            let add_rows = rows_by_set.get(&add_idx).map_or_default(Vec::as_slice);
             let add_scaling = user_level_scaling(add_set, add_rows);
             let mut levels = Vec::new();
             for (indx, row) in add_rows.iter().enumerate() {
@@ -502,7 +506,7 @@ pub(crate) fn adapt_stat_sets_from(
                     continue;
                 };
                 let paired = main_rows.get(indx);
-                let mut stats = paired.map(|p| resolve_row_stats(p)).unwrap_or_default();
+                let mut stats = paired.map_or_default(|p| resolve_row_stats(p));
                 stats.extend(resolve_row_stats(row));
                 // This set's RemoveStats acts on the **merged** row (vendor
                 // tableConcats first, then zeroes): Essence Drain's DoT set
@@ -517,9 +521,7 @@ pub(crate) fn adapt_stat_sets_from(
                     paired.map(|p| raw_multiplier(p)).unwrap_or(1.0)
                 };
                 let per_effectiveness = if add_scaling.is_some() {
-                    let mut values = paired
-                        .map(|p| resolve_row_per_effectiveness(p))
-                        .unwrap_or_default();
+                    let mut values = paired.map_or_default(|p| resolve_row_per_effectiveness(p));
                     values.extend(resolve_row_per_effectiveness(row));
                     values
                 } else {
